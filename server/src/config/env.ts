@@ -61,6 +61,13 @@ const schema = z.object({
   LOG_LEVEL: str('info'),
 
   ENGINE_API_KEY: str(),
+  /**
+   * Creators Supabase project URL — required in production for ES256/RS256
+   * access tokens (JWKS at `/auth/v1/.well-known/jwks.json`).
+   * Example: https://mmyprzatmrfdtodsqaia.supabase.co
+   */
+  SUPABASE_URL: str(),
+  /** Legacy HS256 JWT secret (optional fallback if tokens still use HS256). */
   SUPABASE_JWT_SECRET: str(),
   DEV_AUTH_BYPASS: bool(true),
 
