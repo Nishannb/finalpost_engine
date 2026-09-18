@@ -67,6 +67,11 @@ const schema = z.object({
    * Example: https://mmyprzatmrfdtodsqaia.supabase.co
    */
   SUPABASE_URL: str(),
+  /**
+   * Public anon key — used as Auth API `apikey` for `/auth/v1/user` fallback
+   * when JWKS verification fails. Safe to ship (same as the mobile app).
+   */
+  SUPABASE_ANON_KEY: str(),
   /** Legacy HS256 JWT secret (optional fallback if tokens still use HS256). */
   SUPABASE_JWT_SECRET: str(),
   DEV_AUTH_BYPASS: bool(true),

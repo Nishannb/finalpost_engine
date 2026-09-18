@@ -8,6 +8,20 @@ async function main(): Promise<void> {
   // one that discovers Redis is down.
   await getKv();
 
+  logger.info(
+    {
+      port: env.PORT,
+      env: env.NODE_ENV,
+      auth: {
+        supabaseUrl: Boolean(env.SUPABASE_URL),
+        supabaseAnonKey: Boolean(env.SUPABASE_ANON_KEY),
+        jwtSecret: Boolean(env.SUPABASE_JWT_SECRET),
+        devAuthBypass: env.DEV_AUTH_BYPASS && env.NODE_ENV !== 'production',
+      },
+    },
+    'video engine auth config',
+  );
+
   const server = createApp().listen(env.PORT, () => {
     logger.info({port: env.PORT, env: env.NODE_ENV}, 'video engine listening');
   });

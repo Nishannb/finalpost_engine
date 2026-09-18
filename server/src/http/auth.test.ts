@@ -1,5 +1,6 @@
-import {createHmac, generateKeyPairSync, sign as cryptoSign} from 'node:crypto';
+import {createHmac} from 'node:crypto';
 
+import * as jose from 'jose';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 
 import {
@@ -14,6 +15,7 @@ vi.mock('../config/env.ts', () => ({
     DEV_AUTH_BYPASS: false,
     ENGINE_API_KEY: '',
     SUPABASE_URL: 'https://example.supabase.co',
+    SUPABASE_ANON_KEY: 'test-anon-key',
     SUPABASE_JWT_SECRET: 'test-legacy-secret',
   },
   isProduction: false,
@@ -64,32 +66,70 @@ describe('verifySupabaseAccessToken', () => {
     await expect(verifySupabaseAccessToken(token)).resolves.toBe('user-hs');
   });
 
-  it('verifies ES256 tokens via JWKS', async () => {
-    const {privateKey, publicKey} = generateKeyPairSync('ec', {
-      namedCurve: 'P-256',
-    });
-    const jwk = publicKey.export({format: 'jwk'});
+  it('verifies ES256 tokens via JWKS (jose)', async () => {
+    const {privateKey, publicKey} = await jose.generateKeyPair('ES256');
     const kid = 'test-es256-kid';
-    const header = b64urlJson({alg: 'ES256', typ: 'JWT', kid});
-    const payload = b64urlJson({
-      sub: 'user-es',
-      exp: Math.floor(Date.now() / 1000) + 3600,
-    });
-    const data = Buffer.from(`${header}.${payload}`);
-    const signature = cryptoSign('SHA256', data, {
-      key: privateKey,
-      dsaEncoding: 'ieee-p1363',
-    }).toString('base64url');
-    const token = `${header}.${payload}.${signature}`;
+    const jwk = await jose.exportJWK(publicKey);
+    const token = await new jose.SignJWT({role: 'authenticated'})
+      .setProtectedHeader({alg: 'ES256', kid, typ: 'JWT'})
+      .setSubject('user-es')
+      .setExpirationTime('1h')
+      .sign(privateKey);
 
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => ({
-        ok: true,
-        json: async () => ({keys: [{...jwk, kid, alg: 'ES256', use: 'sig'}]}),
-      })),
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes('jwks.json')) {
+          return {
+            ok: true,
+            json: async () => ({
+              keys: [{...jwk, kid, alg: 'ES256', use: 'sig', kty: 'EC'}],
+            }),
+            // jose may read clone / headers
+            headers: new Headers({'content-type': 'application/json'}),
+            status: 200,
+          };
+        }
+        return {ok: false, status: 404, json: async () => ({})};
+      }),
     );
 
     await expect(verifySupabaseAccessToken(token)).resolves.toBe('user-es');
+  });
+
+  it('falls back to /auth/v1/user when JWKS fails', async () => {
+    const {privateKey} = await jose.generateKeyPair('ES256');
+    const token = await new jose.SignJWT({})
+      .setProtectedHeader({alg: 'ES256', kid: 'unknown', typ: 'JWT'})
+      .setSubject('user-fallback')
+      .setExpirationTime('1h')
+      .sign(privateKey);
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes('jwks.json')) {
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers({'content-type': 'application/json'}),
+            json: async () => ({keys: []}),
+          };
+        }
+        if (url.includes('/auth/v1/user')) {
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers({'content-type': 'application/json'}),
+            json: async () => ({id: 'user-fallback'}),
+          };
+        }
+        return {ok: false, status: 404, json: async () => ({})};
+      }),
+    );
+
+    await expect(verifySupabaseAccessToken(token)).resolves.toBe('user-fallback');
   });
 });

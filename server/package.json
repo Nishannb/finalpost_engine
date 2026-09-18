@@ -14,12 +14,13 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.890.0",
     "@aws-sdk/client-iam": "^3.890.0",
+    "@aws-sdk/client-s3": "^3.890.0",
     "@aws-sdk/s3-request-presigner": "^3.890.0",
     "@remotion/lambda": "4.0.524",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
+    "jose": "^6.2.12",
     "pino": "^10.0.0",
     "redis": "^5.10.0",
     "zod": "4.5.4"
