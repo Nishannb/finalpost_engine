@@ -1,0 +1,23 @@
+{
+  "name": "kinmel-ai-video-engine",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Headless AI video editing engine (Groq ASR + math filters + Gemini/Pexels B-roll + Remotion Lambda burn)",
+  "workspaces": [
+    "server",
+    "remotion"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=server",
+    "first-video": "npm run first-video --workspace=server --",
+    "build": "npm run build --workspace=server",
+    "start": "npm run start --workspace=server",
+    "test": "npm run test --workspace=server",
+    "typecheck": "npm run typecheck --workspace=server && npm run typecheck --workspace=remotion",
+    "remotion:studio": "npm run studio --workspace=remotion",
+    "remotion:deploy": "npm run deploy --workspace=remotion"
+  },
+  "engines": {
+    "node": ">= 22.11.0"
+  }
+}

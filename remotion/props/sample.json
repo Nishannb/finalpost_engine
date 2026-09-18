@@ -1,0 +1,127 @@
+{
+  "blueprint": {
+    "blueprintId": "bp_sample",
+    "videoUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
+    "languageCode": "en",
+    "fps": 30,
+    "width": 1080,
+    "height": 1920,
+    "sourceDurationSec": 15,
+    "outputDurationSec": 8,
+    "keepSegments": [
+      {"sourceStart": 0, "sourceEnd": 5, "outputStart": 0},
+      {"sourceStart": 8, "sourceEnd": 11, "outputStart": 5}
+    ],
+    "captionWords": [
+      {"text": "This", "start": 0.2, "end": 0.55, "sentenceIndex": 0},
+      {"text": "is", "start": 0.55, "end": 0.8, "sentenceIndex": 0},
+      {"text": "a", "start": 0.8, "end": 0.95, "sentenceIndex": 0},
+      {"text": "message", "start": 0.95, "end": 1.5, "sentenceIndex": 0},
+      {"text": "to", "start": 1.5, "end": 1.7, "sentenceIndex": 0},
+      {"text": "every", "start": 1.7, "end": 2.1, "sentenceIndex": 0},
+      {"text": "creator.", "start": 2.1, "end": 2.8, "sentenceIndex": 0},
+      {"text": "Your", "start": 3.1, "end": 3.4, "sentenceIndex": 1},
+      {"text": "first", "start": 3.4, "end": 3.8, "sentenceIndex": 1},
+      {"text": "three", "start": 3.8, "end": 4.2, "sentenceIndex": 1},
+      {"text": "seconds", "start": 4.2, "end": 4.8, "sentenceIndex": 1},
+      {"text": "decide", "start": 5.0, "end": 5.5, "sentenceIndex": 1},
+      {"text": "everything.", "start": 5.5, "end": 6.3, "sentenceIndex": 1},
+      {"text": "Let's", "start": 6.6, "end": 6.9, "sentenceIndex": 2},
+      {"text": "fix", "start": 6.9, "end": 7.2, "sentenceIndex": 2},
+      {"text": "that.", "start": 7.2, "end": 7.9, "sentenceIndex": 2}
+    ],
+    "zoomTriggers": [
+      {"start": 3.1, "end": 6.3, "scale": 1.25, "sentenceIndex": 1}
+    ],
+    "hookTitle": "YOUR FIRST 3 SECONDS",
+    "hookSubtitle": "",
+    "hookDurationSec": 3,
+    "captionDirection": {
+      "position": "bottom",
+      "bottomFrac": 0.2,
+      "textColor": "#FFFFFF",
+      "highlightColor": "#00E5FF",
+      "boxColor": null
+    },
+    "brollClips": [
+      {
+        "start": 4.4,
+        "end": 6.4,
+        "keyword": "city traffic",
+        "assetUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+        "provider": "pexels",
+        "providerId": 1,
+        "width": 1280,
+        "height": 720,
+        "credit": "Sample",
+        "creditUrl": "https://www.pexels.com"
+      }
+    ],
+    "visualOverlays": [
+      {
+        "start": 6.4,
+        "end": 7.9,
+        "layout": "lockup",
+        "mediaKind": "text",
+        "anchor": "top",
+        "keyword": "retention",
+        "overlayText": "FIRST THREE SECONDS",
+        "assetUrl": "",
+        "provider": "generated",
+        "providerId": 0,
+        "width": 0,
+        "height": 0,
+        "credit": "",
+        "creditUrl": ""
+      }
+    ],
+    "motionGraphics": [
+      {
+        "start": 3.2,
+        "end": 5.2,
+        "text": "FIRST THREE SECONDS",
+        "role": "primary",
+        "shape": "underline",
+        "accentColor": "#FACC15",
+        "textColor": "#FFFFFF",
+        "anchor": "center",
+        "entrance": "spring_up",
+        "exit": "fade",
+        "fontScale": 1.2,
+        "italic": true
+      }
+    ],
+    "mediaContainers": [
+      {
+        "start": 5.4,
+        "end": 7.6,
+        "mode": "inset",
+        "canvasColor": "#F8FAFC",
+        "cornerRadius": 40,
+        "scale": 0.76,
+        "transitionSec": 0.5,
+        "canvasTitle": "decide everything",
+        "canvasTitleColor": "#0F172A"
+      }
+    ],
+    "semanticEmphasis": [
+      {
+        "start": 3.8,
+        "end": 5.0,
+        "text": "three",
+        "weight": "primary",
+        "treatment": "scale",
+        "accentColor": "#FACC15"
+      }
+    ]
+  },
+  "style": {
+    "captionTemplate": "hormozi",
+    "layoutStyle": "fullscreen",
+    "captionBottomFrac": 0.22,
+    "captionCenterXFrac": 0.5,
+    "brollEnabled": true,
+    "zoomEnabled": true,
+    "trimEnabled": true
+  }
+}

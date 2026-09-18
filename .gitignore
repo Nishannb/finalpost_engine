@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+.env.local
+
+# Remotion build artifacts
+remotion/out/
+remotion/.remotion/
+remotion/build/
+remotion/public/prefetch/
