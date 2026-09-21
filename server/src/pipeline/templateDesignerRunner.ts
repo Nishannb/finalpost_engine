@@ -236,13 +236,13 @@ async function renderPreview(designJobId: string): Promise<void> {
     }
     if (live?.status === 'failed') {
       throw new EngineError(
-        live.errorCode || 'render_failed',
+        'render_failed',
         live.errorMessage || 'Preview render failed',
       );
     }
     await sleep(STAGE_POLL_MS);
   }
-  throw new EngineError('timeout', 'Alan preview render timed out');
+  throw new EngineError('upstream_timeout', 'Alan preview render timed out');
 }
 
 async function failJob(

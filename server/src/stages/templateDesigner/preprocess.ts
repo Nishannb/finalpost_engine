@@ -39,13 +39,15 @@ function phraseBoundaries(words: WordToken[]): Array<{text: string; start: numbe
   const phrases: Array<{text: string; start: number; end: number}> = [];
   let bucket: WordToken[] = [];
   const flush = () => {
-    if (!bucket.length) {
+    const first = bucket[0];
+    const last = bucket[bucket.length - 1];
+    if (!first || !last) {
       return;
     }
     phrases.push({
       text: bucket.map(w => w.text).join(' '),
-      start: bucket[0].start,
-      end: bucket[bucket.length - 1].end,
+      start: first.start,
+      end: last.end,
     });
     bucket = [];
   };

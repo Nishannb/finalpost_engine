@@ -125,7 +125,9 @@ function parseFrameRate(raw?: string): number {
     return 30;
   }
   if (text.includes('/')) {
-    const [n, d] = text.split('/').map(Number);
+    const parts = text.split('/');
+    const n = Number(parts[0]);
+    const d = Number(parts[1]);
     if (Number.isFinite(n) && Number.isFinite(d) && d > 0) {
       return n / d;
     }
