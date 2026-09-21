@@ -13,7 +13,7 @@ import {
   isLocalMediaPath,
   withWorkspace,
 } from '../lib/tempFiles.ts';
-import {presignSourceVideo, sourceObjectExists} from '../storage/r2.ts';
+import {presignSourceVideo, sourceObjectExists, uploadRenderedVideo} from '../storage/r2.ts';
 import {
   fingerprintSource,
   loadTemplateDesignJob,
@@ -231,8 +231,12 @@ async function renderPreview(designJobId: string): Promise<void> {
     // Lambda jobs only flip to done/failed when we poll Remotion.
     live = await refreshRenderJob(live);
     if (live.status === 'done' && live.outputUrl) {
+      const previewUrl = await persistAlanPreviewToR2({
+        sourceUrl: live.outputUrl,
+        renderJobId: live.renderJobId,
+      });
       const latest = (await loadTemplateDesignJob(designJobId)) ?? job;
-      latest.previewUrl = live.outputUrl;
+      latest.previewUrl = previewUrl;
       latest.status = 'done';
       latest.progress = 1;
       latest.updatedAt = new Date().toISOString();
@@ -248,6 +252,49 @@ async function renderPreview(designJobId: string): Promise<void> {
     await sleep(STAGE_POLL_MS);
   }
   throw new EngineError('upstream_timeout', 'Alan preview render timed out');
+}
+
+/** Copy Lambda/S3 output onto R2 so the phone can loop a stable public URL. */
+async function persistAlanPreviewToR2(input: {
+  sourceUrl: string;
+  renderJobId: string;
+}): Promise<string> {
+  const sourceUrl = input.sourceUrl.trim();
+  if (!sourceUrl) {
+    throw new EngineError('render_failed', 'Alan preview had no output URL');
+  }
+  try {
+    return await withWorkspace('alan-preview-r2', async workspace => {
+      const localPath = workspace.file('alan-preview.mp4');
+      if (isLocalMediaPath(sourceUrl)) {
+        await copyLocalFile(sourceUrl, localPath, {maxBytes: 80 * 1024 * 1024});
+      } else {
+        await downloadToFile(sourceUrl, localPath, {
+          maxBytes: 80 * 1024 * 1024,
+          timeoutMs: 120_000,
+        });
+      }
+      const uploaded = await uploadRenderedVideo(
+        localPath,
+        `alan_${input.renderJobId}`,
+      );
+      log.info(
+        {renderJobId: input.renderJobId, url: uploaded.publicUrl},
+        'alan preview uploaded to R2',
+      );
+      return uploaded.publicUrl;
+    });
+  } catch (error) {
+    log.warn(
+      {
+        renderJobId: input.renderJobId,
+        sourceUrl: sourceUrl.slice(0, 160),
+        error: error instanceof Error ? error.message : String(error),
+      },
+      'alan preview R2 upload failed; using render output URL',
+    );
+    return sourceUrl;
+  }
 }
 
 async function failJob(
