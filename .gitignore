@@ -9,3 +9,7 @@ remotion/out/
 remotion/.remotion/
 remotion/build/
 template-designer-bench/clips/
+
+.tmp-*/
+**/.tmp-*/
+server/.tmp-delivery/
