@@ -1,20 +1,30 @@
 /**
  * Tune caption *colors* so type stays legible on this footage.
  *
- * Never override the director's template, position, or box decision —
- * those are creative choices. Only nudge text/highlight (and, as a last
- * resort on washed-out walls, add a soft box when the director already
- * asked for one or picked the `box` template).
+ * Honor the director's template and position. Recolor text/highlight when the
+ * chosen pair would vanish on the talking-head or on an inset caption plate.
  */
 
 import type {CaptionDirection} from '../../types/blueprint.ts';
 import type {FramePalette} from '../../media/ffmpeg.ts';
 
+const KARAOKE_GOLD = '#F5B942';
+const DARK_TYPE = '#111111';
+const LIGHT_TYPE = '#FFFFFF';
+
 export function contrastCaptionWithFootage(
   caption: CaptionDirection,
   palette: FramePalette,
 ): CaptionDirection {
-  const bright = palette.luminance >= 0.58;
+  if (caption.animation === 'highlight') {
+    return {
+      ...caption,
+      textColor: LIGHT_TYPE,
+      highlightColor: KARAOKE_GOLD,
+      boxColor: null,
+    };
+  }
+  const bright = palette.luminance >= 0.4;
   const dark = palette.luminance <= 0.28;
   const teal =
     palette.g > 0.32 &&
@@ -28,41 +38,50 @@ export function contrastCaptionWithFootage(
   let boxColor = caption.boxColor;
 
   if (bright) {
-    // Light walls: dark type reads; keep outlined templates box-free unless
-    // the director already chose a pill.
-    textColor = wantsBox ? '#141414' : '#121212';
-    highlightColor = teal
-      ? '#0B6E6A'
-      : warm
-        ? '#C2410C'
-        : highlightForTemplate(caption.template, '#1D4ED8');
+    // Light walls / pale inset docks: dark type. Never cyan-on-cream.
+    textColor = DARK_TYPE;
+    highlightColor = karaokeSafeHighlight(
+      caption.template,
+      teal ? '#C2410C' : warm ? '#C2410C' : '#B45309',
+    );
     if (wantsBox) {
-      boxColor = boxColor && !isLight(boxColor) ? '#F7F4EE' : boxColor ?? '#F7F4EE';
-      textColor = '#141414';
+      boxColor = boxColor ?? '#F7F4EE';
+      textColor = isLight(boxColor) ? DARK_TYPE : LIGHT_TYPE;
     }
   } else if (dark) {
-    textColor = '#FFFFFF';
-    highlightColor = warm
-      ? '#FFB703'
-      : highlightForTemplate(caption.template, caption.highlightColor);
-    // Dark footage + dark pill kills contrast — drop the box unless template is box.
+    textColor = LIGHT_TYPE;
+    highlightColor = karaokeSafeHighlight(
+      caption.template,
+      warm ? '#FFB703' : caption.highlightColor,
+    );
     if (boxColor && isDark(boxColor) && caption.template !== 'box') {
       boxColor = null;
     }
   } else if (teal && wantsBox) {
     textColor = '#FFF8E8';
-    highlightColor = '#F5C518';
+    highlightColor = karaokeSafeHighlight(caption.template, '#F5C518');
     boxColor = boxColor ?? '#0B2424';
   } else {
-    // Mid luminance talking-head: preserve director box (including none).
-    // Only lift pale text to white so outlines stay readable.
-    if (luminance(textColor) < 0.45) {
-      textColor = '#FFFFFF';
+    // Mid talking-head: keep a readable pair. Do not lift everything to white
+    // (that is what made type vanish on Gabby's wall + pale inset plate).
+    if (luminance(textColor) > 0.72 && palette.luminance >= 0.36) {
+      textColor = DARK_TYPE;
+    } else if (luminance(textColor) < 0.28 && palette.luminance <= 0.34) {
+      textColor = LIGHT_TYPE;
     }
-    highlightColor = highlightForTemplate(
+    highlightColor = karaokeSafeHighlight(
       caption.template,
       caption.highlightColor,
     );
+  }
+
+  if (tooClose(textColor, highlightColor)) {
+    highlightColor =
+      caption.template === 'karaoke'
+        ? KARAOKE_GOLD
+        : luminance(textColor) > 0.5
+          ? '#B45309'
+          : '#F5C518';
   }
 
   return {
@@ -71,6 +90,16 @@ export function contrastCaptionWithFootage(
     highlightColor,
     boxColor,
   };
+}
+
+function karaokeSafeHighlight(
+  template: CaptionDirection['template'],
+  fallback: string,
+): string {
+  if (template === 'karaoke') {
+    return KARAOKE_GOLD;
+  }
+  return highlightForTemplate(template, fallback);
 }
 
 function highlightForTemplate(
@@ -83,17 +112,17 @@ function highlightForTemplate(
   if (template === 'bounce') {
     return '#5CFFC0';
   }
-  if (template === 'karaoke') {
-    return '#7DD3FC';
+  if (template === 'minimal' || template === 'classic' || template === 'weight-shift' || template === 'basic') {
+    return '#B45309';
   }
-  if (template === 'minimal' || template === 'classic') {
-    return '#FDE68A';
-  }
-  if (template === 'box') {
+  if (template === 'box' || template === 'grape' || template === 'moving-pill' || template === 'soft-ai') {
     return '#FFFFFF';
   }
-  if (template === 'hormozi') {
-    return '#00E5FF';
+  if (template === 'hormozi' || template === 'gaming-stream') {
+    return '#F5B942';
+  }
+  if (template === 'beast') {
+    return '#FF6600';
   }
   return fallback || '#F5C518';
 }
@@ -115,4 +144,8 @@ function isLight(hex: string): boolean {
 
 function isDark(hex: string): boolean {
   return luminance(hex) <= 0.28;
+}
+
+function tooClose(a: string, b: string): boolean {
+  return Math.abs(luminance(a) - luminance(b)) < 0.18;
 }

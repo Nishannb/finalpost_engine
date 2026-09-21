@@ -5,6 +5,8 @@ import {toEngineError} from './lib/errors.ts';
 import {logger} from './lib/logger.ts';
 import {requireAuth} from './http/auth.ts';
 import {analyzeRoutes} from './http/routes/analyzeRoutes.ts';
+import {brollLibraryRoutes} from './http/routes/brollLibraryRoutes.ts';
+import {editRoutes} from './http/routes/editRoutes.ts';
 import {healthRoutes} from './http/routes/healthRoutes.ts';
 import {localRenderRoutes} from './http/routes/localRenderRoutes.ts';
 import {renderRoutes} from './http/routes/renderRoutes.ts';
@@ -39,7 +41,9 @@ export function createApp() {
   // Unauthenticated MP4 download for LAN fallback after a successful local burn.
   app.use('/v1', localRenderRoutes);
   app.use('/v1', requireAuth, storageRoutes);
+  app.use('/v1', requireAuth, editRoutes);
   app.use('/v1', requireAuth, analyzeRoutes);
+  app.use('/v1', requireAuth, brollLibraryRoutes);
   app.use('/v1', requireAuth, renderRoutes);
   app.use('/v1', requireAuth, templateRoutes);
 

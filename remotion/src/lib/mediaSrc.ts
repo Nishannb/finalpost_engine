@@ -13,5 +13,8 @@ export function resolveMediaSrc(src: string): string {
   if (src.startsWith('prefetch/')) {
     return staticFile(src);
   }
+  if (src.startsWith('staticFile:')) {
+    return staticFile(src.slice('staticFile:'.length));
+  }
   return src;
 }

@@ -7,7 +7,17 @@
  * zoom, caption karaoke) is driven by word boundaries, not segments.
  */
 
-import {openAsBlob} from 'node:fs';
+import {createHash} from 'node:crypto';
+import {
+  createReadStream,
+  existsSync,
+  mkdirSync,
+  openAsBlob,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 import {env} from '../../config/env.ts';
 import {EngineError} from '../../lib/errors.ts';
@@ -39,6 +49,60 @@ export type TranscriptionResult = {
   estimatedCostUsd: number;
 };
 
+export async function fileSha256(filePath: string): Promise<string> {
+  const hash = createHash('sha256');
+  const stream = createReadStream(filePath);
+  for await (const chunk of stream) {
+    hash.update(chunk);
+  }
+  return hash.digest('hex');
+}
+
+export function transcriptCacheId(
+  fileHash: string,
+  model: string,
+  language: string,
+): string {
+  return `${fileHash}:${model}:${language}`;
+}
+
+export function defaultTranscriptCacheDir(): string {
+  return path.join(os.tmpdir(), 'kinmel-asr-cache');
+}
+
+function cacheFilePath(cacheDir: string, id: string): string {
+  const safe = createHash('sha256').update(id).digest('hex');
+  return path.join(cacheDir, `${safe}.json`);
+}
+
+export function readCachedTranscription(
+  cacheDir: string,
+  id: string,
+): TranscriptionResult | null {
+  const file = cacheFilePath(cacheDir, id);
+  if (!existsSync(file)) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(readFileSync(file, 'utf8')) as TranscriptionResult;
+    if (!parsed || !Array.isArray(parsed.words) || typeof parsed.transcript !== 'string') {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function writeCachedTranscription(
+  cacheDir: string,
+  id: string,
+  result: TranscriptionResult,
+): void {
+  mkdirSync(cacheDir, {recursive: true});
+  writeFileSync(cacheFilePath(cacheDir, id), JSON.stringify(result));
+}
+
 export function transcriptionConfigured(): boolean {
   return Boolean(env.GROQ_API_KEY);
 }
@@ -48,7 +112,17 @@ export async function transcribeAudio(input: {
   audioBytes: number;
   languageCode: LanguageCode | 'auto';
   durationSec: number;
+  cacheDir?: string;
 }): Promise<TranscriptionResult> {
+  const cacheDir = input.cacheDir ?? defaultTranscriptCacheDir();
+  const fileHash = await fileSha256(input.audioPath);
+  const cacheId = transcriptCacheId(fileHash, env.GROQ_MODEL, String(input.languageCode));
+  const cached = readCachedTranscription(cacheDir, cacheId);
+  if (cached) {
+    log.info({hash: fileHash.slice(0, 12), model: env.GROQ_MODEL}, 'transcription cache hit');
+    return cached;
+  }
+
   if (!transcriptionConfigured()) {
     throw new EngineError(
       'not_configured',
@@ -115,13 +189,15 @@ export async function transcribeAudio(input: {
     'transcription complete',
   );
 
-  return {
+  const result: TranscriptionResult = {
     words: fallbackWords,
     transcript: (body.text ?? '').trim() || joinWords(fallbackWords),
     detectedLanguage: (body.language ?? input.languageCode).toString(),
     audioDurationSec,
     estimatedCostUsd,
   };
+  writeCachedTranscription(cacheDir, cacheId, result);
+  return result;
 }
 
 /**

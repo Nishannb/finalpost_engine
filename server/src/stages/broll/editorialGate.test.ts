@@ -36,7 +36,7 @@ const overlay = (
 });
 
 describe('applyEditorialGate', () => {
-  it('drops image splits and keeps video splits', () => {
+  it('keeps video splits and image slideshow splits', () => {
     const result = applyEditorialGate({
       clips: [clip(8, 10.5)],
       overlays: [
@@ -46,6 +46,26 @@ describe('applyEditorialGate', () => {
           layout: 'split',
           mediaKind: 'image',
           assetUrl: 'https://example.com/still.jpg',
+          slides: [
+            {
+              assetUrl: 'https://example.com/still.jpg',
+              provider: 'pexels',
+              providerId: 1,
+              width: 1080,
+              height: 1920,
+              credit: '',
+              creditUrl: '',
+            },
+            {
+              assetUrl: 'https://example.com/still2.jpg',
+              provider: 'pexels',
+              providerId: 2,
+              width: 1080,
+              height: 1920,
+              credit: '',
+              creditUrl: '',
+            },
+          ],
         }),
         overlay({
           start: 20,
@@ -59,9 +79,28 @@ describe('applyEditorialGate', () => {
       zooms: [],
       outputDurationSec: 40,
     });
+    expect(result.overlays.some(item => item.mediaKind === 'image')).toBe(true);
+    expect(result.overlays.some(item => item.mediaKind === 'video')).toBe(true);
+  });
+
+  it('keeps a single still photo on split', () => {
+    const result = applyEditorialGate({
+      clips: [],
+      overlays: [
+        overlay({
+          start: 8,
+          end: 12,
+          layout: 'split',
+          mediaKind: 'image',
+          assetUrl: 'https://example.com/one.jpg',
+        }),
+      ],
+      transitions: [],
+      zooms: [],
+      outputDurationSec: 40,
+    });
     expect(result.overlays).toHaveLength(1);
-    expect(result.overlays[0]?.mediaKind).toBe('video');
-    expect(result.warnings).toContain('split_dropped_non_video');
+    expect(result.overlays[0]?.mediaKind).toBe('image');
   });
 
   it('spaces cutaways and drops low-value stickers', () => {
@@ -104,5 +143,20 @@ describe('applyEditorialGate', () => {
     expect(result.clips.length).toBe(1);
     expect(result.overlays.every(item => item.layout !== 'sticker')).toBe(true);
     expect(result.zooms.length).toBeLessThanOrEqual(1);
+  });
+
+  it('keeps stickers when north-star relax is on', () => {
+    const result = applyEditorialGate({
+      clips: [clip(8, 10.4), clip(12, 15)],
+      overlays: [
+        overlay({start: 15, end: 17, layout: 'sticker', mediaKind: 'image'}),
+      ],
+      transitions: [],
+      zooms: [],
+      outputDurationSec: 40,
+      relax: true,
+    });
+    expect(result.clips).toHaveLength(2);
+    expect(result.overlays.some(item => item.layout === 'sticker')).toBe(true);
   });
 });

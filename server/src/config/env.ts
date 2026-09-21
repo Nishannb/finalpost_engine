@@ -62,6 +62,12 @@ const schema = z.object({
 
   ENGINE_API_KEY: str(),
   /**
+   * Creators Flask API origin. Used to ask the API to send a remote push when
+   * a captions edit finishes (user may have left the app).
+   * Example: https://api.kinmel.shop
+   */
+  CREATOR_API_URL: str(),
+  /**
    * Creators Supabase project URL — required in production for ES256/RS256
    * access tokens (JWKS at `/auth/v1/.well-known/jwks.json`).
    * Example: https://mmyprzatmrfdtodsqaia.supabase.co
@@ -95,20 +101,49 @@ const schema = z.object({
 
   SILENCE_THRESHOLD_SEC: num(0.4),
   SILENCE_PADDING_SEC: num(0.08),
+  /** Local rules/acoustics may select delivery shaping when no CLI allowlist is supplied. */
+  DELIVERY_SHAPING_AUTO: bool(true),
+  /** Optional transcript-only LLM emphasis marks. Rules + acoustics remain the fallback. */
+  DELIVERY_LLM_EMPHASIS: bool(false),
   ZOOM_SCALE: num(1.25),
   ZOOM_MAX_DURATION_SEC: num(6),
 
   GEMINI_API_KEY: str(),
   GEMINI_MODEL: str('gemini-3.6-flash'),
+  /**
+   * Medium model for AI Template Designer (reference → EditSpec).
+   * Keep this cheaper than any “pro” director model until benchmark says otherwise.
+   */
+  GEMINI_TEMPLATE_DESIGNER_MODEL: str('gemini-3.6-flash'),
+  TEMPLATE_DESIGNER_FRAME_INTERVAL_SEC: num(1),
+  TEMPLATE_DESIGNER_MAX_FRAMES: num(24),
   PEXELS_API_KEY: str(),
   PIXABAY_API_KEY: str(),
   /** OpenRouter key — template apply uses Seedance 2.0 Mini video generation. */
   OPENROUTER_API_KEY: str(),
   OPENROUTER_SEEDANCE_MODEL: str('bytedance/seedance-2.0-mini'),
   BROLL_MOMENT_COUNT: num(5),
-  BROLL_CLIP_DURATION_SEC: num(2.4),
+  BROLL_CLIP_DURATION_SEC: num(3.4),
   BROLL_ENABLED: bool(true),
+  /**
+   * lean (default): captions + auto-trim + auto-zoom + hook title.
+   * Visual toolkits stay in the repo and turn back on with `--edits=` / `--full-edits`.
+   * full: every toolkit available when `--edits` is omitted.
+   */
+  PIPELINE_MODE: str('lean').transform(raw =>
+    raw.trim().toLowerCase() === 'full' ? 'full' : 'lean',
+  ),
   HOOK_DURATION_SEC: num(3),
+  /** Force a speaker-over-B-roll cutout so the feature can be tested. */
+  FORCE_SPEAKER_CUTOUT: bool(false),
+  /** Free multi-stage director (perception + story + creative + compiler). */
+  DIRECTOR_V2: bool(false),
+  /**
+   * Opt-in north-star edit: Director v2 + plate contrast + thesis tokens +
+   * stock rerank + proxy critic + SFX. Off by default so the current pipeline
+   * is unchanged unless `--north-star` / NORTH_STAR=1 is set.
+   */
+  NORTH_STAR: bool(false),
 
   REMOTION_AWS_REGION: str('us-east-1'),
   REMOTION_FUNCTION_NAME: str(),

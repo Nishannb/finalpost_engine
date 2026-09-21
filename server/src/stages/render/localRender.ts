@@ -73,6 +73,7 @@ export async function renderLocally(input: {
   );
 
   await sweepStaleRemotionTemp();
+  await assertDiskHeadroom(remotionRoot);
   const blueprint = await prefetchBlueprintMedia(
     input.blueprint,
     prefetchDir,
@@ -94,9 +95,7 @@ export async function renderLocally(input: {
   try {
     await runRemotion(outputPath, propsPath, input.onProgress);
 
-    const lutId =
-      (input.style.colorGradeLut ?? '').trim() ||
-      (blueprint.colorGradeLut ?? '').trim();
+    const lutId = (input.style.colorGradeLut ?? '').trim();
     const lutPath = resolveLutPath(lutId);
     if (lutPath) {
       await applyCubeLut({
@@ -181,7 +180,8 @@ function runRemotion(
         `--props=${propsPath}`,
         '--log=verbose',
         '--timeout=120000',
-        '--concurrency=2',
+        '--concurrency=1',
+        `--offthreadvideo-cache-size-in-bytes=${256 * 1024 * 1024}`,
       ],
       {
         cwd: remotionRoot,
@@ -250,4 +250,22 @@ async function sweepStaleRemotionTemp(): Promise<void> {
       await fs.rm(path.join(tmp, name), {recursive: true, force: true}).catch(() => undefined);
     }
   }
+  const prefetchRoot = path.join(remotionRoot, 'public', 'prefetch');
+  await fs.rm(prefetchRoot, {recursive: true, force: true}).catch(() => undefined);
+}
+
+async function assertDiskHeadroom(dir: string): Promise<void> {
+  const free = await freeDiskBytes(dir);
+  log.info({freeMb: Math.round(free / 1024 / 1024)}, 'disk free before remotion');
+  if (free < 400 * 1024 * 1024) {
+    throw new EngineError(
+      'render_failed',
+      `Not enough free disk for Remotion (${Math.round(free / 1024 / 1024)} MB). Free at least 1 GB and retry.`,
+    );
+  }
+}
+
+async function freeDiskBytes(dir: string): Promise<number> {
+  const stats = await fs.statfs(dir);
+  return Number(stats.bavail) * Number(stats.bsize);
 }

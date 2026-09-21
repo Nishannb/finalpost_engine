@@ -27,6 +27,7 @@ import type {
   LanguageCode,
 } from '../types/blueprint.ts';
 import {analyzeVideo} from './analyzeVideo.ts';
+import type {AnalyzeInput} from './analyzeVideo.ts';
 
 const log = stageLogger('analysis-runner');
 
@@ -58,9 +59,15 @@ export async function startAnalysis(input: {
   colorGradeLut?: string;
   styleRecipe?: Record<string, unknown>;
   userBrollUrls?: string[];
+  captionStyleGuide?: Record<string, unknown> | null;
+  forceSpeakerCutout?: boolean;
+  directorV2?: boolean;
+  northStar?: boolean;
+  requestedEdits?: string[] | null;
+  captionTemplate?: string | null;
 }): Promise<AnalysisJob> {
   const now = new Date().toISOString();
-  const userBrollUrls = (input.userBrollUrls ?? []).filter(Boolean).slice(0, 5);
+  const userBrollUrls = (input.userBrollUrls ?? []).filter(Boolean).slice(0, 12);
   const fingerprint = fingerprintSource({
     videoUrl: input.videoUrl,
     languageCode: input.languageCode,
@@ -69,6 +76,14 @@ export async function startAnalysis(input: {
       ? JSON.stringify(input.styleRecipe).slice(0, 500)
       : '',
     userBrollKey: userBrollFingerprintKey(userBrollUrls),
+    captionStyleKey: input.captionStyleGuide
+      ? JSON.stringify(input.captionStyleGuide).slice(0, 400)
+      : '',
+    forceSpeakerCutout: input.forceSpeakerCutout,
+    directorV2: input.directorV2,
+    northStar: input.northStar,
+    requestedEdits: (input.requestedEdits ?? []).slice().sort().join(','),
+    captionTemplate: input.captionTemplate ?? '',
   });
 
   // Cache hit costs nothing and must not consume the user's monthly allowance.
@@ -112,6 +127,12 @@ export async function startAnalysis(input: {
     colorGradeLut: input.colorGradeLut,
     styleRecipe: input.styleRecipe,
     userBrollUrls,
+    captionStyleGuide: input.captionStyleGuide,
+    forceSpeakerCutout: input.forceSpeakerCutout,
+    directorV2: input.directorV2,
+    northStar: input.northStar,
+    requestedEdits: input.requestedEdits,
+    captionTemplate: input.captionTemplate,
   });
   return job;
 }
@@ -123,6 +144,12 @@ async function runAnalysis(
     colorGradeLut?: string;
     styleRecipe?: Record<string, unknown>;
     userBrollUrls?: string[];
+    captionStyleGuide?: Record<string, unknown> | null;
+    forceSpeakerCutout?: boolean;
+    directorV2?: boolean;
+    northStar?: boolean;
+    requestedEdits?: string[] | null;
+    captionTemplate?: string | null;
   },
 ): Promise<void> {
   const release = await acquireSlot();
@@ -148,6 +175,12 @@ async function runAnalysis(
         colorGradeLut: extras.colorGradeLut,
         styleRecipe: extras.styleRecipe,
         userBrollUrls: extras.userBrollUrls,
+        captionStyleGuide: extras.captionStyleGuide,
+        forceSpeakerCutout: extras.forceSpeakerCutout,
+        directorV2: extras.directorV2,
+        northStar: extras.northStar,
+        requestedEdits: extras.requestedEdits,
+        captionTemplate: extras.captionTemplate as AnalyzeInput['captionTemplate'],
       },
       {
         onStage: (stage, progress) => {

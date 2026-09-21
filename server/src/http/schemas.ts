@@ -43,7 +43,19 @@ export const analyzeRequestSchema = z.object({
    * Optional creator-supplied B-roll URLs (already on R2 / HTTPS).
    * Director studies them and places matching clips into the edit.
    */
-  userBrollUrls: z.array(httpUrl).max(5).optional().default([]),
+  userBrollUrls: z.array(httpUrl).max(12).optional().default([]),
+  /** Learned caption look from the creator's profile reference video. */
+  captionStyleGuide: z.record(z.string(), z.unknown()).optional(),
+  /** Force speaker-over-B-roll so the cutout path can be tested. */
+  forceSpeakerCutout: z.boolean().optional().default(false),
+  /** Free multi-stage director (perception + story + creative + compiler). */
+  directorV2: z.boolean().optional().default(false),
+  /** Opt-in north-star compositor (implies Director v2). */
+  northStar: z.boolean().optional().default(false),
+  /** Allowlist of edit toolkits (cutaway, depth_overlay, inset_reveal, …). Omit = lean captions pipeline. Pass `all` for every toolkit. */
+  requestedEdits: z.array(z.string().trim().min(1).max(40)).max(24).optional(),
+  /** Caption kinetic template the Director should honor. */
+  captionTemplate: z.enum(CAPTION_TEMPLATES).optional(),
 });
 
 export type AnalyzeRequest = z.infer<typeof analyzeRequestSchema>;
@@ -63,7 +75,7 @@ export const seedanceEditRequestSchema = z.object({
 export type SeedanceEditRequest = z.infer<typeof seedanceEditRequestSchema>;
 
 export const renderStyleSchema = z.object({
-  captionTemplate: z.enum(CAPTION_TEMPLATES).default('hormozi'),
+  captionTemplate: z.enum(CAPTION_TEMPLATES).default('clean'),
   layoutStyle: z.enum(LAYOUT_STYLES).default('fullscreen'),
   captionBottomFrac: z.number().min(0.02).max(0.9).default(0.22),
   captionCenterXFrac: z.number().min(0.1).max(0.9).default(0.5),

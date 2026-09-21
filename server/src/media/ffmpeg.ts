@@ -19,6 +19,7 @@ export type ProbeResult = {
   durationSec: number;
   width: number;
   height: number;
+  fps: number;
   hasAudio: boolean;
 };
 
@@ -88,6 +89,8 @@ export async function probeMedia(filePath: string): Promise<ProbeResult> {
       width?: number;
       height?: number;
       duration?: string;
+      avg_frame_rate?: string;
+      r_frame_rate?: string;
     }>;
   };
   try {
@@ -111,8 +114,65 @@ export async function probeMedia(filePath: string): Promise<ProbeResult> {
     durationSec,
     width: Number(video?.width ?? 0),
     height: Number(video?.height ?? 0),
+    fps: parseFrameRate(video?.avg_frame_rate || video?.r_frame_rate),
     hasAudio,
   };
+}
+
+function parseFrameRate(raw?: string): number {
+  const text = (raw || '').trim();
+  if (!text || text === '0/0') {
+    return 30;
+  }
+  if (text.includes('/')) {
+    const [n, d] = text.split('/').map(Number);
+    if (Number.isFinite(n) && Number.isFinite(d) && d > 0) {
+      return n / d;
+    }
+  }
+  const n = Number(text);
+  return Number.isFinite(n) && n > 0 ? n : 30;
+}
+
+/**
+ * Cheap scene-change timestamps (seconds). Used to sample extra frames
+ * around cuts without sending every video frame to the model.
+ */
+export async function detectSceneCuts(
+  filePath: string,
+  threshold = 0.35,
+): Promise<number[]> {
+  try {
+    const {stderr} = await run(
+      env.FFMPEG_PATH,
+      [
+        '-hide_banner',
+        '-i',
+        filePath,
+        '-vf',
+        `select='gt(scene\\,${threshold})',showinfo`,
+        '-an',
+        '-f',
+        'null',
+        '-',
+      ],
+      45_000,
+    );
+    const times: number[] = [];
+    const re = /pts_time:\s*([0-9.]+)/g;
+    let match: RegExpExecArray | null = re.exec(stderr);
+    while (match) {
+      const t = Number(match[1]);
+      if (Number.isFinite(t)) {
+        times.push(t);
+      }
+      match = re.exec(stderr);
+    }
+    return times.slice(0, 40);
+  } catch (error) {
+    log.warn({error}, 'scene-cut detect failed');
+    return [];
+  }
 }
 
 /**
@@ -265,6 +325,95 @@ export async function sampleFramePalette(
   };
 }
 
+/** 1x1 RGB sample from a still at normalized coordinates (0–1). */
+export async function sampleStillPatch(
+  stillPath: string,
+  xFrac: number,
+  yFrac: number,
+): Promise<{r: number; g: number; b: number}> {
+  const tmp = `${stillPath}.${Math.round(xFrac * 1000)}-${Math.round(yFrac * 1000)}.rgb`;
+  await run(
+    env.FFMPEG_PATH,
+    [
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-y',
+      '-i',
+      stillPath,
+      '-vf',
+      `crop=iw*0.04:ih*0.04:iw*${clamp01(xFrac)}:ih*${clamp01(yFrac)},scale=1:1:flags=area,format=rgb24`,
+      '-frames:v',
+      '1',
+      '-f',
+      'rawvideo',
+      tmp,
+    ],
+    15_000,
+  );
+  const buf = await fs.readFile(tmp);
+  await fs.unlink(tmp).catch(() => undefined);
+  if (buf.length < 3) {
+    return {r: 0.5, g: 0.5, b: 0.5};
+  }
+  return {r: buf[0]! / 255, g: buf[1]! / 255, b: buf[2]! / 255};
+}
+
+/**
+ * Key the talking-head off a sampled backdrop so Remotion can stand them
+ * in front of B-roll. Writes a transparent WebM.
+ */
+export async function extractSpeakerCutout(input: {
+  inputPath: string;
+  outputPath: string;
+  keyColor: string;
+  similarity?: number;
+  blend?: number;
+}): Promise<string> {
+  const key = input.keyColor.replace('#', '0x').toUpperCase();
+  const similarity = input.similarity ?? 0.16;
+  const blend = input.blend ?? 0.06;
+  await run(
+    env.FFMPEG_PATH,
+    [
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-y',
+      '-i',
+      input.inputPath,
+      '-vf',
+      `chromakey=${key}:${similarity}:${blend},format=yuva420p`,
+      '-c:v',
+      'libvpx-vp9',
+      '-pix_fmt',
+      'yuva420p',
+      '-auto-alt-ref',
+      '0',
+      '-an',
+      '-deadline',
+      'realtime',
+      '-cpu-used',
+      '6',
+      input.outputPath,
+    ],
+    12 * 60_000,
+  );
+  const stat = await fs.stat(input.outputPath).catch(() => null);
+  if (!stat || stat.size < 1) {
+    throw new EngineError('render_failed', 'Speaker cutout extract produced an empty file');
+  }
+  log.info({bytes: stat.size, key}, 'extracted speaker cutout');
+  return input.outputPath;
+}
+
+function clamp01(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.min(0.95, Math.max(0, value));
+}
+
 /**
  * Apply a .cube 3D LUT after Remotion burn (ffmpeg lut3d).
  * Copies audio untouched; re-encodes video at short-form friendly settings.
@@ -312,4 +461,70 @@ export async function applyCubeLut(input: {
     {ms: Date.now() - started, lut: input.lutPath, bytes: stat.size},
     'applied cube LUT',
   );
+}
+
+/**
+ * Cap a clip at the Remotion canvas so OffthreadVideo does not decode UHD
+ * frames into a 300MB+ compositor cache (which Chrome then reports as
+ * "disk space is low" on a nearly-full Mac).
+ */
+export async function normalizeVideoForRemotion(input: {
+  inputPath: string;
+  outputPath: string;
+  keepAudio: boolean;
+  maxWidth?: number;
+  maxHeight?: number;
+}): Promise<{path: string; bytes: number; scaled: boolean}> {
+  const maxWidth = input.maxWidth ?? 1080;
+  const maxHeight = input.maxHeight ?? 1920;
+  const probe = await probeMedia(input.inputPath);
+  const needsScale = probe.width > maxWidth || probe.height > maxHeight;
+  if (!needsScale) {
+    if (input.inputPath !== input.outputPath) {
+      await fs.copyFile(input.inputPath, input.outputPath);
+    }
+    const stat = await fs.stat(input.outputPath);
+    return {path: input.outputPath, bytes: stat.size, scaled: false};
+  }
+
+  const started = Date.now();
+  const args = [
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-y',
+    '-i',
+    input.inputPath,
+    '-vf',
+    `scale=${maxWidth}:${maxHeight}:force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2`,
+    '-c:v',
+    'libx264',
+    '-preset',
+    'veryfast',
+    '-crf',
+    '20',
+    '-pix_fmt',
+    'yuv420p',
+    ...(input.keepAudio
+      ? ['-c:a', 'aac', '-b:a', '128k', '-ac', '2']
+      : ['-an']),
+    '-movflags',
+    '+faststart',
+    input.outputPath,
+  ];
+  await run(env.FFMPEG_PATH, args, 8 * 60_000);
+  const stat = await fs.stat(input.outputPath).catch(() => null);
+  if (!stat || stat.size < 1) {
+    throw new EngineError('render_failed', 'Could not downscale video for Remotion');
+  }
+  log.info(
+    {
+      ms: Date.now() - started,
+      from: `${probe.width}x${probe.height}`,
+      bytes: stat.size,
+      audio: input.keepAudio,
+    },
+    'normalized video for remotion',
+  );
+  return {path: input.outputPath, bytes: stat.size, scaled: true};
 }

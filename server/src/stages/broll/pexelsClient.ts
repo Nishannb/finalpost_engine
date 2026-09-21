@@ -11,7 +11,12 @@ import {EngineError} from '../../lib/errors.ts';
 import {requestJson} from '../../lib/http.ts';
 import {stageLogger} from '../../lib/logger.ts';
 import {keywordFallbacks} from './visualQuery.ts';
-import {stockAssetKey, type StockAsset} from './stockTypes.ts';
+import {
+  STOCK_MIN_WIDTH,
+  pickRenderSizedFile,
+  stockAssetKey,
+  type StockAsset,
+} from './stockTypes.ts';
 
 export {keywordFallbacks} from './visualQuery.ts';
 /** @deprecated Prefer StockAsset — kept as alias for older call sites. */
@@ -23,8 +28,7 @@ const PEXELS_VIDEO_SEARCH_URL = 'https://api.pexels.com/videos/search';
 const PEXELS_PHOTO_SEARCH_URL = 'https://api.pexels.com/v1/search';
 
 /** Overlays are drawn on a 1080-wide canvas; anything past this is waste. */
-const IDEAL_WIDTH = 1280;
-const MIN_WIDTH = 640;
+const MIN_WIDTH = STOCK_MIN_WIDTH;
 
 type PexelsVideoFile = {
   id?: number;
@@ -56,6 +60,19 @@ export async function findBRollAsset(
     excludeIds?: Set<number>;
   },
 ): Promise<StockAsset | null> {
+  const listed = await listPexelsVideos(keyword, {...options, limit: 1});
+  return listed[0] ?? null;
+}
+
+export async function listPexelsVideos(
+  keyword: string,
+  options: {
+    minDurationSec: number;
+    excludeKeys?: Set<string>;
+    excludeIds?: Set<number>;
+    limit?: number;
+  },
+): Promise<StockAsset[]> {
   if (!pexelsConfigured()) {
     throw new EngineError(
       'not_configured',
@@ -63,20 +80,29 @@ export async function findBRollAsset(
     );
   }
 
+  const limit = Math.max(1, Math.min(options.limit ?? 4, 6));
+  const found: StockAsset[] = [];
   for (const queryKeyword of keywordFallbacks(keyword)) {
     for (const orientation of ['portrait', 'landscape', ''] as const) {
-      const asset = await searchVideos(queryKeyword, {
+      const batch = await searchVideos(queryKeyword, {
         minDurationSec: options.minDurationSec,
         excludeKeys: options.excludeKeys,
         excludeIds: options.excludeIds,
         orientation,
+        limit: limit - found.length,
       });
-      if (asset) {
-        return asset;
+      for (const asset of batch) {
+        if (found.some(row => row.providerId === asset.providerId)) {
+          continue;
+        }
+        found.push(asset);
+        if (found.length >= limit) {
+          return found;
+        }
       }
     }
   }
-  return null;
+  return found;
 }
 
 export async function findPhotoAsset(
@@ -119,8 +145,9 @@ async function searchVideos(
     excludeKeys?: Set<string>;
     excludeIds?: Set<number>;
     orientation: 'portrait' | 'landscape' | '';
+    limit?: number;
   },
-): Promise<StockAsset | null> {
+): Promise<StockAsset[]> {
   const query = new URLSearchParams({
     query: keyword,
     per_page: '8',
@@ -155,13 +182,15 @@ async function searchVideos(
     return Number(video.duration ?? 0) >= options.minDurationSec;
   });
 
+  const limit = Math.max(1, options.limit ?? 1);
+  const found: StockAsset[] = [];
   for (const video of videos) {
     const file = pickFile(video.video_files ?? []);
     if (!file?.link) {
       continue;
     }
     log.debug({keyword, providerId: video.id, width: file.width}, 'b-roll video resolved');
-    return {
+    found.push({
       assetUrl: file.link,
       provider: 'pexels',
       providerId: Number(video.id),
@@ -170,10 +199,13 @@ async function searchVideos(
       durationSec: Number(video.duration ?? 0),
       credit: String(video.user?.name ?? 'Pexels'),
       creditUrl: String(video.user?.url ?? video.url ?? 'https://www.pexels.com'),
-    };
+    });
+    if (found.length >= limit) {
+      break;
+    }
   }
 
-  return null;
+  return found;
 }
 
 type PexelsPhoto = {
@@ -254,7 +286,7 @@ async function searchPhotos(
   return null;
 }
 
-function pickFile(files: PexelsVideoFile[]): PexelsVideoFile | null {
+export function pickFile(files: PexelsVideoFile[]): PexelsVideoFile | null {
   const mp4s = files.filter(
     file => file.link && (file.file_type ?? '').includes('mp4'),
   );
@@ -263,9 +295,5 @@ function pickFile(files: PexelsVideoFile[]): PexelsVideoFile | null {
   }
   const usable = mp4s.filter(file => Number(file.width ?? 0) >= MIN_WIDTH);
   const pool = usable.length > 0 ? usable : mp4s;
-  return [...pool].sort(
-    (a, b) =>
-      Math.abs(Number(a.width ?? 0) - IDEAL_WIDTH) -
-      Math.abs(Number(b.width ?? 0) - IDEAL_WIDTH),
-  )[0]!;
+  return pickRenderSizedFile(pool);
 }

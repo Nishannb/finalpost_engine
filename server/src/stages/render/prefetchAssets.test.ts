@@ -42,6 +42,15 @@ function blueprint(overrides: Partial<TimelineBlueprint> = {}): TimelineBlueprin
     hookSubtitle: '',
     hookDurationSec: 3,
     hookStyle: 'impact',
+    hookAnchor: 'top_right',
+    speakerCutout: {
+      available: true,
+      keyColor: '#E8E4DC',
+      similarity: 0.14,
+      blend: 0.06,
+      videoUrl: 'https://cdn.example/cutout.webm',
+      speaker: {x: 0.2, y: 0.2, w: 0.6, h: 0.65},
+    },
     visualOverlays: [
       {
         start: 1,
@@ -97,6 +106,7 @@ function blueprint(overrides: Partial<TimelineBlueprint> = {}): TimelineBlueprin
     ],
     motionGraphics: [],
     mediaContainers: [],
+    frameInsets: [],
     semanticEmphasis: [],
     captionDirection: {
       position: 'bottom',
@@ -135,6 +145,7 @@ describe('prefetch rewrite', () => {
   it('collects talking-head, b-roll, overlay, and transition urls', () => {
     expect(collectBlueprintMediaUrls(blueprint())).toEqual([
       'https://cdn.example/talking.mp4',
+      'https://cdn.example/cutout.webm',
       'https://videos.pexels.com/a.mp4',
       'https://videos.pexels.com/b.mp4',
       'https://videos.pexels.com/wipe.mp4',

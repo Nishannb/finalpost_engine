@@ -1,0 +1,57 @@
+{
+  "blueprint": {
+    "blueprintId": "bp_caption_demo",
+    "videoUrl": "staticFile:black-audio.mp4",
+    "languageCode": "en",
+    "fps": 24,
+    "width": 1080,
+    "height": 1920,
+    "sourceDurationSec": 6.96,
+    "outputDurationSec": 6.96,
+    "keepSegments": [
+      {"sourceStart": 0, "sourceEnd": 6.96, "outputStart": 0}
+    ],
+    "captionWords": [
+      {"text": "This", "start": 0.76, "end": 0.9, "sentenceIndex": 0},
+      {"text": "is", "start": 0.9, "end": 1.08, "sentenceIndex": 1},
+      {"text": "how", "start": 1.08, "end": 1.22, "sentenceIndex": 2},
+      {"text": "templates", "start": 1.22, "end": 1.76, "sentenceIndex": 3},
+      {"text": "look", "start": 1.76, "end": 2.02, "sentenceIndex": 4},
+      {"text": "like.", "start": 2.02, "end": 2.52, "sentenceIndex": 5},
+      {"text": "You", "start": 2.52, "end": 2.86, "sentenceIndex": 6},
+      {"text": "can", "start": 2.86, "end": 3.08, "sentenceIndex": 7},
+      {"text": "use", "start": 3.08, "end": 3.38, "sentenceIndex": 8},
+      {"text": "it", "start": 3.38, "end": 3.64, "sentenceIndex": 9},
+      {"text": "if", "start": 3.64, "end": 4.98, "sentenceIndex": 10},
+      {"text": "you", "start": 4.98, "end": 5.1, "sentenceIndex": 11},
+      {"text": "like", "start": 5.1, "end": 5.36, "sentenceIndex": 12},
+      {"text": "it.", "start": 5.36, "end": 5.7, "sentenceIndex": 13}
+    ],
+    "zoomTriggers": [],
+    "hookTitle": "",
+    "hookSubtitle": "",
+    "hookDurationSec": 0,
+    "captionDirection": {
+      "position": "center",
+      "bottomFrac": 0.5
+    },
+    "brollClips": [],
+    "depthOverlays": [],
+    "insetReveals": [],
+    "visualOverlays": [],
+    "transitions": [],
+    "motionGraphics": [],
+    "mediaContainers": [],
+    "semanticEmphasis": []
+  },
+  "style": {
+    "captionTemplate": "karaoke",
+    "layoutStyle": "fullscreen",
+    "captionBottomFrac": 0.5,
+    "captionCenterXFrac": 0.5,
+    "brollEnabled": false,
+    "zoomEnabled": false,
+    "trimEnabled": false,
+    "colorGradeLut": ""
+  }
+}

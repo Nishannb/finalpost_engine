@@ -11,20 +11,27 @@ import {createHash} from 'node:crypto';
 import {env} from '../config/env.ts';
 import type {
   AnalysisJob,
+  CaptionsEditJob,
   RenderJob,
   TimelineBlueprint,
 } from '../types/blueprint.ts';
+import type {TemplateDesignJob} from '../types/templateDesign.ts';
 import {getKv} from './kv.ts';
 
 const BLUEPRINT_PREFIX = 'engine:blueprint:';
 const BLUEPRINT_INDEX_PREFIX = 'engine:blueprint-index:';
 const ANALYSIS_PREFIX = 'engine:analysis:';
 const RENDER_PREFIX = 'engine:render:';
+const EDIT_PREFIX = 'engine:edit:';
+const DESIGN_PREFIX = 'engine:template-design:';
+const DESIGN_USER_PREFIX = 'engine:template-design-user:';
 const QUOTA_PREFIX = 'engine:quota:';
 const RATE_PREFIX = 'engine:rate:';
 
 const RENDER_JOB_TTL_SEC = 60 * 60 * 24;
 const ANALYSIS_JOB_TTL_SEC = 60 * 60 * 6;
+const EDIT_JOB_TTL_SEC = 60 * 60 * 24;
+const DESIGN_JOB_TTL_SEC = 60 * 60 * 24 * 30;
 
 export function fingerprintSource(input: {
   videoUrl: string;
@@ -32,6 +39,13 @@ export function fingerprintSource(input: {
   colorGradeLut?: string;
   styleRecipeKey?: string;
   userBrollKey?: string;
+  captionStyleKey?: string;
+  forceSpeakerCutout?: boolean;
+  directorV2?: boolean;
+  northStar?: boolean;
+  requestedEdits?: string;
+  forceDeliveryShaping?: boolean;
+  captionTemplate?: string;
 }): string {
   return createHash('sha256')
     .update(
@@ -43,12 +57,25 @@ export function fingerprintSource(input: {
         env.SILENCE_PADDING_SEC,
         env.ZOOM_SCALE,
         env.ZOOM_MAX_DURATION_SEC,
-        env.BROLL_ENABLED ? `${env.BROLL_MOMENT_COUNT}:visual-v11` : 'no-broll',
+        env.BROLL_ENABLED ? `${env.BROLL_MOMENT_COUNT}:visual-v19-captions-first` : 'no-broll',
         env.HOOK_DURATION_SEC,
         env.GROQ_MODEL,
         (input.colorGradeLut ?? '').trim().toLowerCase(),
         (input.styleRecipeKey ?? '').trim(),
         (input.userBrollKey ?? '').trim(),
+        (input.captionStyleKey ?? '').trim(),
+        input.forceSpeakerCutout || env.FORCE_SPEAKER_CUTOUT ? 'cutout' : '',
+        input.directorV2 || env.DIRECTOR_V2 ? 'director-v2' : '',
+        input.northStar || env.NORTH_STAR ? 'north-star' : '',
+        (input.requestedEdits ?? '').trim(),
+        input.forceDeliveryShaping === true
+          ? 'delivery-on'
+          : input.forceDeliveryShaping === false
+            ? 'delivery-off'
+            : '',
+        env.DELIVERY_SHAPING_AUTO ? 'delivery-auto' : '',
+        env.DELIVERY_LLM_EMPHASIS ? 'delivery-llm' : '',
+        (input.captionTemplate ?? '').trim().toLowerCase(),
       ].join('|'),
     )
     .digest('hex')
@@ -121,6 +148,64 @@ export async function loadRenderJob(
   const kv = await getKv();
   const raw = await kv.get(`${RENDER_PREFIX}${renderJobId}`);
   return raw ? (JSON.parse(raw) as RenderJob) : null;
+}
+
+export async function saveCaptionsEditJob(job: CaptionsEditJob): Promise<void> {
+  const kv = await getKv();
+  await kv.set(
+    `${EDIT_PREFIX}${job.editJobId}`,
+    JSON.stringify(job),
+    EDIT_JOB_TTL_SEC,
+  );
+}
+
+export async function loadCaptionsEditJob(
+  editJobId: string,
+): Promise<CaptionsEditJob | null> {
+  const kv = await getKv();
+  const raw = await kv.get(`${EDIT_PREFIX}${editJobId}`);
+  return raw ? (JSON.parse(raw) as CaptionsEditJob) : null;
+}
+
+export async function saveTemplateDesignJob(job: TemplateDesignJob): Promise<void> {
+  const kv = await getKv();
+  await kv.set(
+    `${DESIGN_PREFIX}${job.designJobId}`,
+    JSON.stringify(job),
+    DESIGN_JOB_TTL_SEC,
+  );
+  const indexKey = `${DESIGN_USER_PREFIX}${job.userId}`;
+  const existingRaw = await kv.get(indexKey);
+  const ids = existingRaw ? (JSON.parse(existingRaw) as string[]) : [];
+  const next = [job.designJobId, ...ids.filter(id => id !== job.designJobId)].slice(
+    0,
+    40,
+  );
+  await kv.set(indexKey, JSON.stringify(next), DESIGN_JOB_TTL_SEC);
+}
+
+export async function loadTemplateDesignJob(
+  designJobId: string,
+): Promise<TemplateDesignJob | null> {
+  const kv = await getKv();
+  const raw = await kv.get(`${DESIGN_PREFIX}${designJobId}`);
+  return raw ? (JSON.parse(raw) as TemplateDesignJob) : null;
+}
+
+export async function listTemplateDesignJobs(
+  userId: string,
+): Promise<TemplateDesignJob[]> {
+  const kv = await getKv();
+  const raw = await kv.get(`${DESIGN_USER_PREFIX}${userId}`);
+  const ids = raw ? (JSON.parse(raw) as string[]) : [];
+  const jobs: TemplateDesignJob[] = [];
+  for (const id of ids) {
+    const job = await loadTemplateDesignJob(id);
+    if (job) {
+      jobs.push(job);
+    }
+  }
+  return jobs;
 }
 
 /** Calendar-month bucket, so quotas reset without a cron job. */

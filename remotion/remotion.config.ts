@@ -11,7 +11,8 @@ Config.setVideoImageFormat('jpeg');
 Config.setJpegQuality(88);
 Config.setCodec('h264');
 Config.setOverwriteOutput(true);
-// Local burns prefetch stock into public/; this is the backstop if one file
-// still has to buffer. Two Chrome tabs keeps peak disk use down on a full disk.
+// One Chrome tab + a capped OffthreadVideo cache keeps peak disk use down
+// when the Mac volume is nearly full (UHD B-roll used to OOM the compositor).
 Config.setDelayRenderTimeoutInMilliseconds(120_000);
-Config.setConcurrency(2);
+Config.setConcurrency(1);
+Config.setOffthreadVideoCacheSizeInBytes(256 * 1024 * 1024);

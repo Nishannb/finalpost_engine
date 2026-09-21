@@ -198,7 +198,7 @@ describe('emphasisScore', () => {
 });
 
 describe('resolveDirectedZooms', () => {
-  it('prefers the director timestamps and skips B-roll windows', () => {
+  it('keeps director zooms even when they overlap another plate', () => {
     const words: WordToken[] = [
       {text: 'Hello.', start: 0, end: 1},
       {text: 'This', start: 5, end: 5.4},
@@ -217,6 +217,7 @@ describe('resolveDirectedZooms', () => {
       maxDurationSec: 2,
       blockedRanges: [{start: 4.8, end: 7.5}],
     });
-    expect(triggers).toEqual([]);
+    expect(triggers).toHaveLength(2);
+    expect(triggers[0]?.start).toBeCloseTo(5.2, 5);
   });
 });

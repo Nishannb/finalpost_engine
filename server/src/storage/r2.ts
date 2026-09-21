@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto';
 import {createReadStream} from 'node:fs';
 import fs from 'node:fs/promises';
 
-import {PutObjectCommand, S3Client} from '@aws-sdk/client-s3';
+import {HeadObjectCommand, PutObjectCommand, S3Client} from '@aws-sdk/client-s3';
 import {getSignedUrl} from '@aws-sdk/s3-request-presigner';
 
 import {env} from '../config/env.ts';
@@ -69,6 +69,34 @@ function publicUrlFor(key: string): string {
   return `${env.R2_PUBLIC_BASE_URL.replace(/\/+$/, '')}/${key}`;
 }
 
+/** True when the presigned PUT has landed (phone may have left the app). */
+export async function sourceObjectExists(key: string): Promise<boolean> {
+  if (!r2Configured() || !key.trim()) {
+    return false;
+  }
+  try {
+    await getClient().send(
+      new HeadObjectCommand({
+        Bucket: env.R2_BUCKET_NAME,
+        Key: key,
+      }),
+    );
+    return true;
+  } catch (error) {
+    const status = (error as {$metadata?: {httpStatusCode?: number}}).$metadata
+      ?.httpStatusCode;
+    if (status === 404 || status === 403) {
+      return false;
+    }
+    const name = (error as {name?: string}).name || '';
+    if (name === 'NotFound' || name === 'NoSuchKey') {
+      return false;
+    }
+    logger.warn({key, error}, 'R2 HEAD failed');
+    return false;
+  }
+}
+
 /** Server-side PUT of a finished render. Phone never sees this file. */
 export async function uploadRenderedVideo(
   filePath: string,
@@ -87,7 +115,8 @@ export async function uploadSourceVideo(
   extension = '.mp4',
 ): Promise<{publicUrl: string; key: string}> {
   const ext = normalizeExtension(extension);
-  const contentType = ext === '.mov' ? 'video/quicktime' : 'video/mp4';
+  const contentType =
+    ext === '.mov' ? 'video/quicktime' : ext === '.webm' ? 'video/webm' : 'video/mp4';
   return uploadPublicFile(
     filePath,
     `ai-video/source/${new Date().toISOString().slice(0, 10)}/${randomUUID()}${ext}`,
@@ -193,5 +222,19 @@ function normalizeExtension(raw?: string): string {
   const extension = String(raw || '.mp4')
     .trim()
     .toLowerCase();
-  return ['.mp4', '.mov', '.m4v'].includes(extension) ? extension : '.mp4';
+  return [
+    '.mp4',
+    '.mov',
+    '.m4v',
+    '.webm',
+    '.jpg',
+    '.jpeg',
+    '.png',
+    '.webp',
+    '.gif',
+    '.heic',
+    '.heif',
+  ].includes(extension)
+    ? extension
+    : '.mp4';
 }

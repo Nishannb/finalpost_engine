@@ -18,6 +18,7 @@ import {
   downloadToFile,
   isLocalMediaPath,
 } from '../../lib/tempFiles.ts';
+import {normalizeVideoForRemotion} from '../../media/ffmpeg.ts';
 import type {TimelineBlueprint, VisualOverlay} from '../../types/blueprint.ts';
 
 const log = stageLogger('prefetch-assets');
@@ -42,6 +43,7 @@ const TEXT_LAYOUTS = new Set<VisualOverlay['layout']>([
   'stat',
   'banner',
   'chip',
+  'bubble',
 ]);
 
 export function collectBlueprintMediaUrls(blueprint: TimelineBlueprint): string[] {
@@ -52,9 +54,20 @@ export function collectBlueprintMediaUrls(blueprint: TimelineBlueprint): string[
       urls.add(trimmed);
     }
   };
-  add(blueprint.videoUrl);
+  if (!blueprint.videoUrl.trim().startsWith('staticFile:')) {
+    add(blueprint.videoUrl);
+  }
+  add(blueprint.speakerCutout?.videoUrl);
   for (const clip of blueprint.brollClips ?? []) {
     add(clip.assetUrl);
+  }
+  for (const clip of blueprint.depthOverlays ?? []) {
+    add(clip.assetUrl);
+  }
+  for (const clip of blueprint.insetReveals ?? []) {
+    if (clip.params.background.type === 'loop' && /^(https?:|file:|\/)/i.test(clip.params.background.value)) {
+      add(clip.params.background.value);
+    }
   }
   for (const overlay of blueprint.visualOverlays ?? []) {
     add(overlay.assetUrl);
@@ -87,9 +100,34 @@ export function rewriteBlueprintMediaUrls(
   return {
     ...blueprint,
     videoUrl: swap(blueprint.videoUrl),
+    speakerCutout: blueprint.speakerCutout
+      ? {
+          ...blueprint.speakerCutout,
+          videoUrl: blueprint.speakerCutout.videoUrl
+            ? swap(blueprint.speakerCutout.videoUrl)
+            : blueprint.speakerCutout.videoUrl,
+        }
+      : blueprint.speakerCutout,
     brollClips: (blueprint.brollClips ?? [])
       .map(clip => ({...clip, assetUrl: swap(clip.assetUrl)}))
       .filter(clip => Boolean(clip.assetUrl)),
+    depthOverlays: (blueprint.depthOverlays ?? [])
+      .map(clip => ({...clip, assetUrl: swap(clip.assetUrl)}))
+      .filter(clip => Boolean(clip.assetUrl)),
+    insetReveals: (blueprint.insetReveals ?? []).map(clip =>
+      clip.params.background.type === 'loop'
+        ? {
+            ...clip,
+            params: {
+              ...clip.params,
+              background: {
+                ...clip.params.background,
+                value: swap(clip.params.background.value) || clip.params.background.value,
+              },
+            },
+          }
+        : clip,
+    ),
     visualOverlays,
     transitions: (blueprint.transitions ?? [])
       .map(clip => ({...clip, assetUrl: swap(clip.assetUrl)}))
@@ -97,6 +135,9 @@ export function rewriteBlueprintMediaUrls(
     stats: {
       ...blueprint.stats,
       brollClipCount: (blueprint.brollClips ?? []).filter(clip =>
+        Boolean(swap(clip.assetUrl)),
+      ).length,
+      depthOverlayCount: (blueprint.depthOverlays ?? []).filter(clip =>
         Boolean(swap(clip.assetUrl)),
       ).length,
       visualOverlayCount: visualOverlays.length,
@@ -119,6 +160,9 @@ export async function prefetchBlueprintMedia(
   log.info({count: urls.length}, 'prefetching media for remotion');
 
   for (const url of urls) {
+    if (url.startsWith('staticFile:')) {
+      continue;
+    }
     const name = hashedFileName(url);
     const dest = path.join(cacheDir, name);
     try {
@@ -130,8 +174,14 @@ export async function prefetchBlueprintMedia(
           timeoutMs: DOWNLOAD_TIMEOUT_MS,
         });
       }
-      urlMap.set(url, `${publicPrefix}/${name}`);
-      log.info({name, bytesHint: url.slice(0, 96)}, 'prefetched');
+      const publicName = await maybeNormalizePrefetch(
+        dest,
+        name,
+        url === blueprint.videoUrl,
+        url === blueprint.speakerCutout?.videoUrl,
+      );
+      urlMap.set(url, `${publicPrefix}/${publicName}`);
+      log.info({name: publicName, bytesHint: url.slice(0, 96)}, 'prefetched');
     } catch (error) {
       urlMap.set(url, '');
       log.warn(
@@ -159,6 +209,46 @@ function overlayKeepsAfterPrefetch(overlay: VisualOverlay): boolean {
     return true;
   }
   return false;
+}
+
+async function maybeNormalizePrefetch(
+  dest: string,
+  name: string,
+  keepAudio: boolean,
+  preserveAlpha = false,
+): Promise<string> {
+  if (!isVideoName(name) || preserveAlpha) {
+    return name;
+  }
+  const tmp = `${dest}.src`;
+  const outName = `${path.basename(name, path.extname(name))}.mp4`;
+  const outPath = path.join(path.dirname(dest), outName);
+  await fs.rename(dest, tmp);
+  try {
+    await normalizeVideoForRemotion({
+      inputPath: tmp,
+      outputPath: outPath,
+      keepAudio,
+    });
+    await fs.unlink(tmp).catch(() => undefined);
+    if (outPath !== dest) {
+      await fs.unlink(dest).catch(() => undefined);
+    }
+    return outName;
+  } catch (error) {
+    await fs.unlink(outPath).catch(() => undefined);
+    await fs.rename(tmp, dest).catch(() => undefined);
+    log.warn(
+      {name, error: (error as Error).message},
+      'remotion normalize skipped; using original file',
+    );
+    return name;
+  }
+}
+
+function isVideoName(name: string): boolean {
+  const ext = path.extname(name).toLowerCase();
+  return ext === '.mp4' || ext === '.mov' || ext === '.webm' || ext === '.m4v';
 }
 
 function hashedFileName(url: string): string {

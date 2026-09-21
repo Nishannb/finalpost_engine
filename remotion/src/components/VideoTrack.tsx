@@ -19,6 +19,8 @@ type VideoTrackProps = {
   segments: KeepSegment[];
   layoutStyle: LayoutStyle;
   objectPosition?: string;
+  transparent?: boolean;
+  muted?: boolean;
 };
 
 export const VideoTrack: React.FC<VideoTrackProps> = ({
@@ -26,6 +28,8 @@ export const VideoTrack: React.FC<VideoTrackProps> = ({
   segments,
   layoutStyle,
   objectPosition = '50% 50%',
+  transparent = false,
+  muted = false,
 }) => {
   const {fps} = useVideoConfig();
 
@@ -48,6 +52,8 @@ export const VideoTrack: React.FC<VideoTrackProps> = ({
                 src={src}
                 trimBefore={trimBefore}
                 trimAfter={trimAfter}
+                transparent={transparent}
+                muted={muted}
               />
             ) : (
               <FullscreenLayout
@@ -55,6 +61,8 @@ export const VideoTrack: React.FC<VideoTrackProps> = ({
                 trimBefore={trimBefore}
                 trimAfter={trimAfter}
                 objectPosition={objectPosition}
+                transparent={transparent}
+                muted={muted}
               />
             )}
           </Sequence>
@@ -69,6 +77,8 @@ type LayerProps = {
   trimBefore: number;
   trimAfter: number;
   objectPosition?: string;
+  transparent?: boolean;
+  muted?: boolean;
 };
 
 const FullscreenLayout: React.FC<LayerProps> = ({
@@ -76,12 +86,16 @@ const FullscreenLayout: React.FC<LayerProps> = ({
   trimBefore,
   trimAfter,
   objectPosition = '50% 50%',
+  transparent = false,
+  muted = false,
 }) => (
   <AbsoluteFill>
     <OffthreadVideo
       src={resolveMediaSrc(src)}
       trimBefore={trimBefore}
       trimAfter={trimAfter}
+      muted={muted}
+      transparent={transparent}
       style={{width: '100%', height: '100%', objectFit: 'cover', objectPosition}}
     />
   </AbsoluteFill>
@@ -98,6 +112,8 @@ const PodcastSplitLayout: React.FC<LayerProps> = ({
   src,
   trimBefore,
   trimAfter,
+  transparent = false,
+  muted = false,
 }) => (
   <AbsoluteFill>
     <div style={{position: 'absolute', inset: 0, height: '50%', overflow: 'hidden'}}>
@@ -105,6 +121,8 @@ const PodcastSplitLayout: React.FC<LayerProps> = ({
         src={resolveMediaSrc(src)}
         trimBefore={trimBefore}
         trimAfter={trimAfter}
+        muted={muted}
+        transparent={transparent}
         style={{
           width: '100%',
           height: '100%',

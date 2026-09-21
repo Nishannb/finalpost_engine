@@ -75,7 +75,9 @@ export async function requestWithRetry(
         throw error;
       }
       const aborted = error instanceof Error && error.name === 'AbortError';
-      if (attempt === retries) {
+      // A timed-out LLM call will time out again with the same payload. Fail
+      // over immediately so the director can drop thinking / switch models.
+      if (aborted || attempt === retries) {
         throw new EngineError(
           aborted ? 'upstream_timeout' : failureCode,
           aborted

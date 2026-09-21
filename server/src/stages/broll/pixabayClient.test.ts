@@ -9,7 +9,7 @@ describe('pixabayClient', () => {
     expect(stockAssetKey('pixabay', 42)).toBe('pixabay:42');
   });
 
-  it('picks the medium/small file closest to 1280 wide', () => {
+  it('picks the largest file that still fits 1080x1920, not UHD', () => {
     const file = pickVideoFile({
       large: {url: 'https://cdn/large.mp4', width: 3840, height: 2160},
       medium: {url: 'https://cdn/medium.mp4', width: 1280, height: 720},

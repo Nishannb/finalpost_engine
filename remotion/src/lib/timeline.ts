@@ -90,29 +90,41 @@ export function activeLineAt(
 /**
  * Zoom scale at a given output time, eased in and out.
  *
- * A hard cut to 1.25x looks like a glitch, so each trigger ramps over
- * `rampSec` at both ends; overlapping triggers take the strongest scale.
+ * A hard cut to 1.25x looks like a glitch, so each trigger ramps in quickly
+ * and eases out over a longer, smoother retract.
  */
 export function zoomScaleAt(
   triggers: ZoomTrigger[],
   timeSec: number,
-  rampSec = 0.35,
+  inRampSec = 0.35,
+  outRampSec = 1,
 ): number {
   let scale = 1;
   for (const trigger of triggers) {
     if (timeSec < trigger.start || timeSec > trigger.end) {
       continue;
     }
-    const inRamp = Math.min(1, (timeSec - trigger.start) / rampSec);
-    const outRamp = Math.min(1, (trigger.end - timeSec) / rampSec);
-    const envelope = easeInOut(Math.max(0, Math.min(inRamp, outRamp)));
+    const inT = easeInOut(clamp01((timeSec - trigger.start) / Math.max(0.05, inRampSec)));
+    const outT = easeInOutCubic(clamp01((trigger.end - timeSec) / Math.max(0.05, outRampSec)));
+    const envelope = Math.min(inT, outT);
     scale = Math.max(scale, 1 + (trigger.scale - 1) * envelope);
   }
   return scale;
 }
 
+function clamp01(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.min(1, Math.max(0, value));
+}
+
 function easeInOut(t: number): number {
   return t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+}
+
+function easeInOutCubic(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
 }
 
 /** Segments to draw: the trimmed set, or one full-length pass when trim is off. */

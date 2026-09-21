@@ -7,34 +7,51 @@
  */
 
 import {env} from '../../config/env.ts';
+import {dumpDirectorTrace} from '../../lib/directorDump.ts';
 import {EngineError} from '../../lib/errors.ts';
 import {requestJson} from '../../lib/http.ts';
 import {stageLogger} from '../../lib/logger.ts';
 import type {
+  CaptionAnimation,
   CaptionDirection,
   CaptionPosition,
   CaptionTemplateId,
+  FocusRegion,
+  FrameInset,
   HookStyle,
   OverlayTextStyle,
+  OverlayTreatment,
   VisualAnchor,
   VisualMediaKind,
   VisualOverlayLayout,
 } from '../../types/blueprint.ts';
-import {CAPTION_TEMPLATES, HOOK_STYLES} from '../../types/blueprint.ts';
+import {CAPTION_ANIMATIONS, CAPTION_TEMPLATES, HOOK_STYLES, OVERLAY_TREATMENTS} from '../../types/blueprint.ts';
 import {
   coerceLutId,
   formatLutsForDirectorPrompt,
+  lutCatalogIds,
+  LUT_RANK_LIMIT,
   parseSuggestedLutIds,
   shortlistLutsForDirector,
 } from '../color/lutCatalog.ts';
-import {listAvailableLuts} from '../color/luts.ts';
+import {describeOccupancyForDirector, type Occupancy} from '../layout/occupancy.ts';
+import {
+  describeCutoutForDirector,
+  type SpeakerCutout,
+} from '../layout/speakerCutout.ts';
+import {
+  formatCaptionGuideForDirector,
+  type CaptionStyleGuide,
+} from '../../types/captionStyleGuide.ts';
 import {ensureEnglishSearchQuery} from './englishSearch.ts';
 import {listBeatsFromTranscript} from './listBeats.ts';
+import {allowedEditsPromptBlock} from '../../lib/editToolkits.ts';
 import {
   applySubjectToQuery,
   inferStockSubject,
   keyPhrasesFromTranscript,
   sanitizeVisualQuery,
+  stockFriendlyQueries,
   themeQueriesFromTranscript,
 } from './visualQuery.ts';
 import {
@@ -58,11 +75,14 @@ const LAYOUTS: VisualOverlayLayout[] = [
   'composite',
   'pip',
   'sticker',
+  'card',
   'lockup',
   'chip',
   'banner',
   'split',
   'stat',
+  'cutout',
+  'bubble',
 ];
 
 const ANCHORS: VisualAnchor[] = [
@@ -76,52 +96,96 @@ const ANCHORS: VisualAnchor[] = [
 
 const MEDIA_KINDS: VisualMediaKind[] = ['video', 'image', 'text'];
 
-const SYSTEM_INSTRUCTION = `You are the Creative Director + Motion Designer for a vertical talking-head short.
+const SYSTEM_INSTRUCTION = `You are both VIDEO EDITOR and MOTION DESIGNER for a vertical talking-head short.
 
-Your job is NOT to pick templates. Your job is to invent an engaging, motion-graphics-forward edit using reusable VISUAL MECHANISMS.
+Video editor: pace, B-roll, zooms, splits, when to cut away from the speaker.
+Motion designer: layout and assets should MOVE at a medium pace so the edit is never a still stamp. Motion is encouraged; speed is not. A still dump on the speaker is a failed edit. An empty canvas with a tiny speaker tile is also a failed edit.
 
-Core principle: CONTENT ≠ DESIGN.
-Do not invent primitives around specific words like "wedding" or "£90k".
-Invent mechanisms: oversized semantic emphasis, graphic-backed typography, media container transforms, staggered reveals, canvas reveals.
+CONTENT ≠ DESIGN. Do not copy a previous video's look. Do not invent a named "effect". Treat the list below as a toolbox of primitives — pick the ones THIS transcript, THESE assets, and THIS occupancy map actually need. Never require a primitive just because it exists.
 
-Creativity rules (critical):
-- Treat this as a DESIGN SPACE. Vary compositions every video. Surprise the viewer.
-- Prefer MOTION GRAPHICS on top of B-roll/zooms/captions you already know.
-- Think in visual states: full-bleed → transform → inset/card/editorial → back.
-- When the speaker makes a strong claim, number, or keyword — give it visual weight with motion type.
-- Stylish titles should ENTER the frame (spring, slide, stagger, scale-pop) — not just appear.
-- You may combine mechanisms freely. There is no single "correct" look.
-- Restraint still matters: do not stack everything at once. Pace the graphics.
+Placement (non-negotiable):
+- FRAME_OCCUPANCY gives speaker_box + LEGAL_SLOTS. Graphics, cards, titles, counters, emphasis NEVER cover the speaker.
+- Pick an occupancy LEGAL_SLOT anchor for every overlay. Full-width bars across the face are illegal. Opening titles live in a small corner slot, never over the head.
+- CAPTION_BAND y>=0.76 is reserved. Do not park cards, titles, or a shrunk speaker tile there.
+- media_containers are OPTIONAL. pip_corner is legal ONLY when timed hero cards or graphics fill the leftover canvas. If the leftover would be empty color, keep the talking-head full-bleed.
+- Split screens are allowed; they must animate in and out.
+
+Edit toolbox (use whatever this video needs — no quota, no required combo):
+- delivery_shaping is an audio/pacing pre-flight, not a visual moment. If enabled it has already run: word times below are on the shaped timeline. Never compensate for it. It preserves voice identity and remains separate from B-roll, depth_overlay, and inset_reveal.
+- cutaway: full-frame related video while they talk about that thing.
+- split: animated half/half. Related half can be a video clip, a still, or a slideshow when related images exist. After slide-in finishes, HOLD at least ~4s (longer if speech is longer) then slide off. Video clips play only after enter hits 100%, and slide off only after the clip ends.
+- cutout: IF SPEAKER_CUTOUT is available — B-roll/canvas fills the frame, creator stands in front as a keyed cut-out. Best for messages, orders, products, screens.
+- depth_overlay: IF SPEAKER_CUTOUT / subject mask is available — speaker STAYS on screen. A product image, screenshot, logo, chart, or short clip sits BEHIND them in the upper half (soft bottom fade, slides in from top or bottom). This is NOT B-roll. B-roll/cutaway replaces the speaker; depth_overlay keeps the face. Prefer when the asset is relevant, the speaker is centered, and the moment is a reference/emphasis. Do not use if no mask, framing is too tight, the asset is low-res or text-heavy, or the segment already has cutaway/split/cutout. Hold 1.5–6s, ≥4s between uses, alternate direction. Output these in depth_overlays, not moments.
+- inset_reveal: the WHOLE talking-head shrinks into a rounded card over a colored background, captions sit below, then it restores to full frame. Audio never cuts. NOT B-roll (that replaces the speaker) and NOT depth_overlay (speaker stays full-frame with an asset behind). Prefer for section changes, a key statistic or quotable phrase, a list/step, a pacing reset, or caption-first moments. variant motion_graphic when there is a concrete stat/keyword/list item (graphic template_id stat_callout or keyword_title). variant simple for a quiet beat. Do not use in the first 3s or last 2s, mid-sentence, when the face is the story, or during cutaway/split/cutout/depth_overlay. Hold 2–8s, ≥6s between uses, about 1 per 20s, max 30% of runtime. Snap to sentence boundaries. Prefer one theme color. Output these in inset_reveals, not moments.
+- bubble: chat/order-style message cards that float in legal slots (not on the face).
+- media_card / scroll / suspense / focus / float / wipe / slideshow: photo or screenshot treatments. Slideshow cycles related stills as a card overlay or on a split half.
+- lockup / quote-style stack / chip: spoken slogans in a legal slot.
+- container_transform / pip_corner: only when leftover canvas has real assets.
+- frame_inset: sometimes shrink the whole frame with a smooth motion so a thick black/white/color margin shows; director picks how far; restore with the same motion.
+- count_up / type_reveal / punch_zoom: only when speech needs them. Zoom-in can stay snappy; zoom-off eases out smoothly.
+- focus_region: documents/screenshots only.
+
+HOLD TIME is speech time: a graphic or B-roll starts when the related words start and leaves when that spoken burst ends. Do not invent a fixed 2s/4s clock. A one-word aside is short; a 6-second explanation stays up for those 6 seconds.
 
 Return ONE JSON object:
 {
   "topic": string,
-  "visual_world": [string, string, string, string],
+  "visual_world": ["2-4 word Pexels scene", "short variant", "short variant", "short variant"],
   "hook_title": string,
   "hook_style": "impact" | "boxed" | "minimal" | "bar" | "stack" | "outline" | "rail" | "poster" | "underline" | "duo",
   "caption": {
-    "template": "hormozi" | "mrbeast" | "karaoke" | "classic" | "box" | "bounce" | "minimal",
+    "template": "karaoke" | "pop" | "beast" | "grape" | "hustle" | "gaming-stream" | "basic" | "moving-pill" | "kinetic-slam" | "weight-shift" | "editorial-emphasis" | "soft-ai" | "classic" | "box" | "minimal" | "clean" | "subtitle",
     "position": "bottom" | "lower_third" | "center" | "top",
     "text_color": "#RRGGBB",
     "highlight_color": "#RRGGBB",
     "box": boolean,
-    "box_color": "#RRGGBB" or ""
+    "box_color": "#RRGGBB" or "",
+    "font_scale": number,
+    "animation": "highlight" | "karaoke" | "scale" | "bounce" | "box" | "pop" | "type"
   },
   "preferred_lut": string,
-  "suggested_luts": [string, string, string],
+  "suggested_luts": ["catalog name, rank 1", "rank 2", "... up to 10"],
   "zooms": [{"timestamp": number, "duration": number}],
   "moments": [
     {
       "timestamp": number,
-      "search_keyword": string,
+      "search_keyword": "2-4 word Pexels scene",
+      "queries": ["shortest searchable query", "close variant", "close variant"],
       "why": string,
-      "media": "video" | "text",
-      "layout": "cutaway" | "lockup" | "chip" | "banner" | "split",
+      "media": "video" | "image" | "text",
+      "layout": "cutaway" | "split" | "lockup" | "card" | "pip" | "cutout" | "bubble",
+      "treatment": "card" | "scroll" | "suspense" | "focus" | "stack" | "float" | "wipe" | "slideshow",
       "anchor": "top" | "top_left" | "top_right" | "bottom" | "bottom_left" | "bottom_right",
+      "visual_weight": "accent" | "hero",
       "overlay_text": string,
       "text_style": "outline" | "bar" | "chip" | "poster" | "stack",
       "accent_color": "#RRGGBB",
-      "user_broll_id": "ub_1" | ""
+      "user_broll_id": "ub_1" | "",
+      "stagger_index": number,
+      "glow": boolean,
+      "focus_region": {"x":0-1,"y":0-1,"w":0-1,"h":0-1,"label": string} or null
+    }
+  ],
+  "depth_overlays": [
+    {
+      "asset_id": "ub_1",
+      "start": number,
+      "end": number,
+      "direction": "up" | "down",
+      "opacity": 0.75,
+      "duration": 0.4,
+      "reason": "why this asset belongs behind the speaker now"
+    }
+  ],
+  "inset_reveals": [
+    {
+      "start": number,
+      "end": number,
+      "variant": "simple" | "motion_graphic",
+      "background": {"type": "solid" | "gradient" | "loop" | "template", "value": "#111827"},
+      "graphic": {"template_id": "stat_callout" | "keyword_title", "text": "spoken stat or keyword"},
+      "captions": true,
+      "reason": "why this shrink-to-card beat belongs here"
     }
   ],
   "motion_graphics": [
@@ -130,11 +194,11 @@ Return ONE JSON object:
       "end": number,
       "text": string,
       "role": "primary" | "secondary" | "accent",
-      "shape": "none" | "underline" | "pill" | "bar" | "block" | "outline_box",
+      "shape": "none" | "underline" | "pill" | "bar" | "block" | "outline_box" | "bubble",
       "accent_color": "#RRGGBB",
       "text_color": "#RRGGBB",
       "anchor": "top" | "top_left" | "top_right" | "center" | "bottom" | "bottom_left" | "bottom_right",
-      "entrance": "spring_up" | "slide_left" | "slide_right" | "scale_pop" | "fade_blur" | "type_stagger" | "mask_wipe",
+      "entrance": "spring_up" | "slide_left" | "slide_right" | "scale_pop" | "fade_blur" | "type_stagger" | "mask_wipe" | "highlight_type" | "slide_from_edge",
       "exit": "fade" | "spring_out" | "slide_away",
       "font_scale": number,
       "italic": boolean
@@ -144,7 +208,8 @@ Return ONE JSON object:
     {
       "start": number,
       "end": number,
-      "mode": "inset" | "card" | "rounded_window",
+      "mode": "inset" | "card" | "rounded_window" | "pip_corner",
+      "pip_anchor": "top_left" | "top_right" | "bottom_left" | "bottom_right",
       "canvas_color": "#RRGGBB",
       "corner_radius": number,
       "scale": number,
@@ -159,40 +224,36 @@ Return ONE JSON object:
       "end": number,
       "text": string,
       "weight": "primary" | "secondary",
-      "treatment": "scale" | "color" | "highlight_shape" | "pop" | "underline",
-      "accent_color": "#RRGGBB"
+      "treatment": "scale" | "color" | "pop" | "underline" | "count" | "type_reveal",
+      "accent_color": "#RRGGBB",
+      "anchor": "top_left" | "top_right" | "bottom_left" | "bottom_right",
+      "count_from": number,
+      "count_to": number,
+      "count_suffix": string
     }
   ]
 }
 
 Meaning:
-- topic / visual_world / hook_*: same as before (English scene queries; unique hook).
-- moments: B-roll cutaways / splits / lockups (stock or user B-roll).
-- motion_graphics: stylish motion titles/callouts. Prefer 2–4. Vary entrance+shape every video.
-  Text should be short (2–6 words) pulled from the spoken idea — not a full sentence.
-- media_containers: animate full-bleed talking-head into inset/card while canvas reveals.
-  Use 0–2 times. Great after a hook or before a big claim. canvas_title optional.
-- semantic_emphasis: speech-timed punch on numbers/claims/keywords (1–4). Keep text SHORT.
-
-Layouts for moments (video only for motion):
-- cutaway: FULL-SCREEN related VIDEO 2.2–2.8s.
-- split: related VIDEO half + speaker half ~2.4s. media=video ALWAYS.
-- lockup stack: side slogan card, never over the face.
-- Do NOT use composite, pip, sticker, or media=image.
+- Analyze THIS video, then pick primitives from the toolbox. Skip tools that do not serve this transcript UNLESS they appear in REQUIRED_EDIT_STYLES.
+- If REQUIRED_EDIT_STYLES is present, you MUST place each listed toolkit at least once. You still choose the spoken moment. Do not skip a required toolkit and do not substitute a different one. Never add split unless split is required.
+- hook_title, zoom, and counter are always on even if they are not listed. Place 2–4 zooms and a count-up on the first spoken number (20s, 40s, million, 50B).
+- hook_title is REQUIRED (3–6 spoken words). Place it in a LEGAL_SLOT corner, timed to the TIMESTAMPED_WORDS of that phrase only. Never leave an intro name card up over a later sentence.
+- moments: cutaways/splits/cutout backgrounds are VIDEO. Stills = card or bubble in a LEGAL_SLOT.
+- search_keyword and queries MUST be stock-library friendly: 2–4 English words naming a visible scene (e.g. "woman airport terminal"). Never write cinematic 8–12 word briefs. Give 2–3 query variants, shortest first.
+- Time every moment and graphic to TIMESTAMPED_WORDS. overlay_text must appear only while those words are spoken.
+- motion_graphics: use often on claims, lists, numbers, and the CTA. Vary entrance+shape. Keep type animated. Never center.
+- media_containers: optional. Never pip_corner onto an empty canvas.
+- semantic_emphasis: speech-timed. For huge spoken numbers (50B, 90k, 1.2 million) use treatment=count: start ~70% of the target (50B starts at 35), tick fast, then a small scale punch. Never invent the target.
+- caption: DESIGN color, size, and placement for THIS video. If CAPTION_TEMPLATE is locked, set caption.template to that value exactly. Otherwise choose a kinetic look. Pick textColor and highlightColor that contrast the talking-head AND any inset plate — never white-on-white, never teal/cyan on a pale wall.
 
 Hard rules:
-- At least TWO cutaway video moments.
-- Exactly one split when duration > 20s (unless list beats need more cutaways).
-- 1–2 stack lockups for spoken slogans.
-- At least TWO motion_graphics when duration > 12s (vary entrance+shape).
-- At least ONE media_container when duration > 18s.
-- At least ONE semantic_emphasis when a number/claim exists; else one keyword punch.
-- No motion_graphic / container / emphasis in first 3.2s (hook owns the open).
-- Avoid overlapping two primary motion_graphics; keep ≥1.2s gap between heavy beats.
-- Captions: vary template+position+box every video (same rules as before).
-- Color grade: preferred_lut + suggested_luts from AVAILABLE_LUTS.
-- zooms: 2–4, never in first 3.5s, never during cutaway/split.
-- USER_BROLL: prefer matching ids on cutaway/split when provided.
+- There is no house style and no maximum count.
+- cutout only when SPEAKER_CUTOUT is available AND the leftover canvas has a real background.
+- USER assets as cards/focus/scroll. The same user clip may be reused for cutaway and depth_overlay at different times.
+- If CAPTION_TEMPLATE is locked, honor it over CREATOR_CAPTION_STYLE. Otherwise if CREATOR_CAPTION_STYLE is present, honor it.
+- Color grade from AVAILABLE_LUTS (the burn may ignore LUTs in local/dev).
+- zooms: 2–4, never first 3.5s, never during cutaway/split/pip/cutout.
 - Output JSON only.`;
 
 export type DirectedMoment = {
@@ -206,6 +267,13 @@ export type DirectedMoment = {
   accentColor: string;
   /** When set, prefer this creator-uploaded B-roll over stock. */
   userBrollId?: string | null;
+  treatment?: OverlayTreatment;
+  glow?: boolean;
+  staggerIndex?: number;
+  focusRegion?: FocusRegion | null;
+  visualWeight?: 'accent' | 'hero';
+  /** Stock-library queries, 2–4 words, most searchable first. */
+  queries?: string[];
 };
 
 export type DirectedZoom = {
@@ -213,10 +281,40 @@ export type DirectedZoom = {
   durationSec: number;
 };
 
+export type DirectedDepthOverlay = {
+  start: number;
+  end: number;
+  assetId: string;
+  direction: 'up' | 'down';
+  opacity?: number;
+  duration?: number;
+  reason: string;
+  searchKeyword?: string;
+  queries?: string[];
+  userBrollId?: string | null;
+  exit?: boolean;
+  fit?: 'fit' | 'fill';
+};
+
+export type DirectedInsetReveal = {
+  start: number;
+  end: number;
+  variant: 'simple' | 'motion_graphic';
+  background: {type: 'solid' | 'gradient' | 'loop' | 'template'; value: string};
+  graphic?: {templateId: string; text?: string; data?: Record<string, string | number>};
+  captions: boolean;
+  reason: string;
+  insetScale?: number;
+  easing?: string;
+  shadow?: boolean;
+};
+
 export type VisualDirection = {
   hookTitle: string;
   hookSubtitle: string;
   hookStyle: HookStyle;
+  hookStartSec?: number;
+  hookEndSec?: number;
   topic: string;
   visualQueries: string[];
   caption: CaptionDirection;
@@ -226,8 +324,11 @@ export type VisualDirection = {
   preferredLutId: string;
   zooms: DirectedZoom[];
   moments: DirectedMoment[];
+  depthOverlays: DirectedDepthOverlay[];
+  insetReveals: DirectedInsetReveal[];
   motionGraphics: MotionGraphic[];
   mediaContainers: MediaContainerMoment[];
+  frameInsets: FrameInset[];
   semanticEmphasis: SemanticEmphasis[];
   estimatedCostUsd: number;
   source: 'gemini' | 'fallback';
@@ -249,7 +350,19 @@ export async function planVisualDirection(input: {
   transcript: string;
   sourceDurationSec: number;
   momentCount: number;
-  userBrollAssets?: Array<{id: string; description: string; durationSec: number}>;
+  occupancy?: Occupancy;
+  speakerCutout?: SpeakerCutout;
+  captionStyleGuide?: CaptionStyleGuide | null;
+  words?: Array<{text: string; start: number; end: number}>;
+  requestedEdits?: string[] | null;
+  captionTemplate?: CaptionTemplateId | null;
+  userBrollAssets?: Array<{
+    id: string;
+    description: string;
+    durationSec: number;
+    kind?: string;
+    regions?: Array<{label?: string; x: number; y: number; w: number; h: number}>;
+  }>;
 }): Promise<VisualDirection> {
   const momentCount = Math.max(1, Math.min(8, Math.round(input.momentCount)));
   const fallback = fallbackVisualDirection({
@@ -276,6 +389,12 @@ export async function planVisualDirection(input: {
         momentCount,
         model,
         userBrollAssets: input.userBrollAssets,
+        occupancy: input.occupancy,
+        speakerCutout: input.speakerCutout,
+        captionStyleGuide: input.captionStyleGuide,
+        words: input.words,
+        requestedEdits: input.requestedEdits,
+        captionTemplate: input.captionTemplate,
       });
       if (directed.moments.length === 0 && !directed.hookTitle) {
         throw new EngineError('broll_failed', 'Director returned an empty brief');
@@ -297,6 +416,8 @@ export async function planVisualDirection(input: {
         zooms: directed.zooms.length > 0 ? directed.zooms : fallback.zooms,
         moments:
           directed.moments.length > 0 ? directed.moments : fallback.moments,
+        depthOverlays: directed.depthOverlays ?? [],
+        insetReveals: directed.insetReveals ?? [],
         motionGraphics:
           directed.motionGraphics.length > 0
             ? directed.motionGraphics
@@ -305,6 +426,8 @@ export async function planVisualDirection(input: {
           directed.mediaContainers.length > 0
             ? directed.mediaContainers
             : fallback.mediaContainers,
+        frameInsets:
+          directed.frameInsets.length > 0 ? directed.frameInsets : fallback.frameInsets,
         semanticEmphasis:
           directed.semanticEmphasis.length > 0
             ? directed.semanticEmphasis
@@ -342,37 +465,91 @@ async function callGemini(input: {
   sourceDurationSec: number;
   momentCount: number;
   model: string;
-  userBrollAssets?: Array<{id: string; description: string; durationSec: number}>;
+  occupancy?: Occupancy;
+  speakerCutout?: SpeakerCutout;
+  captionStyleGuide?: CaptionStyleGuide | null;
+  words?: Array<{text: string; start: number; end: number}>;
+  requestedEdits?: string[] | null;
+  captionTemplate?: CaptionTemplateId | null;
+  userBrollAssets?: Array<{
+    id: string;
+    description: string;
+    durationSec: number;
+    kind?: string;
+    regions?: Array<{label?: string; x: number; y: number; w: number; h: number}>;
+  }>;
 }): Promise<Omit<VisualDirection, 'source'>> {
   const url =
     `https://generativelanguage.googleapis.com/v1beta/models/` +
-    `${encodeURIComponent(input.model)}:generateContent` +
-    `?key=${encodeURIComponent(env.GEMINI_API_KEY)}`;
+    `${encodeURIComponent(input.model)}:generateContent`;
 
   const lutEntries = shortlistLutsForDirector();
   const lutPrompt = formatLutsForDirectorPrompt(lutEntries);
   const userBrollBlock =
     input.userBrollAssets && input.userBrollAssets.length > 0
-      ? `USER_BROLL (prefer these; set user_broll_id on matching cutaway/split moments; each id once):\n` +
+      ? `USER_ASSETS (place these as designed cards or cutaways; set user_broll_id; each id once):\n` +
         input.userBrollAssets
-          .map(
-            asset =>
-              `- ${asset.id}: ${asset.description} (~${asset.durationSec.toFixed(1)}s)`,
-          )
+          .map(asset => {
+            const kind = asset.kind || 'clip';
+            const regions = (asset.regions ?? [])
+              .slice(0, 4)
+              .map(
+                region =>
+                  `${region.label || 'region'} @ ${region.x.toFixed(2)},${region.y.toFixed(2)},${region.w.toFixed(2)},${region.h.toFixed(2)}`,
+              )
+              .join('; ');
+            return (
+              `- ${asset.id} [${kind}] ${asset.description}` +
+              (asset.durationSec > 0.5 ? ` (~${asset.durationSec.toFixed(1)}s)` : '') +
+              (regions ? `\n    text_regions: ${regions}` : '')
+            );
+          })
           .join('\n') +
-        '\n'
+        `\nDocuments → layout=card treatment=focus with focus_region matching spoken words.\n` +
+        `Tall clips/images → treatment=scroll. Photos → treatment=card with glow.\n`
       : '';
+  const occupancyBlock = input.occupancy
+    ? `${describeOccupancyForDirector(input.occupancy)}\n` +
+      (input.speakerCutout ? `${describeCutoutForDirector(input.speakerCutout)}\n\n` : '\n')
+    : input.speakerCutout
+      ? `${describeCutoutForDirector(input.speakerCutout)}\n\n`
+      : '';
+  const captionGuideBlock = input.captionStyleGuide
+    ? `${formatCaptionGuideForDirector(input.captionStyleGuide)}\n\n`
+    : '';
+  const timedWords = (input.words ?? [])
+    .slice(0, 400)
+    .map(
+      (word, index) =>
+        `${index} [${word.start.toFixed(2)}-${word.end.toFixed(2)}] ${word.text}`,
+    )
+    .join('\n');
+  const requiredEdits = input.requestedEdits?.length
+    ? `${allowedEditsPromptBlock(new Set(input.requestedEdits))}\n`
+    : '';
+  const captionLock = input.captionTemplate
+    ? `CAPTION_TEMPLATE is locked to ${input.captionTemplate}. Set caption.template to ${input.captionTemplate}. Do not pick another kinetic look.\n`
+    : '';
   const prompt =
     `Clip duration: ${input.sourceDurationSec.toFixed(1)} seconds.\n` +
     `Propose up to ${Math.max(input.momentCount, listBeatsFromTranscript(input.transcript).length + 3)} moments.\n` +
-    `All search_keyword and visual_world queries MUST be English scene phrases for Pexels.\n` +
-    `Match the overall TOPIC — never a single random noun. Include video cutaways/splits for each list item if they list things.\n` +
-    `Pick a hook_style that fits THIS video (vary it). Include one video split and 1–2 stack phrase cards.\n` +
-    `Add motion_graphics (stylish entrances), media_containers (full→inset canvas), and semantic_emphasis (punch numbers/claims). Vary every video — be creative.\n` +
-    `Pick caption.template + caption.position + caption.box for THIS video (vary all three — do not always use hormozi/bottom/box).\n` +
-    `Prefer box=false unless template is box or the background would wash out outlined type.\n` +
+    `Analyze this talking-head and choose a unique subset of primitives — do not apply every tool, and do not copy a previous edit format.\n` +
+    `Time every graphic and B-roll to the TIMESTAMPED_WORDS it illustrates. No guessed clocks.\n` +
+    `Place every graphic in a LEGAL_SLOT from FRAME_OCCUPANCY. Never cover the speaker or the caption band.\n` +
+    `All search_keyword, queries, and visual_world MUST be 2–4 English words naming a visible Pexels scene.\n` +
+    `Match the overall TOPIC — never a single random noun. Include video cutaways for list items only if they help the viewer see the point.\n` +
+    `Pick a hook_style that fits THIS video. Use motion primitives only when they serve this transcript.\n` +
+    `Add motion_graphics when a claim should stay on screen long enough to read. media_containers only if the leftover canvas will hold real assets or a title.\n` +
+    `Design caption.template + caption.animation for THIS video. Default to clean/minimal/subtitle/karaoke. Never default to a shiny spoken-word border.\n` +
+    requiredEdits +
+    captionLock +
+    occupancyBlock +
+    captionGuideBlock +
     userBrollBlock +
-    `AVAILABLE_LUTS (choose preferred_lut + suggested_luts ONLY from these ids):\n${lutPrompt}\n\n` +
+    (timedWords
+      ? `TIMESTAMPED_WORDS (use these start/end times; overlay_text must match the words on screen):\n${timedWords}\n\n`
+      : '') +
+    `AVAILABLE_LUTS (rank up to ${LUT_RANK_LIMIT} suggested_luts from these names only; Neutral is shown separately — do not invent ids):\n${lutPrompt}\n\n` +
     `Transcript:\n${input.transcript.slice(0, 12_000)}`;
 
   const started = Date.now();
@@ -382,13 +559,15 @@ async function callGemini(input: {
     failureCode: 'broll_failed',
     timeoutMs: 45_000,
     retries: 1,
-    headers: {'Content-Type': 'application/json'},
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': env.GEMINI_API_KEY,
+    },
     body: JSON.stringify({
       systemInstruction: {parts: [{text: SYSTEM_INSTRUCTION}]},
       contents: [{role: 'user', parts: [{text: prompt}]}],
       generationConfig: {
         temperature: 0.45,
-        maxOutputTokens: 4096,
         responseMimeType: 'application/json',
         responseSchema: {
           type: 'OBJECT',
@@ -406,6 +585,8 @@ async function callGemini(input: {
                 highlight_color: {type: 'STRING'},
                 box: {type: 'BOOLEAN'},
                 box_color: {type: 'STRING'},
+                font_scale: {type: 'NUMBER'},
+                animation: {type: 'STRING'},
               },
               required: ['template', 'position', 'box'],
             },
@@ -428,6 +609,7 @@ async function callGemini(input: {
                 properties: {
                   timestamp: {type: 'NUMBER'},
                   search_keyword: {type: 'STRING'},
+                  queries: {type: 'ARRAY', items: {type: 'STRING'}},
                   why: {type: 'STRING'},
                   media: {type: 'STRING'},
                   layout: {type: 'STRING'},
@@ -436,6 +618,20 @@ async function callGemini(input: {
                   text_style: {type: 'STRING'},
                   accent_color: {type: 'STRING'},
                   user_broll_id: {type: 'STRING'},
+                  treatment: {type: 'STRING'},
+                  stagger_index: {type: 'NUMBER'},
+                  glow: {type: 'BOOLEAN'},
+                  visual_weight: {type: 'STRING'},
+                  focus_region: {
+                    type: 'OBJECT',
+                    properties: {
+                      x: {type: 'NUMBER'},
+                      y: {type: 'NUMBER'},
+                      w: {type: 'NUMBER'},
+                      h: {type: 'NUMBER'},
+                      label: {type: 'STRING'},
+                    },
+                  },
                 },
                 required: ['timestamp', 'search_keyword', 'media', 'layout'],
               },
@@ -469,6 +665,7 @@ async function callGemini(input: {
                   start: {type: 'NUMBER'},
                   end: {type: 'NUMBER'},
                   mode: {type: 'STRING'},
+                  pip_anchor: {type: 'STRING'},
                   canvas_color: {type: 'STRING'},
                   corner_radius: {type: 'NUMBER'},
                   scale: {type: 'NUMBER'},
@@ -490,8 +687,61 @@ async function callGemini(input: {
                   weight: {type: 'STRING'},
                   treatment: {type: 'STRING'},
                   accent_color: {type: 'STRING'},
+                  anchor: {type: 'STRING'},
+                  count_from: {type: 'NUMBER'},
+                  count_to: {type: 'NUMBER'},
+                  count_suffix: {type: 'STRING'},
                 },
                 required: ['start', 'end', 'text'],
+              },
+            },
+            depth_overlays: {
+              type: 'ARRAY',
+              items: {
+                type: 'OBJECT',
+                properties: {
+                  asset_id: {type: 'STRING'},
+                  start: {type: 'NUMBER'},
+                  end: {type: 'NUMBER'},
+                  direction: {type: 'STRING'},
+                  opacity: {type: 'NUMBER'},
+                  duration: {type: 'NUMBER'},
+                  reason: {type: 'STRING'},
+                  search_keyword: {type: 'STRING'},
+                  user_broll_id: {type: 'STRING'},
+                  exit: {type: 'BOOLEAN'},
+                  fit: {type: 'STRING'},
+                },
+                required: ['start', 'end'],
+              },
+            },
+            inset_reveals: {
+              type: 'ARRAY',
+              items: {
+                type: 'OBJECT',
+                properties: {
+                  start: {type: 'NUMBER'},
+                  end: {type: 'NUMBER'},
+                  variant: {type: 'STRING'},
+                  captions: {type: 'BOOLEAN'},
+                  reason: {type: 'STRING'},
+                  inset_scale: {type: 'NUMBER'},
+                  background: {
+                    type: 'OBJECT',
+                    properties: {
+                      type: {type: 'STRING'},
+                      value: {type: 'STRING'},
+                    },
+                  },
+                  graphic: {
+                    type: 'OBJECT',
+                    properties: {
+                      template_id: {type: 'STRING'},
+                      text: {type: 'STRING'},
+                    },
+                  },
+                },
+                required: ['start', 'end'],
               },
             },
           },
@@ -511,6 +761,32 @@ async function callGemini(input: {
   }
 
   const parsed = parseVisualDirectorJson(text, input.sourceDurationSec, input.transcript);
+  dumpDirectorTrace('01-gemini-director', {
+    model: input.model,
+    requestedEdits: input.requestedEdits ?? null,
+    captionTemplate: input.captionTemplate ?? null,
+    sourceDurationSec: input.sourceDurationSec,
+    systemInstruction: SYSTEM_INSTRUCTION,
+    userPrompt: prompt,
+    rawResponse: text,
+    parsed: {
+      topic: parsed.topic,
+      hookTitle: parsed.hookTitle,
+      hookStyle: parsed.hookStyle,
+      caption: parsed.caption,
+      zooms: parsed.zooms,
+      moments: parsed.moments,
+      depthOverlays: parsed.depthOverlays,
+      insetReveals: parsed.insetReveals,
+      motionGraphics: parsed.motionGraphics,
+      mediaContainers: parsed.mediaContainers,
+      semanticEmphasis: parsed.semanticEmphasis,
+      visualQueries: parsed.visualQueries,
+      preferredLutId: parsed.preferredLutId,
+      suggestedLutIds: parsed.suggestedLutIds,
+    },
+    usage: body.usageMetadata ?? {},
+  });
   if (parsed.moments.length === 0 && !parsed.hookTitle) {
     log.warn({preview: text.slice(0, 400), model: input.model}, 'director json unusable');
     throw new EngineError('broll_failed', 'Visual director returned malformed JSON');
@@ -587,7 +863,11 @@ export function parseVisualDirectorJson(
     if (timestamp < 0 || timestamp > durationSec) {
       continue;
     }
-    const layout = coerceLayout(item.layout, item.media ?? item.mediaKind);
+    const layoutRaw = coerceLayout(item.layout, item.media ?? item.mediaKind);
+    const layout =
+      layoutRaw === 'sticker' || layoutRaw === 'pip'
+        ? 'card'
+        : layoutRaw;
     const scene = applySubjectToQuery(
       ensureEnglishSearchQuery(keyword) || sanitizeVisualQuery(keyword),
       inferStockSubject(transcript),
@@ -598,22 +878,19 @@ export function parseVisualDirectorJson(
     ) {
       continue;
     }
-    // Drop photo-led layouts — they look random on talking-head shorts.
-    if (
-      layout === 'composite' ||
-      layout === 'pip' ||
-      layout === 'sticker' ||
-      coerceMedia(item.media ?? item.mediaKind, layout) === 'image'
-    ) {
-      continue;
-    }
+    const media = coerceMedia(item.media ?? item.mediaKind, layout);
+    const treatment = coerceTreatment(
+      item.treatment,
+      layout,
+      media,
+    );
     moments.push({
       timestamp,
       searchKeyword:
         layout === 'lockup' || layout === 'chip' || layout === 'banner'
           ? scene || ensureEnglishSearchQuery(keyword) || keyword.slice(0, 60)
           : scene.slice(0, 60),
-      media: coerceMedia(item.media ?? item.mediaKind, layout),
+      media,
       layout,
       anchor:
         layout === 'lockup'
@@ -633,6 +910,15 @@ export function parseVisualDirectorJson(
       userBrollId: coerceUserBrollId(
         item.user_broll_id ?? item.userBrollId,
       ),
+      treatment,
+      glow: item.glow !== false,
+      staggerIndex: Math.max(0, Math.round(Number(item.stagger_index ?? item.staggerIndex ?? 0) || 0)),
+      focusRegion: parseFocusRegion(item.focus_region ?? item.focusRegion),
+      visualWeight:
+        String(item.visual_weight ?? item.visualWeight ?? '').toLowerCase() === 'hero'
+          ? 'hero'
+          : 'accent',
+      queries: parseMomentQueries(item, keyword, transcript),
     });
   }
 
@@ -640,11 +926,11 @@ export function parseVisualDirectorJson(
     record.visual_world ?? record.visualWorld,
     transcript,
   );
-  const availableLuts = listAvailableLuts();
+  const availableLuts = lutCatalogIds();
   let suggestedLutIds = parseSuggestedLutIds(
     record.suggested_luts ?? record.suggestedLuts,
     availableLuts,
-    3,
+    LUT_RANK_LIMIT,
   );
   let preferredLutId = coerceLutId(
     record.preferred_lut ?? record.preferredLut,
@@ -654,11 +940,7 @@ export function parseVisualDirectorJson(
     preferredLutId = suggestedLutIds[0];
   }
   if (preferredLutId && !suggestedLutIds.includes(preferredLutId)) {
-    suggestedLutIds = [preferredLutId, ...suggestedLutIds].slice(0, 3);
-  }
-  if (suggestedLutIds.length === 0 && availableLuts.length > 0) {
-    suggestedLutIds = defaultSuggestedLuts(transcript, availableLuts);
-    preferredLutId = suggestedLutIds[0] || '';
+    suggestedLutIds = [preferredLutId, ...suggestedLutIds].slice(0, LUT_RANK_LIMIT);
   }
   return {
     hookTitle,
@@ -680,96 +962,20 @@ export function parseVisualDirectorJson(
       transcript,
       visualQueries,
     ),
+    depthOverlays: parseDirectedDepthOverlays(record, durationSec),
+    insetReveals: parseDirectedInsetReveals(record, durationSec),
     ...parseMotionPlanFromDirector(record, durationSec, transcript),
   };
 }
 
-/** Director often "skips clutter". We still owe a split, list beats, and phrase cards. */
+/** Sort only. Style injection was removed so the director stays free. */
 export function enforceRequiredLayouts(
   moments: DirectedMoment[],
-  durationSec: number,
-  transcript: string,
-  visualQueries: string[],
+  _durationSec?: number,
+  _transcript?: string,
+  _visualQueries?: string[],
 ): DirectedMoment[] {
-  const out = [...moments].sort((a, b) => a.timestamp - b.timestamp);
-  const subject = inferStockSubject(transcript);
-  const stock =
-    visualQueries.find(query => query.split(/\s+/).length >= 2) ||
-    applySubjectToQuery('person finishing checklist notebook', subject) ||
-    'person finishing checklist notebook';
-
-  const listBeats = listBeatsFromTranscript(transcript, 5);
-  if (listBeats.length >= 2) {
-    const span = Math.max(8, durationSec - 8);
-    const step = span / (listBeats.length + 1);
-    for (const [index, beat] of listBeats.entries()) {
-      const preferred = 4.5 + step * (index + 1);
-      const at = openMomentTime(out, durationSec, preferred, 4);
-      if (at == null) {
-        continue;
-      }
-      const alreadyCovered = out.some(
-        moment =>
-          (moment.layout === 'cutaway' || moment.layout === 'split') &&
-          Math.abs(moment.timestamp - at) < 3.5,
-      );
-      if (alreadyCovered) {
-        continue;
-      }
-      out.push({
-        timestamp: at,
-        searchKeyword: beat.searchKeyword || stock,
-        media: 'video',
-        layout: index === 0 && durationSec > 20 ? 'split' : 'cutaway',
-        anchor: 'top',
-        overlayText: beat.label.slice(0, 42),
-        textStyle: 'outline',
-        accentColor: '#FFFFFF',
-      });
-    }
-  }
-
-  if (durationSec > 20 && !out.some(moment => moment.layout === 'split')) {
-    const at = openMomentTime(out, durationSec, durationSec * 0.4);
-    if (at != null) {
-      out.push({
-        timestamp: at,
-        searchKeyword: stock,
-        media: 'video',
-        layout: 'split',
-        anchor: 'top',
-        overlayText: '',
-        textStyle: 'outline',
-        accentColor: '#FFFFFF',
-      });
-    }
-  }
-
-  if (!out.some(moment => moment.layout === 'lockup' && moment.textStyle === 'stack')) {
-    const phrases = keyPhrasesFromTranscript(transcript, 2);
-    for (const [index, phrase] of phrases.entries()) {
-      const at = openMomentTime(
-        out,
-        durationSec,
-        durationSec * (index === 0 ? 0.32 : 0.62),
-      );
-      if (at == null) {
-        break;
-      }
-      out.push({
-        timestamp: at,
-        searchKeyword: 'phrase',
-        media: 'text',
-        layout: 'lockup',
-        anchor: index % 2 === 0 ? 'top_left' : 'top_right',
-        overlayText: phrase,
-        textStyle: 'stack',
-        accentColor: '#F7F1E1',
-      });
-    }
-  }
-
-  return out.sort((a, b) => a.timestamp - b.timestamp);
+  return [...moments].sort((a, b) => a.timestamp - b.timestamp);
 }
 
 function openMomentTime(
@@ -806,7 +1012,7 @@ export function fallbackVisualDirection(input: {
       ? visualQueries
       : ['cinematic city street', 'golden hour portrait', 'hands writing notebook'];
   const span = Math.max(8, input.sourceDurationSec);
-  const layouts: VisualOverlayLayout[] = ['cutaway', 'split', 'cutaway', 'lockup'];
+  const layouts = fallbackLayoutKit(input.transcript);
   const quote = quotedPhrase(input.transcript);
   const phrases = keyPhrasesFromTranscript(input.transcript);
   const count = Math.max(3, Math.min(input.momentCount, Math.max(stock.length, 4)));
@@ -815,9 +1021,9 @@ export function fallbackVisualDirection(input: {
   const moments: DirectedMoment[] = Array.from({length: count}, (_, index) => {
     const layout = layouts[index % layouts.length]!;
     const media: VisualMediaKind =
-      layout === 'cutaway' || layout === 'split'
+      layout === 'cutaway' || layout === 'split' || layout === 'cutout'
         ? 'video'
-        : layout === 'lockup' || layout === 'chip' || layout === 'banner'
+        : layout === 'lockup' || layout === 'chip' || layout === 'banner' || layout === 'bubble'
           ? 'text'
           : 'image';
     return {
@@ -832,14 +1038,15 @@ export function fallbackVisualDirection(input: {
           : layout === 'sticker' || layout === 'pip' || layout === 'cutaway' || layout === 'split'
             ? ''
             : quote,
-      textStyle: layout === 'lockup' ? 'stack' : 'bar',
+      textStyle:
+        layout === 'lockup' ? 'stack' : layout === 'bubble' ? 'bubble' : 'bar',
       accentColor: '#F7F1E1',
     };
   });
 
   const zooms: DirectedZoom[] = [
-    {timestamp: Math.min(span * 0.28, span - 3), durationSec: 1.6},
-    {timestamp: Math.min(span * 0.62, span - 3), durationSec: 1.6},
+    {timestamp: Math.min(span * 0.28, span - 3), durationSec: 2.6},
+    {timestamp: Math.min(span * 0.62, span - 3), durationSec: 2.6},
   ].filter(zoom => zoom.timestamp >= 4);
 
   return {
@@ -849,10 +1056,12 @@ export function fallbackVisualDirection(input: {
     topic: hookTitle,
     visualQueries: stock,
     caption: defaultCaptionDirection(input.transcript),
-    suggestedLutIds: defaultSuggestedLuts(input.transcript, listAvailableLuts()),
-    preferredLutId: defaultSuggestedLuts(input.transcript, listAvailableLuts())[0] || '',
+    suggestedLutIds: defaultSuggestedLuts(input.transcript, lutCatalogIds()),
+    preferredLutId: defaultSuggestedLuts(input.transcript, lutCatalogIds())[0] || '',
     zooms,
     moments,
+    depthOverlays: [],
+    insetReveals: [],
     ...fallbackMotionPlan({
       transcript: input.transcript,
       durationSec: span,
@@ -893,8 +1102,17 @@ function coerceLayout(raw: unknown, media: unknown): VisualOverlayLayout {
   if (value === 'background') {
     return 'composite';
   }
+  if (value === 'person_cutout' || value === 'keyed' || value === 'cut_out') {
+    return 'cutout';
+  }
+  if (value === 'chat' || value === 'message' || value === 'imessage') {
+    return 'bubble';
+  }
   if (value === 'stat' || value === 'title' || value === 'headline') {
     return 'lockup';
+  }
+  if (value === 'card' || value === 'photo_card' || value === 'image_card') {
+    return 'card';
   }
   if ((LAYOUTS as string[]).includes(value)) {
     return value as VisualOverlayLayout;
@@ -917,13 +1135,59 @@ function coerceMedia(raw: unknown, layout: VisualOverlayLayout): VisualMediaKind
   if (value === 'photo' || value === 'picture') {
     return 'image';
   }
-  if (layout === 'cutaway' || layout === 'split') {
+  if (layout === 'cutaway' || layout === 'split' || layout === 'cutout' || layout === 'composite') {
     return 'video';
   }
-  if (layout === 'lockup' || layout === 'chip' || layout === 'banner' || layout === 'stat') {
+  if (layout === 'lockup' || layout === 'chip' || layout === 'banner' || layout === 'stat' || layout === 'bubble') {
     return 'text';
   }
+  if (layout === 'card' || layout === 'pip' || layout === 'sticker') {
+    return 'image';
+  }
   return 'image';
+}
+
+function coerceTreatment(
+  raw: unknown,
+  layout: VisualOverlayLayout,
+  media: VisualMediaKind,
+): OverlayTreatment {
+  const value = String(raw ?? '').trim().toLowerCase();
+  if ((OVERLAY_TREATMENTS as readonly string[]).includes(value)) {
+    return value as OverlayTreatment;
+  }
+  if (layout === 'card' || layout === 'pip' || layout === 'sticker' || media === 'image') {
+    return 'card';
+  }
+  return 'card';
+}
+
+function parseFocusRegion(raw: unknown): FocusRegion | null {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+  const record = raw as Record<string, unknown>;
+  const x = Number(record.x);
+  const y = Number(record.y);
+  const w = Number(record.w ?? record.width);
+  const h = Number(record.h ?? record.height);
+  if (![x, y, w, h].every(Number.isFinite)) {
+    return null;
+  }
+  return {
+    x: clamp01(x),
+    y: clamp01(y),
+    w: Math.min(1, Math.max(0.08, w)),
+    h: Math.min(1, Math.max(0.05, h)),
+    label: String(record.label ?? '').trim().slice(0, 80) || undefined,
+  };
+}
+
+function clamp01(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.min(1, Math.max(0, value));
 }
 
 function coerceAnchor(
@@ -1008,15 +1272,31 @@ export function quotedPhrase(transcript: string, maxWords = 5): string {
 
 export function defaultCaptionDirection(transcript = ''): CaptionDirection {
   const template = pickCaptionTemplate(transcript);
-  const position = pickCaptionPosition(transcript);
   const preset = captionPreset(template);
   return {
-    position,
-    bottomFrac: bottomFracFor(position),
+    position: 'bottom',
+    bottomFrac: 0.16,
     textColor: preset.textColor,
     highlightColor: preset.highlightColor,
     boxColor: preset.boxColor,
     template,
+    animation: preset.animation,
+    fontScale: 1,
+  };
+}
+
+/** Karaoke word + gold shine box. Used by the captions-only mobile pipeline. */
+export function shineCaptionDirection(): CaptionDirection {
+  return {
+    position: 'bottom',
+    bottomFrac: 0.16,
+    textColor: '#FFFFFF',
+    highlightColor: '#F5B942',
+    boxColor: null,
+    template: 'karaoke',
+    animation: 'highlight',
+    fontScale: 1,
+    uppercase: false,
   };
 }
 
@@ -1028,11 +1308,14 @@ function parseCaptionDirection(raw: unknown, transcript = ''): CaptionDirection 
   const record = raw as Record<string, unknown>;
   const template = coerceCaptionTemplate(record.template) ?? fallback.template;
   const position = coerceCaptionPosition(record.position) ?? fallback.position;
+  const requestedAnimation = coerceCaptionAnimation(record.animation);
+  const shineRequested = requestedAnimation === 'highlight';
   const boxExplicitFalse = record.box === false;
   const boxExplicitTrue = record.box === true;
   const boxColorRaw = String(record.box_color ?? record.boxColor ?? '').trim();
   const boxRequested =
     !boxExplicitFalse &&
+    !shineRequested &&
     (boxExplicitTrue ||
       Boolean(boxColorRaw) ||
       template === 'box');
@@ -1047,13 +1330,27 @@ function parseCaptionDirection(raw: unknown, transcript = ''): CaptionDirection 
     String(record.highlight_color ?? record.highlightColor ?? ''),
     boxColor ? textColor : fallback.highlightColor,
   );
+  const loud = template === 'mrbeast' || template === 'bounce';
+  const animation =
+    shineRequested && !loud
+      ? captionPreset(template).animation
+      : requestedAnimation ?? captionPreset(template).animation;
+  const fontScaleRaw = Number(record.font_scale ?? record.fontScale);
+  const fontScale = Number.isFinite(fontScaleRaw)
+    ? Math.min(1.5, Math.max(0.7, fontScaleRaw))
+    : fallback.fontScale ?? 1;
   return {
     position,
     bottomFrac: bottomFracFor(position),
     textColor: boxColor ? ensureContrast(textColor, boxColor) : textColor,
     highlightColor,
-    boxColor,
+    boxColor:
+      template === 'box' || template === 'subtitle'
+        ? boxColor || '#111111'
+        : boxColor,
     template,
+    animation,
+    fontScale,
   };
 }
 
@@ -1106,19 +1403,31 @@ function pickCaptionPosition(transcript: string): CaptionPosition {
   return weighted[hash % weighted.length]!;
 }
 
+function parseMomentQueries(
+  item: Record<string, unknown>,
+  keyword: string,
+  transcript: string,
+): string[] {
+  const extras = Array.isArray(item.queries)
+    ? item.queries.map(value => String(value ?? '')).filter(Boolean)
+    : [];
+  return stockFriendlyQueries(keyword, inferStockSubject(transcript), extras);
+}
+
 function parseVisualWorld(raw: unknown, transcript: string): string[] {
   const rows = Array.isArray(raw) ? raw : [];
+  const subject = inferStockSubject(transcript);
   const cleaned = rows
     .map(value =>
       applySubjectToQuery(
         ensureEnglishSearchQuery(String(value ?? '')) ||
           sanitizeVisualQuery(String(value ?? '')),
-        inferStockSubject(transcript),
+        subject,
       ),
     )
     .filter(value => value.split(/\s+/).length >= 2);
   if (cleaned.length >= 2) {
-    return [...new Set(cleaned)].slice(0, 6);
+    return stockFriendlyQueries(cleaned[0]!, subject, cleaned.slice(1));
   }
   return themeQueriesFromTranscript(transcript, 4);
 }
@@ -1176,6 +1485,134 @@ function parseDirectedZooms(raw: unknown, durationSec: number): DirectedZoom[] {
   return out;
 }
 
+function parseDirectedDepthOverlays(
+  record: Record<string, unknown>,
+  durationSec: number,
+): DirectedDepthOverlay[] {
+  const rows = Array.isArray(record.depth_overlays)
+    ? record.depth_overlays
+    : Array.isArray(record.depthOverlays)
+      ? record.depthOverlays
+      : [];
+  const out: DirectedDepthOverlay[] = [];
+  for (const row of rows) {
+    if (!row || typeof row !== 'object') {
+      continue;
+    }
+    const item = row as Record<string, unknown>;
+    const start = Number(item.start ?? item.timestamp);
+    const explicitEnd = Number(item.end);
+    const holdRaw = Number(item.hold ?? item.hold_sec);
+    const end = Number.isFinite(explicitEnd)
+      ? explicitEnd
+      : start + (Number.isFinite(holdRaw) ? holdRaw : 2.4);
+    const assetId = String(item.asset_id ?? item.assetId ?? item.user_broll_id ?? item.userBrollId ?? '').trim();
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+      continue;
+    }
+    if (start < 0 || start > durationSec) {
+      continue;
+    }
+    out.push({
+      start,
+      end: Math.min(durationSec, end),
+      assetId,
+      direction: String(item.direction ?? '').toLowerCase() === 'up' ? 'up' : 'down',
+      opacity: Number.isFinite(Number(item.opacity)) ? Number(item.opacity) : undefined,
+      duration: Number.isFinite(Number(item.duration)) ? Number(item.duration) : undefined,
+      reason: String(item.reason ?? item.why ?? item.intent ?? ''),
+      searchKeyword: String(item.search_keyword ?? item.searchKeyword ?? ''),
+      queries: Array.isArray(item.queries) ? item.queries.map(value => String(value)) : undefined,
+      userBrollId: assetId || null,
+      exit: item.exit === true,
+      fit: String(item.fit ?? '') === 'fit' ? 'fit' : 'fill',
+    });
+  }
+  return out;
+}
+
+function parseDirectedInsetReveals(
+  record: Record<string, unknown>,
+  durationSec: number,
+): DirectedInsetReveal[] {
+  const rows = Array.isArray(record.inset_reveals)
+    ? record.inset_reveals
+    : Array.isArray(record.insetReveals)
+      ? record.insetReveals
+      : [];
+  const out: DirectedInsetReveal[] = [];
+  for (const row of rows) {
+    if (!row || typeof row !== 'object') {
+      continue;
+    }
+    const item = row as Record<string, unknown>;
+    const start = Number(item.start ?? item.timestamp);
+    const explicitEnd = Number(item.end);
+    const holdRaw = Number(item.hold ?? item.hold_sec);
+    const end = Number.isFinite(explicitEnd)
+      ? explicitEnd
+      : start + (Number.isFinite(holdRaw) ? holdRaw : 3.2);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+      continue;
+    }
+    if (start < 0 || start > durationSec) {
+      continue;
+    }
+    const backgroundRaw =
+      item.background && typeof item.background === 'object'
+        ? (item.background as Record<string, unknown>)
+        : {};
+    const graphicRaw =
+      item.graphic && typeof item.graphic === 'object'
+        ? (item.graphic as Record<string, unknown>)
+        : {};
+    const variant =
+      String(item.variant ?? '').toLowerCase() === 'motion_graphic'
+        ? 'motion_graphic'
+        : 'simple';
+    const bgType = String(backgroundRaw.type ?? item.background_type ?? 'solid')
+      .toLowerCase();
+    out.push({
+      start,
+      end: Math.min(durationSec, end),
+      variant,
+      background: {
+        type:
+          bgType === 'gradient' || bgType === 'loop' || bgType === 'template'
+            ? bgType
+            : 'solid',
+        value: String(backgroundRaw.value ?? item.background_value ?? '#111827'),
+      },
+      graphic:
+        variant === 'motion_graphic'
+          ? {
+              templateId: String(
+                graphicRaw.template_id ?? graphicRaw.templateId ?? 'keyword_title',
+              ),
+              text: String(graphicRaw.text ?? item.text ?? ''),
+            }
+          : undefined,
+      captions: item.captions !== false,
+      reason: String(item.reason ?? item.why ?? item.intent ?? ''),
+      insetScale: Number.isFinite(Number(item.inset_scale ?? item.insetScale))
+        ? Number(item.inset_scale ?? item.insetScale)
+        : undefined,
+      easing: String(item.easing ?? '') || undefined,
+      shadow: item.shadow !== false,
+    });
+  }
+  return out;
+}
+
+function coerceCaptionAnimation(raw: unknown): CaptionAnimation | undefined {
+  const value = String(raw ?? '')
+    .trim()
+    .toLowerCase();
+  return (CAPTION_ANIMATIONS as readonly string[]).includes(value)
+    ? (value as CaptionAnimation)
+    : undefined;
+}
+
 function coerceCaptionTemplate(raw: unknown): CaptionTemplateId | null {
   const value = String(raw ?? '').trim().toLowerCase();
   if ((CAPTION_TEMPLATES as readonly string[]).includes(value)) {
@@ -1186,7 +1623,7 @@ function coerceCaptionTemplate(raw: unknown): CaptionTemplateId | null {
 
 function coerceTextStyle(raw: unknown, layout: VisualOverlayLayout): OverlayTextStyle {
   const value = String(raw ?? '').trim().toLowerCase();
-  if (value === 'outline' || value === 'bar' || value === 'chip' || value === 'poster' || value === 'stack') {
+  if (value === 'outline' || value === 'bar' || value === 'chip' || value === 'poster' || value === 'stack' || value === 'bubble') {
     if (value === 'poster' && (layout === 'lockup' || layout === 'banner')) {
       return 'stack';
     }
@@ -1200,6 +1637,9 @@ function coerceTextStyle(raw: unknown, layout: VisualOverlayLayout): OverlayText
   }
   if (layout === 'banner') {
     return 'bar';
+  }
+  if (layout === 'bubble') {
+    return 'bubble';
   }
   return 'outline';
 }
@@ -1234,6 +1674,22 @@ function sanitizeOverlayAccent(raw: string): string {
   return hex;
 }
 
+function fallbackLayoutKit(transcript: string): VisualOverlayLayout[] {
+  let hash = 0;
+  for (let i = 0; i < transcript.length; i += 1) {
+    hash = (hash * 31 + transcript.charCodeAt(i)) >>> 0;
+  }
+  const kits: VisualOverlayLayout[][] = [
+    ['cutaway', 'bubble', 'lockup', 'chip'],
+    ['split', 'card', 'lockup', 'cutaway'],
+    ['cutout', 'bubble', 'lockup', 'card'],
+    ['card', 'lockup', 'cutaway', 'chip'],
+    ['cutaway', 'split', 'bubble', 'lockup'],
+    ['lockup', 'cutout', 'card', 'chip'],
+  ];
+  return kits[hash % kits.length]!;
+}
+
 function pickCaptionTemplate(transcript: string): CaptionTemplateId {
   const text = transcript.toLowerCase();
   if (
@@ -1241,10 +1697,10 @@ function pickCaptionTemplate(transcript: string): CaptionTemplateId {
       text,
     )
   ) {
-    return 'minimal';
+    return 'weight-shift';
   }
   if (/[!]{2,}|\byo\b|\bwow\b|\binsane\b|\bcrazy\b|\bhype\b/.test(text)) {
-    return 'mrbeast';
+    return 'beast';
   }
   if (
     /\b(first|second|third|step|tips?|how to|lesson|learn|because)\b/.test(text)
@@ -1252,24 +1708,24 @@ function pickCaptionTemplate(transcript: string): CaptionTemplateId {
     return 'karaoke';
   }
   if (/\b(premium|luxury|elegant|calm|brand)\b/.test(text)) {
-    return 'box';
+    return 'grape';
   }
   if (/\b(energy|exciting|lets go|let['']s go|fire)\b/.test(text)) {
-    return 'bounce';
+    return 'hustle';
   }
   if (/\b(buy|sale|offer|comment|link|shop|dm)\b/.test(text)) {
-    return 'hormozi';
+    return 'pop';
   }
   // Rotate fallback so back-to-back videos don't clone one look.
   const bucket = Math.abs(text.length) % 7;
   const rotation: CaptionTemplateId[] = [
-    'classic',
-    'hormozi',
-    'bounce',
     'karaoke',
-    'minimal',
-    'mrbeast',
-    'box',
+    'basic',
+    'beast',
+    'pop',
+    'grape',
+    'gaming-stream',
+    'editorial-emphasis',
   ];
   return rotation[bucket]!;
 }
@@ -1301,38 +1757,53 @@ function defaultSuggestedLuts(transcript: string, available: string[]): string[]
   pushIf('Cinematic_for_Flog');
   pushIf('Colorist_Factory_Severn_LUT');
   for (const id of available) {
-    if (prefer.length >= 3) {
+    if (prefer.length >= LUT_RANK_LIMIT) {
       break;
     }
     pushIf(id);
   }
-  return prefer.slice(0, 3);
+  return prefer.slice(0, LUT_RANK_LIMIT);
 }
 
 function captionPreset(template: CaptionTemplateId): {
   textColor: string;
   highlightColor: string;
   boxColor: string | null;
+  animation: CaptionAnimation;
 } {
-  if (template === 'mrbeast') {
-    return {textColor: '#FFFF00', highlightColor: '#FF6600', boxColor: null};
+  if (template === 'beast' || template === 'mrbeast') {
+    return {textColor: '#FFFF00', highlightColor: '#FF6600', boxColor: null, animation: 'scale'};
   }
-  if (template === 'box') {
-    return {textColor: '#FFFFFF', highlightColor: '#FFFFFF', boxColor: '#111111'};
+  if (template === 'box' || template === 'grape') {
+    return {
+      textColor: '#FFFFFF',
+      highlightColor: '#FFFFFF',
+      boxColor: template === 'grape' ? '#6D28D9' : '#111111',
+      animation: 'box',
+    };
   }
-  if (template === 'bounce') {
-    return {textColor: '#FFFFFF', highlightColor: '#00FF88', boxColor: null};
+  if (template === 'bounce' || template === 'hustle' || template === 'pop' || template === 'poppin') {
+    return {textColor: '#FFFFFF', highlightColor: '#00FF88', boxColor: null, animation: 'bounce'};
   }
   if (template === 'karaoke') {
-    return {textColor: '#FFFFFF', highlightColor: '#4DA3FF', boxColor: null};
+    return {textColor: '#111111', highlightColor: '#F5B942', boxColor: null, animation: 'karaoke'};
   }
-  if (template === 'minimal') {
-    return {textColor: '#FFFFFF', highlightColor: '#F5F5F5', boxColor: null};
+  if (template === 'minimal' || template === 'weight-shift' || template === 'basic') {
+    return {textColor: '#FFFFFF', highlightColor: '#F5F5F5', boxColor: null, animation: 'scale'};
   }
-  if (template === 'hormozi') {
-    return {textColor: '#FFFFFF', highlightColor: '#00E5FF', boxColor: null};
+  if (template === 'hormozi' || template === 'gaming-stream') {
+    return {textColor: '#FFFFFF', highlightColor: '#00E5FF', boxColor: null, animation: 'scale'};
   }
-  return {textColor: '#FFFFFF', highlightColor: '#FFE14A', boxColor: null};
+  if (template === 'subtitle' || template === 'soft-ai' || template === 'moving-pill') {
+    return {textColor: '#F8FAFC', highlightColor: '#F8FAFC', boxColor: '#111111', animation: 'box'};
+  }
+  if (template === 'editorial-emphasis') {
+    return {textColor: '#FFFFFF', highlightColor: '#FACC15', boxColor: null, animation: 'highlight'};
+  }
+  if (template === 'clean') {
+    return {textColor: '#FFFFFF', highlightColor: '#FFFFFF', boxColor: null, animation: 'scale'};
+  }
+  return {textColor: '#FFFFFF', highlightColor: '#FFFFFF', boxColor: null, animation: 'scale'};
 }
 
 function sanitizeHex(value: string, fallback: string): string {

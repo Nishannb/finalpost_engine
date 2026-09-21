@@ -6,7 +6,7 @@
  */
 
 import {stageLogger} from '../../lib/logger.ts';
-import {findPhotoAsset as findPexelsPhoto, findBRollAsset as findPexelsVideo, pexelsConfigured} from './pexelsClient.ts';
+import {findPhotoAsset as findPexelsPhoto, findBRollAsset as findPexelsVideo, listPexelsVideos, pexelsConfigured} from './pexelsClient.ts';
 import {findPixabayPhoto, findPixabayVideo, pixabayConfigured} from './pixabayClient.ts';
 import {
   stockAssetKeyOf,
@@ -29,6 +29,21 @@ export function configuredStockProviders(): StockProvider[] {
     out.push('pixabay');
   }
   return out;
+}
+
+export async function listBRollAssets(
+  keyword: string,
+  options: {minDurationSec: number; excludeKeys?: Set<string>; limit?: number},
+): Promise<StockAsset[]> {
+  if (pexelsConfigured()) {
+    try {
+      return await listPexelsVideos(keyword, options);
+    } catch (error) {
+      log.warn({error, keyword}, 'pexels list failed; falling back to first hit');
+    }
+  }
+  const one = await findBRollAsset(keyword, options);
+  return one ? [one] : [];
 }
 
 export async function findBRollAsset(

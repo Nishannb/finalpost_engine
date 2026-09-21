@@ -7,6 +7,7 @@ import {
   keyPhrasesFromTranscript,
   keywordFallbacks,
   sanitizeVisualQuery,
+  stockFriendlyQueries,
   themeQueriesFromTranscript,
 } from './visualQuery.ts';
 
@@ -63,6 +64,16 @@ describe('keywordFallbacks', () => {
   it('never emits a generic last word', () => {
     expect(keywordFallbacks('bold lives of adventure')).not.toContain('adventure');
     expect(keywordFallbacks('mobile app')).toEqual([]);
+  });
+
+  it('shortens cinematic director lines into Pexels-friendly scenes', () => {
+    const queries = stockFriendlyQueries(
+      'stylish woman solo traveling walking through scenic European street sunset',
+      'woman',
+    );
+    expect(queries.length).toBeGreaterThan(0);
+    expect(queries.every(query => query.split(/\s+/).length <= 4)).toBe(true);
+    expect(queries.join(' ')).toMatch(/woman|street|travel|sunset/);
   });
 });
 

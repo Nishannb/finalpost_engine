@@ -1,13 +1,10 @@
 /**
  * Kinetic caption layer.
  *
- * Word timings come straight from the blueprint, so the active-word emphasis is
- * frame-accurate rather than interpolated. Each template maps to one of five
- * animations; adding a preset means adding a row to `captionTemplates.ts`, not a
- * new component.
- *
- * Placement follows the AI director: template, box vs outline, and
- * top / center / lower_third / bottom.
+ * Word timings come from the blueprint, so the spoken word pops on its onset.
+ * Placement follows the director's caption position (bottom, lower third,
+ * center, or top). Active-word treatment follows the director's animation.
+ * Highlight draws a gold shine box over the spoken word.
  */
 
 import React from 'react';
@@ -17,9 +14,10 @@ import type {
   CaptionDirection,
   CaptionWord,
   LanguageCode,
+  NorthStarDesign,
   RenderStyle,
 } from '../blueprintSchema';
-import {activeLineAt, groupCaptionLines, type CaptionLine} from '../lib/timeline';
+import {activeLineAt, groupCaptionLines} from '../lib/timeline';
 import {
   captionTemplateFor,
   scaleFromPreview,
@@ -32,6 +30,8 @@ type KineticCaptionsProps = {
   style: RenderStyle;
   language: LanguageCode;
   direction?: CaptionDirection;
+  design?: NorthStarDesign;
+  fontFamily?: string;
 };
 
 export const KineticCaptions: React.FC<KineticCaptionsProps> = ({
@@ -39,51 +39,75 @@ export const KineticCaptions: React.FC<KineticCaptionsProps> = ({
   style,
   language,
   direction,
+  design,
+  fontFamily,
 }) => {
   const frame = useCurrentFrame();
   const {fps, width, height} = useVideoConfig();
   const template = captionTemplateFor(
-    direction?.template || style.captionTemplate || 'hormozi',
+    style.captionTemplate || direction?.template || 'classic',
   );
-  const primaryColor = direction?.textColor ?? template.primaryColor;
-  const highlightColor = direction?.highlightColor ?? template.highlightColor;
-  // Director null = outline-only. Fall back to template pill only when no direction.
-  const backgroundColor =
-    direction != null ? direction.boxColor : template.backgroundColor;
-  const position = direction?.position ?? 'bottom';
-  const bottomFrac = direction?.bottomFrac ?? style.captionBottomFrac;
+  const merged = {
+    ...template,
+    uppercase: direction?.uppercase ?? template.uppercase,
+    animation: mapCaptionAnimation(direction?.animation) || template.animation,
+    primaryColor: direction?.textColor ?? template.primaryColor,
+    highlightColor: direction?.highlightColor ?? template.highlightColor,
+    backgroundColor: direction?.boxColor ?? template.backgroundColor,
+  };
+  const centerMode = direction?.position === 'center';
+  const bottomFrac = captionBottomFor(
+    direction?.position,
+    direction?.bottomFrac ?? style.captionBottomFrac,
+  );
 
-  const lines = React.useMemo(() => groupCaptionLines(words), [words]);
+  const lines = React.useMemo(
+    () =>
+      groupCaptionLines(words, {
+        maxWords:
+          design?.contentType === 'story' || design?.contentType === 'testimonial'
+            ? 4
+            : 3,
+      }),
+    [words, design?.contentType],
+  );
   const timeSec = frame / fps;
   const line = activeLineAt(lines, timeSec);
   if (!line) {
     return null;
   }
 
-  const fontSize = scaleFromPreview(template.fontSizePt, width);
-  const outlineWidth = scaleFromPreview(template.outlineWidthPt, width);
-  const placement = placementStyle({
-    position,
-    bottomFrac,
-    height,
-    centerXFrac: style.captionCenterXFrac,
-  });
+  const fontSize = scaleFromPreview(template.fontSizePt, width) * (direction?.fontScale || 1);
+  const outlineWidth = scaleFromPreview(Math.min(template.outlineWidthPt, 3.5), width);
+  const topMode = direction?.position === 'top';
 
   return (
     <AbsoluteFill>
       <div
         style={{
           position: 'absolute',
-          ...placement,
+          ...(centerMode
+            ? {top: '50%', transform: 'translate(-50%, -50%)'}
+            : topMode
+              ? {
+                  top: height * Math.min(0.22, direction?.bottomFrac ?? 0.12),
+                  transform: 'translateX(-50%)',
+                }
+              : {
+                  bottom: height * bottomFrac,
+                  transform: 'translateX(-50%)',
+                }),
+          left: `${style.captionCenterXFrac * 100}%`,
+          zIndex: 30,
           width: width * template.maxWidthFrac,
           display: 'flex',
           flexWrap: 'wrap',
           justifyContent: 'center',
           alignItems: 'flex-end',
-          gap: fontSize * 0.22,
-          ...(backgroundColor
+          gap: fontSize * 0.18,
+          ...(merged.backgroundColor && merged.animation !== 'highlight'
             ? {
-                backgroundColor,
+                backgroundColor: merged.backgroundColor,
                 borderRadius: fontSize * 0.35,
                 padding: `${fontSize * 0.24}px ${fontSize * 0.42}px`,
                 width: 'auto',
@@ -95,18 +119,14 @@ export const KineticCaptions: React.FC<KineticCaptionsProps> = ({
           <CaptionWordView
             key={`${word.start}-${index}`}
             word={word}
-            line={line}
-            template={{
-              ...template,
-              primaryColor,
-              highlightColor,
-              backgroundColor,
-            }}
+            template={merged}
             language={language}
             timeSec={timeSec}
             fps={fps}
             fontSize={fontSize}
             outlineWidth={outlineWidth}
+            design={design}
+            fontFamily={fontFamily}
           />
         ))}
       </div>
@@ -114,167 +134,188 @@ export const KineticCaptions: React.FC<KineticCaptionsProps> = ({
   );
 };
 
-function placementStyle(input: {
-  position: CaptionDirection['position'] | 'bottom';
-  bottomFrac: number;
-  height: number;
-  centerXFrac: number;
-}): React.CSSProperties {
-  const left = `${input.centerXFrac * 100}%`;
-  if (input.position === 'top') {
-    return {
-      top: input.height * 0.1,
-      left,
-      transform: 'translateX(-50%)',
-    };
-  }
-  if (input.position === 'center') {
-    return {
-      top: '50%',
-      left,
-      transform: 'translate(-50%, -50%)',
-    };
-  }
-  // bottom + lower_third use bottomFrac from the director
-  return {
-    bottom: input.height * input.bottomFrac,
-    left,
-    transform: 'translateX(-50%)',
-  };
-}
-
 type CaptionWordViewProps = {
   word: CaptionWord;
-  line: CaptionLine;
   template: CaptionTemplate;
   language: LanguageCode;
   timeSec: number;
   fps: number;
   fontSize: number;
   outlineWidth: number;
+  design?: NorthStarDesign;
+  fontFamily?: string;
 };
 
 const CaptionWordView: React.FC<CaptionWordViewProps> = ({
   word,
-  line,
   template,
   language,
   timeSec,
   fps,
   fontSize,
   outlineWidth,
+  design,
+  fontFamily,
 }) => {
   const isActive = timeSec >= word.start && timeSec <= word.end;
-  // Spring is driven off the word's own onset so every word animates identically
-  // regardless of where it sits in the line.
+  const isPast = timeSec > word.end;
   const sinceOnset = Math.max(0, timeSec - word.start) * fps;
   const entrance = spring({
     frame: sinceOnset,
     fps,
-    config: {damping: 14, mass: 0.5, stiffness: 180},
-    durationInFrames: Math.round(fps * 0.4),
+    config: {damping: 11, mass: 0.42, stiffness: 240},
+    durationInFrames: Math.round(fps * 0.26),
   });
+  const useShine = template.animation === 'highlight';
+  const pop = isActive
+    ? 1 + entrance * (template.animation === 'bounce' ? 0.22 : 0.1)
+    : 1;
+  const lift = isActive && template.animation === 'bounce' ? entrance * fontSize * 0.14 : 0;
+  const shineTravel =
+    useShine && isActive
+      ? interpolate(timeSec, [word.start, Math.min(word.end, word.start + 0.42)], [-20, 108], {
+          extrapolateLeft: 'clamp',
+          extrapolateRight: 'clamp',
+        })
+      : -20;
+  const karaokeFill = isActive
+    ? interpolate(timeSec, [word.start, word.end], [0, 100], {
+        extrapolateLeft: 'clamp',
+        extrapolateRight: 'clamp',
+      })
+    : isPast
+      ? 100
+      : 0;
 
   const text = template.uppercase ? word.text.toUpperCase() : word.text;
-  const base: React.CSSProperties = {
-    fontFamily: fontFamilyFor(language, template.weight),
-    fontWeight: fontWeightFor(language, template.weight),
+  const color = isActive ? template.highlightColor : template.primaryColor;
+  const padX = useShine ? fontSize * 0.32 : fontSize * 0.16;
+  const padY = useShine ? fontSize * 0.16 : fontSize * 0.08;
+  const useKaraokeFill = template.animation === 'karaoke';
+
+  const textStyle: React.CSSProperties = {
+    fontFamily: fontFamily || fontFamilyFor(language, template.weight, design),
+    fontWeight: fontWeightFor(language, template.weight, design),
     fontSize,
     lineHeight: 1.05,
-    color: template.primaryColor,
-    letterSpacing: fontSize * 0.005,
+    letterSpacing:
+      design?.motionPreset === 'editorial' ? -fontSize * 0.012 : fontSize * 0.005,
     whiteSpace: 'pre',
     display: 'inline-block',
-    ...(outlineWidth > 0
-      ? {
-          WebkitTextStroke: `${outlineWidth}px ${template.outlineColor}`,
-          paintOrder: 'stroke fill',
-          textShadow: `0 ${outlineWidth * 0.5}px ${outlineWidth}px rgba(0,0,0,0.45)`,
-        }
-      : {}),
+    position: 'relative',
+    zIndex: 1,
+    opacity: isActive ? 1 : isPast ? 0.94 : 0.78,
   };
-
-  switch (template.animation) {
-    case 'karaoke': {
-      // Fill sweeps across the active word; already-spoken words stay filled.
-      const progress = isActive
-        ? interpolate(timeSec, [word.start, word.end], [0, 100], {
-            extrapolateLeft: 'clamp',
-            extrapolateRight: 'clamp',
-          })
-        : timeSec > word.end
-          ? 100
-          : 0;
-      return (
-        <span
-          style={{
-            ...base,
-            backgroundImage: `linear-gradient(90deg, ${template.highlightColor} ${progress}%, ${template.primaryColor} ${progress}%)`,
-            WebkitBackgroundClip: 'text',
-            backgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-          }}>
-          {text}
-        </span>
-      );
-    }
-    case 'bounce': {
-      const lift = isActive ? entrance * fontSize * 0.18 : 0;
-      return (
-        <span
-          style={{
-            ...base,
-            color: isActive ? template.highlightColor : template.primaryColor,
-            transform: `translateY(${-lift}px)`,
-          }}>
-          {text}
-        </span>
-      );
-    }
-    case 'scale': {
-      const scale = isActive ? 1 + entrance * 0.12 : 1;
-      return (
-        <span
-          style={{
-            ...base,
-            color: isActive ? template.highlightColor : template.primaryColor,
-            opacity: isActive ? 1 : 0.82,
-            transform: `scale(${scale})`,
-          }}>
-          {text}
-        </span>
-      );
-    }
-    case 'box': {
-      return (
-        <span
-          style={{
-            ...base,
-            color: isActive ? template.highlightColor : template.primaryColor,
-            opacity: isActive ? 1 : 0.68,
-          }}>
-          {text}
-        </span>
-      );
-    }
-    case 'highlight':
-    default: {
-      const pop = isActive ? 1 + entrance * 0.08 : 1;
-      const isPast = timeSec > word.end;
-      return (
-        <span
-          style={{
-            ...base,
-            color: isActive ? template.highlightColor : template.primaryColor,
-            opacity: isPast || isActive ? 1 : 0.9,
-            transform: `scale(${pop})`,
-          }}>
-          {text}
-        </span>
-      );
+  if (useKaraokeFill) {
+    textStyle.backgroundImage = `linear-gradient(90deg, ${template.highlightColor} ${karaokeFill}%, ${template.primaryColor} ${karaokeFill}%)`;
+    textStyle.WebkitBackgroundClip = 'text';
+    textStyle.backgroundClip = 'text';
+    textStyle.WebkitTextFillColor = 'transparent';
+  } else if (useShine) {
+    textStyle.color = isActive ? template.highlightColor : template.primaryColor;
+    textStyle.textShadow = isActive
+      ? `0 0 ${fontSize * 0.2}px ${hexToRgba(template.highlightColor, 0.8)}`
+      : `0 ${fontSize * 0.04}px ${fontSize * 0.08}px rgba(0,0,0,0.4)`;
+  } else {
+    textStyle.color = color;
+    if (outlineWidth > 0) {
+      textStyle.WebkitTextStroke = `${outlineWidth}px ${template.outlineColor}`;
+      textStyle.paintOrder = 'stroke fill';
+      textStyle.textShadow = isActive
+        ? `0 0 ${fontSize * 0.22}px ${hexToRgba(template.highlightColor, 0.55)}, 0 ${outlineWidth * 0.4}px ${outlineWidth * 0.8}px rgba(0,0,0,0.45)`
+        : `0 ${outlineWidth * 0.4}px ${outlineWidth * 0.8}px rgba(0,0,0,0.4)`;
     }
   }
+
+  return (
+    <span
+      style={{
+        position: 'relative',
+        display: 'inline-block',
+        transform: `translateY(${-lift}px) scale(${pop})`,
+        transformOrigin: 'center bottom',
+        padding: `${padY}px ${padX}px`,
+      }}>
+      {useShine && isActive ? (
+        <>
+          <span
+            style={{
+              position: 'absolute',
+              inset: 0,
+              borderRadius: fontSize * 0.32,
+              backgroundColor: 'rgba(8, 8, 10, 0.88)',
+              border: `${Math.max(2, fontSize * 0.04)}px solid ${hexToRgba(template.highlightColor, 0.98)}`,
+              boxShadow: `0 0 ${fontSize * 0.38}px ${hexToRgba(template.highlightColor, 0.9)}, 0 0 ${fontSize * 0.85}px ${hexToRgba(template.highlightColor, 0.45)}, inset 0 0 ${fontSize * 0.28}px ${hexToRgba(template.highlightColor, 0.38)}`,
+              pointerEvents: 'none',
+            }}
+          />
+          <span
+            style={{
+              position: 'absolute',
+              inset: 0,
+              borderRadius: fontSize * 0.32,
+              overflow: 'hidden',
+              pointerEvents: 'none',
+            }}>
+            <span
+              style={{
+                position: 'absolute',
+                top: '-30%',
+                bottom: '-30%',
+                width: '48%',
+                left: `${shineTravel}%`,
+                background:
+                  'linear-gradient(105deg, transparent 8%, rgba(255,255,255,0.55) 36%, rgba(255,255,255,0.95) 50%, rgba(255,255,255,0.4) 64%, transparent 88%)',
+                mixBlendMode: 'screen',
+                opacity: 0.95,
+              }}
+            />
+          </span>
+        </>
+      ) : null}
+      <span style={textStyle}>{text}</span>
+    </span>
+  );
 };
+
+function mapCaptionAnimation(
+  animation: CaptionDirection['animation'],
+): CaptionTemplate['animation'] | undefined {
+  if (!animation) {
+    return undefined;
+  }
+  if (animation === 'pop' || animation === 'type') {
+    return 'scale';
+  }
+  return animation;
+}
+
+function captionBottomFor(
+  position: CaptionDirection['position'] | undefined,
+  requested: number | undefined,
+): number {
+  if (position === 'center') {
+    return Math.max(0.38, Math.min(0.58, requested ?? 0.48));
+  }
+  if (position === 'lower_third') {
+    return Math.max(0.2, Math.min(0.34, requested ?? 0.26));
+  }
+  if (position === 'top') {
+    return Math.max(0.08, Math.min(0.22, requested ?? 0.12));
+  }
+  return Math.max(0.08, Math.min(0.22, requested ?? 0.14));
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  const raw = hex.replace('#', '');
+  if (raw.length !== 6) {
+    return `rgba(255, 225, 74, ${alpha})`;
+  }
+  const r = Number.parseInt(raw.slice(0, 2), 16);
+  const g = Number.parseInt(raw.slice(2, 4), 16);
+  const b = Number.parseInt(raw.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
 
 /** Exported for the sample props / studio previews. */
 export function captionLineCount(words: CaptionWord[]): number {

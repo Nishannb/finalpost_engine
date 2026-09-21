@@ -18,6 +18,8 @@ import {
 import {readQuota} from '../../stages/render/renderBudget.ts';
 import {getAuth} from '../auth.ts';
 import {analyzeRequestSchema} from '../schemas.ts';
+import {parseEditAllowlist, resolvePipelineEdits} from '../../lib/editToolkits.ts';
+import {env} from '../../config/env.ts';
 
 /** A creator cannot legitimately start more than a handful of edits a minute. */
 const ANALYZE_RATE_LIMIT = 8;
@@ -39,6 +41,14 @@ analyzeRoutes.post('/analyze', async (req, res) => {
     throw new EngineError('rate_limited', 'Too many AI edits started; slow down');
   }
 
+  const parsedEdits = parseEditAllowlist(parsed.data.requestedEdits);
+  if (parsedEdits.unknown.length > 0) {
+    throw new EngineError(
+      'bad_request',
+      `Unknown edit toolkit: ${parsedEdits.unknown.join(', ')}`,
+    );
+  }
+
   const job = await startAnalysis({
     userId: auth.userId,
     videoUrl: parsed.data.videoUrl,
@@ -47,6 +57,15 @@ analyzeRoutes.post('/analyze', async (req, res) => {
     colorGradeLut: parsed.data.colorGradeLut,
     styleRecipe: parsed.data.styleRecipe,
     userBrollUrls: parsed.data.userBrollUrls,
+    captionStyleGuide: parsed.data.captionStyleGuide,
+    forceSpeakerCutout: parsed.data.forceSpeakerCutout,
+    directorV2: parsed.data.directorV2,
+    northStar: parsed.data.northStar,
+    requestedEdits: resolvePipelineEdits({
+      ...parsedEdits,
+      pipelineMode: env.PIPELINE_MODE,
+    }),
+    captionTemplate: parsed.data.captionTemplate,
   });
 
   res.status(202).json({ok: true, job});

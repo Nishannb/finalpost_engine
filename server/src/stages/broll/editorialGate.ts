@@ -30,25 +30,37 @@ export function applyEditorialGate(input: {
   zooms: DirectedZoom[];
   outputDurationSec: number;
   listMode?: boolean;
+  /** North-star: keep director density; only drop broken empty splits. */
+  relax?: boolean;
 }): EditorialGateResult {
   const warnings: string[] = [];
   const maxBroll = input.listMode ? MAX_BROLL_LIST : MAX_BROLL;
   const minGap = input.listMode ? 3.2 : MIN_EVENT_GAP_SEC;
 
-  // Split must be motion video — never a still that reads as a photo.
+  // Split can be motion video, a still, or a related-image slideshow.
   const overlays = input.overlays.filter(overlay => {
     if (overlay.layout !== 'split') {
       return true;
     }
+    const hasSlides = (overlay.slides?.length ?? 0) >= 2;
     const ok =
-      overlay.mediaKind === 'video' &&
       Boolean(overlay.assetUrl) &&
-      !/\.(jpe?g|png|webp|gif)(\?|$)/i.test(overlay.assetUrl);
+      (overlay.mediaKind === 'video' || overlay.mediaKind === 'image' || hasSlides);
     if (!ok) {
-      warnings.push('split_dropped_non_video');
+      warnings.push('split_dropped_empty');
     }
     return ok;
   });
+
+  if (input.relax) {
+    return {
+      clips: input.clips.sort((a, b) => a.start - b.start),
+      overlays: overlays.sort((a, b) => a.start - b.start),
+      transitions: input.transitions,
+      zooms: input.zooms,
+      warnings,
+    };
+  }
 
   const ranked = [...overlays].sort((a, b) => layoutRank(a) - layoutRank(b) || a.start - b.start);
   const keptOverlays: VisualOverlay[] = [];

@@ -15,26 +15,36 @@ import {
   useVideoConfig,
 } from 'remotion';
 
-import type {LanguageCode, VisualAnchor, VisualOverlay} from '../blueprintSchema';
+import type {
+  LanguageCode,
+  NorthStarDesign,
+  VisualAnchor,
+  VisualOverlay,
+} from '../blueprintSchema';
+import {MediaCardView} from './MediaCardTrack';
 import {resolveMediaSrc} from '../lib/mediaSrc';
 import {framesBetween, secToFrame} from '../lib/timeline';
 import {fontFamilyFor, fontWeightFor} from '../styles/fonts';
 
-const FADE_SEC = 0.22;
-const FACE_SAFE_TOP = 0.055;
+const FADE_SEC = 0.42;
 
 type VisualOverlayTrackProps = {
   overlays: VisualOverlay[];
   language: LanguageCode;
+  design?: NorthStarDesign;
 };
 
 export const VisualOverlayTrack: React.FC<VisualOverlayTrackProps> = ({
   overlays,
   language,
+  design,
 }) => {
   const {fps} = useVideoConfig();
   const layered = overlays.filter(
-    overlay => overlay.layout !== 'composite' && overlay.layout !== 'split',
+    overlay =>
+      overlay.layout !== 'composite' &&
+      overlay.layout !== 'split' &&
+      overlay.layout !== 'cutout',
   );
 
   return (
@@ -44,7 +54,7 @@ export const VisualOverlayTrack: React.FC<VisualOverlayTrackProps> = ({
           key={`${overlay.layout}-${overlay.providerId}-${index}`}
           from={secToFrame(overlay.start, fps)}
           durationInFrames={framesBetween(overlay.start, overlay.end, fps)}>
-          <OverlayView overlay={overlay} language={language} />
+          <OverlayView overlay={overlay} language={language} design={design} />
         </Sequence>
       ))}
     </AbsoluteFill>
@@ -101,10 +111,23 @@ export function activeCompositeAt(
   return activeOverlayLayoutAt(overlays, 'composite', timeSec);
 }
 
+export function activeCutoutAt(
+  overlays: VisualOverlay[],
+  timeSec: number,
+): VisualOverlay | undefined {
+  return overlays.find(
+    overlay =>
+      overlay.layout === 'cutout' &&
+      timeSec >= overlay.start &&
+      timeSec < overlay.end,
+  );
+}
+
 const OverlayView: React.FC<{
   overlay: VisualOverlay;
   language: LanguageCode;
-}> = ({overlay, language}) => {
+  design?: NorthStarDesign;
+}> = ({overlay, language, design}) => {
   const frame = useCurrentFrame();
   const {fps, durationInFrames, width, height} = useVideoConfig();
   const fadeFrames = Math.max(1, Math.round(FADE_SEC * fps));
@@ -117,7 +140,7 @@ const OverlayView: React.FC<{
   const pop = spring({
     frame,
     fps,
-    config: {damping: 13, mass: 0.65, stiffness: 160},
+    config: {damping: 20, mass: 1.05, stiffness: 72},
   });
 
   if (overlay.layout === 'cutaway') {
@@ -129,53 +152,16 @@ const OverlayView: React.FC<{
   }
 
   if (overlay.layout === 'lockup' || overlay.layout === 'stat') {
-    if (overlay.textStyle === 'stack') {
-      return (
-        <PhraseStack
-          overlay={overlay}
-          language={language}
-          opacity={opacity}
-          pop={pop}
-          width={width}
-          height={height}
-        />
-      );
-    }
-    const atBottom = overlay.anchor === 'bottom';
-    const color = overlay.accentColor || '#FFFFFF';
-    const bar = overlay.textStyle !== 'outline';
     return (
-      <AbsoluteFill style={{opacity, pointerEvents: 'none'}}>
-        <div
-          style={{
-            position: 'absolute',
-            left: width * 0.06,
-            right: width * 0.06,
-            top: atBottom ? undefined : height * 0.07,
-            bottom: atBottom ? height * 0.28 : undefined,
-            transform: `scale(${0.94 + pop * 0.06})`,
-            backgroundColor: bar ? 'rgba(8,8,10,0.72)' : 'transparent',
-            borderRadius: bar ? 18 : 0,
-            padding: bar ? `${height * 0.016}px ${width * 0.035}px` : 0,
-          }}>
-          <div
-            style={{
-              fontFamily: fontFamilyFor(language, 'impact'),
-              fontWeight: fontWeightFor(language, 'impact'),
-              fontSize: Math.min(width * 0.062, 68),
-              lineHeight: 1.05,
-              color,
-              textTransform: 'uppercase',
-              letterSpacing: -0.6,
-              textAlign: 'center',
-              textShadow: bar
-                ? 'none'
-                : '0 2px 0 #111, 0 10px 22px rgba(0,0,0,0.55)',
-            }}>
-            {overlay.overlayText || overlay.keyword}
-          </div>
-        </div>
-      </AbsoluteFill>
+      <PhraseStack
+        overlay={overlay}
+        language={language}
+        opacity={opacity}
+        pop={pop}
+        width={width}
+        height={height}
+        design={design}
+      />
     );
   }
 
@@ -191,14 +177,14 @@ const OverlayView: React.FC<{
             right: 0,
             top: atBottom ? undefined : 0,
             bottom: atBottom ? 0 : undefined,
-            backgroundColor: 'rgba(8,8,10,0.82)',
+            backgroundColor: design ? `${design.surfaceColor}ED` : 'rgba(8,8,10,0.82)',
             padding: `${height * 0.018}px ${width * 0.07}px`,
             transform: `translateY(${(1 - pop) * (atBottom ? 18 : -18)}px)`,
           }}>
           <div
             style={{
-              fontFamily: fontFamilyFor(language, 'impact'),
-              fontWeight: fontWeightFor(language, 'impact'),
+              fontFamily: fontFamilyFor(language, 'impact', design),
+              fontWeight: fontWeightFor(language, 'impact', design),
               fontSize: width * 0.048,
               color,
               textTransform: 'uppercase',
@@ -211,6 +197,19 @@ const OverlayView: React.FC<{
     );
   }
 
+  if (overlay.layout === 'bubble') {
+    return (
+      <ChatBubbleStack
+        overlay={overlay}
+        language={language}
+        opacity={opacity}
+        pop={pop}
+        width={width}
+        height={height}
+      />
+    );
+  }
+
   if (overlay.layout === 'chip') {
     return (
       <AbsoluteFill style={{opacity}}>
@@ -220,16 +219,16 @@ const OverlayView: React.FC<{
             left: '50%',
             bottom: height * 0.3,
             transform: `translateX(-50%) scale(${0.9 + pop * 0.1})`,
-            backgroundColor: 'rgba(28,28,30,0.82)',
+            backgroundColor: design ? `${design.surfaceColor}ED` : 'rgba(28,28,30,0.82)',
             borderRadius: 999,
             padding: `${height * 0.01}px ${width * 0.045}px`,
           }}>
           <div
             style={{
-              fontFamily: fontFamilyFor(language, 'sans'),
+              fontFamily: fontFamilyFor(language, 'sans', design),
               fontWeight: 700,
               fontSize: width * 0.038,
-              color: '#FFFFFF',
+              color: design?.inkColor ?? '#FFFFFF',
               textAlign: 'center',
             }}>
             {overlay.overlayText || overlay.keyword}
@@ -239,49 +238,12 @@ const OverlayView: React.FC<{
     );
   }
 
-  const sticker = overlay.layout === 'sticker';
-  const box = boxForAnchor(overlay.anchor, width, height, sticker);
-  return (
-    <AbsoluteFill style={{opacity}}>
-      <div
-        style={{
-          position: 'absolute',
-          ...box,
-          transform: `rotate(${sticker ? -8 : 2}deg) scale(${0.9 + pop * 0.1})`,
-          borderRadius: sticker ? 22 : 26,
-          overflow: 'hidden',
-          backgroundColor: sticker ? 'transparent' : '#111',
-          border: sticker ? 'none' : '4px solid #FFFFFF',
-          boxShadow: sticker ? '0 12px 28px rgba(0,0,0,0.28)' : '0 18px 40px rgba(0,0,0,0.4)',
-        }}>
-        {overlay.assetUrl ? <MediaFill overlay={overlay} /> : null}
-      </div>
-    </AbsoluteFill>
-  );
-};
+  if (overlay.layout === 'pip' || overlay.layout === 'sticker' || overlay.layout === 'card') {
+    return <MediaCardView overlay={overlay} />;
+  }
 
-function boxForAnchor(
-  anchor: VisualAnchor,
-  width: number,
-  height: number,
-  sticker: boolean,
-): React.CSSProperties {
-  const w = width * (sticker ? 0.22 : 0.3);
-  const h = height * (sticker ? 0.14 : 0.18);
-  const inset = width * 0.035;
-  const top = height * FACE_SAFE_TOP;
-  const bottom = height * 0.3;
-  if (anchor === 'top_left' || anchor === 'top') {
-    return {top, left: inset, width: w, height: h};
-  }
-  if (anchor === 'bottom_left') {
-    return {bottom, left: inset, width: w, height: h};
-  }
-  if (anchor === 'bottom' || anchor === 'bottom_right') {
-    return {bottom, right: inset, width: w, height: h};
-  }
-  return {top, right: inset, width: w, height: h};
-}
+  return null;
+};
 
 function PhraseStack({
   overlay,
@@ -290,6 +252,7 @@ function PhraseStack({
   pop,
   width,
   height,
+  design,
 }: {
   overlay: VisualOverlay;
   language: LanguageCode;
@@ -297,6 +260,7 @@ function PhraseStack({
   pop: number;
   width: number;
   height: number;
+  design?: NorthStarDesign;
 }) {
   const leftSide = overlay.anchor.includes('left') || overlay.anchor === 'top';
   const lines = stackLines(overlay.overlayText || overlay.keyword);
@@ -312,25 +276,37 @@ function PhraseStack({
           right: leftSide ? undefined : width * 0.03,
           width: cardWidth,
           transform: `scale(${0.94 + pop * 0.06})`,
-          backgroundColor: 'rgba(12,12,14,0.82)',
-          borderRadius: 18,
+          backgroundColor: design ? `${design.surfaceColor}ED` : 'rgba(12,12,14,0.82)',
+          borderRadius: design?.cornerRadius ?? 18,
           padding: `${height * 0.018}px ${width * 0.022}px`,
-          borderLeft: '4px solid #E8C872',
+          borderLeft: `4px solid ${design?.primaryColor ?? '#E8C872'}`,
           boxShadow: '0 16px 40px rgba(0,0,0,0.35)',
         }}>
         {lines.map((line, index) => (
           <div
             key={`${line}-${index}`}
             style={{
-              fontFamily: fontFamilyFor(language, index === 0 ? 'impact' : 'sans'),
-              fontWeight: fontWeightFor(language, index === 0 ? 'impact' : 'sans'),
+              fontFamily: fontFamilyFor(
+                language,
+                index === 0 ? 'impact' : 'sans',
+                design,
+              ),
+              fontWeight: fontWeightFor(
+                language,
+                index === 0 ? 'impact' : 'sans',
+                design,
+              ),
               fontSize:
                 index === 0
                   ? Math.min(width * 0.038, 42)
                   : Math.min(width * 0.028, 30),
               lineHeight: 1.08,
-              color: index === 0 ? color : 'rgba(247,241,225,0.82)',
-              textTransform: 'uppercase',
+              color:
+                index === 0
+                  ? color
+                  : design?.inkColor ?? 'rgba(247,241,225,0.82)',
+              textTransform:
+                design?.motionPreset === 'editorial' ? 'none' : 'uppercase',
               letterSpacing: index === 0 ? -0.3 : 1.2,
               textAlign: 'left',
               marginTop: index === 0 ? 0 : height * 0.006,
@@ -341,6 +317,108 @@ function PhraseStack({
       </div>
     </AbsoluteFill>
   );
+}
+
+function ChatBubbleStack({
+  overlay,
+  language,
+  opacity,
+  pop,
+  width,
+  height,
+}: {
+  overlay: VisualOverlay;
+  language: LanguageCode;
+  opacity: number;
+  pop: number;
+  width: number;
+  height: number;
+}) {
+  const lines = bubbleLines(overlay.overlayText || overlay.keyword);
+  const leftSide = overlay.anchor.includes('left') || overlay.anchor === 'top';
+  const palettes = [
+    {bg: '#F8FAFC', fg: '#0F172A'},
+    {bg: 'linear-gradient(135deg, #FCE7F3 0%, #E0F2FE 100%)', fg: '#1E293B'},
+    {bg: '#FFFFFF', fg: '#111827'},
+  ];
+  return (
+    <AbsoluteFill style={{opacity, pointerEvents: 'none'}}>
+      <div
+        style={{
+          position: 'absolute',
+          top: overlay.anchor.includes('bottom') ? undefined : height * 0.08,
+          bottom: overlay.anchor.includes('bottom') ? height * 0.28 : undefined,
+          left: leftSide ? width * 0.05 : undefined,
+          right: leftSide ? undefined : width * 0.05,
+          width: width * 0.58,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: height * 0.012,
+          transform: `translateY(${(1 - pop) * 16}px) scale(${0.94 + pop * 0.06})`,
+        }}>
+        {lines.map((line, index) => {
+          const palette = palettes[index % palettes.length]!;
+          const confirmed = /confirm|order|sent|qty|total/i.test(line);
+          return (
+            <div
+              key={`${line}-${index}`}
+              style={{
+                alignSelf: index % 2 === 0 ? 'flex-start' : 'flex-end',
+                maxWidth: '100%',
+                background: confirmed ? '#FFFFFF' : palette.bg,
+                color: palette.fg,
+                borderRadius: confirmed ? 18 : 22,
+                padding: `${height * 0.012}px ${width * 0.04}px`,
+                boxShadow: '0 10px 28px rgba(15,23,42,0.16)',
+                border: confirmed ? '1px solid rgba(15,23,42,0.08)' : 'none',
+                fontFamily: fontFamilyFor(language, 'sans'),
+                fontWeight: 650,
+                fontSize: Math.min(width * 0.034, 34),
+                lineHeight: 1.25,
+              }}>
+              {confirmed ? (
+                <div style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4}}>
+                  <span
+                    style={{
+                      width: 16,
+                      height: 16,
+                      borderRadius: 999,
+                      backgroundColor: '#22C55E',
+                      color: '#FFFFFF',
+                      fontSize: 11,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}>
+                    ✓
+                  </span>
+                  <span style={{fontSize: Math.min(width * 0.026, 26), color: '#64748B'}}>
+                    Order
+                  </span>
+                </div>
+              ) : null}
+              {line}
+            </div>
+          );
+        })}
+      </div>
+    </AbsoluteFill>
+  );
+}
+
+function bubbleLines(text: string): string[] {
+  const cleaned = text.replace(/\s+/g, ' ').trim();
+  if (!cleaned) {
+    return [];
+  }
+  const parts = cleaned
+    .split(/\s*\|\s*|\s*[•·]\s*|\n+/)
+    .map(part => part.trim())
+    .filter(Boolean);
+  if (parts.length > 1) {
+    return parts.slice(0, 3);
+  }
+  return stackLines(cleaned).slice(0, 3);
 }
 
 function stackLines(text: string): string[] {

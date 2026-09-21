@@ -7,7 +7,15 @@
  */
 
 import React from 'react';
-import {AbsoluteFill, OffthreadVideo, Sequence, interpolate, useCurrentFrame, useVideoConfig} from 'remotion';
+import {
+  AbsoluteFill,
+  Loop,
+  OffthreadVideo,
+  Sequence,
+  interpolate,
+  useCurrentFrame,
+  useVideoConfig,
+} from 'remotion';
 
 import type {BRollClip} from '../blueprintSchema';
 import {resolveMediaSrc} from '../lib/mediaSrc';
@@ -56,14 +64,27 @@ const BRollClipView: React.FC<{clip: BRollClip; showCredit: boolean}> = ({
     [0, 1, 1, 0],
     {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'},
   );
+  const sourceFrames = Math.max(
+    1,
+    Math.round(Math.max(clip.durationSec ?? durationInFrames / fps, 0.4) * fps),
+  );
+  const video = (
+    <OffthreadVideo
+      src={resolveMediaSrc(clip.assetUrl)}
+      muted
+      style={{width: '100%', height: '100%', objectFit: 'cover'}}
+    />
+  );
 
   return (
     <AbsoluteFill style={{opacity}}>
-      <OffthreadVideo
-        src={resolveMediaSrc(clip.assetUrl)}
-        muted
-        style={{width: '100%', height: '100%', objectFit: 'cover'}}
-      />
+      {sourceFrames < durationInFrames ? (
+        <Loop durationInFrames={sourceFrames} layout="none">
+          {video}
+        </Loop>
+      ) : (
+        video
+      )}
       {showCredit ? (
         <div
           style={{

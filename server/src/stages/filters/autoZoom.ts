@@ -151,17 +151,14 @@ export function resolveDirectedZooms(input: {
   blockedRanges: Array<{start: number; end: number}>;
 }): ZoomTrigger[] {
   const sentences = splitSentences(input.words);
-  const fromDirector = input.directed
+  return input.directed
     .map(zoom => {
       const start = input.timeline.mapSourceToOutputClamped(zoom.timestamp);
       const end = Math.min(
-        start + Math.min(input.maxDurationSec, Math.max(1.2, zoom.durationSec)),
+        start + Math.max(0, zoom.durationSec),
         input.timeline.outputDurationSec,
       );
-      if (end - start < 0.5 || start < 3.4) {
-        return null;
-      }
-      if (overlapsBlocked(start, end, input.blockedRanges)) {
+      if (end - start < 0.05) {
         return null;
       }
       const sentence = sentences.find(
@@ -177,17 +174,6 @@ export function resolveDirectedZooms(input: {
       } satisfies ZoomTrigger;
     })
     .filter((zoom): zoom is ZoomTrigger => Boolean(zoom));
-
-  if (input.directed.length > 0) {
-    return spaceZooms(fromDirector, 8);
-  }
-
-  return detectSparseZoomTriggers(input.words, {
-    scale: input.scale,
-    maxDurationSec: Math.min(2, input.maxDurationSec),
-    timeline: input.timeline,
-    blockedRanges: input.blockedRanges,
-  });
 }
 
 export function detectSparseZoomTriggers(
@@ -214,7 +200,7 @@ export function detectSparseZoomTriggers(
     const start = options.timeline.mapSourceToOutputClamped(sentence.start);
     const end = Math.min(
       options.timeline.mapSourceToOutputClamped(sentence.end),
-      start + Math.min(1.8, options.maxDurationSec),
+      start + Math.min(2.6, options.maxDurationSec),
     );
     if (start < 4 || end - start < 0.5) {
       continue;

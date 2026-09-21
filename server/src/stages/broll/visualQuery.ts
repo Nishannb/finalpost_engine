@@ -134,12 +134,38 @@ export function keywordFallbacks(keyword: string): string[] {
   const parts = cleaned.split(/\s+/).filter(Boolean);
   const out: string[] = [];
   if (parts.length >= 2) {
-    out.push(parts.join(' '));
+    out.push(parts.slice(0, 4).join(' '));
   }
   if (parts.length >= 3) {
     out.push(parts.slice(0, 3).join(' '));
   }
+  if (parts.length >= 2) {
+    out.push(parts.slice(0, 2).join(' '));
+  }
   return [...new Set(out)];
+}
+
+/**
+ * Pexels-friendly 2–4 word scenes. Long cinematic director lines fail search;
+ * these shorter variants are what actually return related clips.
+ */
+export function stockFriendlyQueries(
+  keyword: string,
+  subject: StockSubject = null,
+  extras: string[] = [],
+): string[] {
+  const pool = [
+    ...keywordFallbacks(keyword),
+    ...extras.flatMap(value => keywordFallbacks(value)),
+    ...themeQueriesFromTranscript(`${keyword} ${extras.join(' ')}`, 3),
+  ];
+  return [...new Set(pool.flatMap(query => genderedQueryVariants(query, subject)))]
+    .map(query => query.trim())
+    .filter(query => {
+      const words = query.split(/\s+/).filter(Boolean);
+      return words.length >= 2 && words.length <= 4;
+    })
+    .slice(0, 8);
 }
 
 export function themeQueriesFromTranscript(transcript: string, count = 4): string[] {

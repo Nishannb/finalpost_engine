@@ -57,6 +57,8 @@
         "creditUrl": "https://www.pexels.com"
       }
     ],
+    "depthOverlays": [],
+    "insetReveals": [],
     "visualOverlays": [
       {
         "start": 6.4,
@@ -116,7 +118,7 @@
     ]
   },
   "style": {
-    "captionTemplate": "hormozi",
+    "captionTemplate": "karaoke",
     "layoutStyle": "fullscreen",
     "captionBottomFrac": 0.22,
     "captionCenterXFrac": 0.5,

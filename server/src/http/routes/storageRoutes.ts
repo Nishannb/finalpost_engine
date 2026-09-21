@@ -6,9 +6,32 @@ import {presignSourceVideo} from '../../storage/r2.ts';
 
 const requestSchema = z.object({
   contentType: z
-    .enum(['video/mp4', 'video/quicktime', 'video/x-m4v'])
+    .enum([
+      'video/mp4',
+      'video/quicktime',
+      'video/x-m4v',
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'image/gif',
+      'image/heic',
+      'image/heif',
+    ])
     .default('video/mp4'),
-  extension: z.enum(['.mp4', '.mov', '.m4v']).optional(),
+  extension: z
+    .enum([
+      '.mp4',
+      '.mov',
+      '.m4v',
+      '.jpg',
+      '.jpeg',
+      '.png',
+      '.webp',
+      '.gif',
+      '.heic',
+      '.heif',
+    ])
+    .optional(),
 });
 
 export const storageRoutes = Router();

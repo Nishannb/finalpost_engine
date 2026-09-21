@@ -10,6 +10,8 @@ import {requestJson} from '../../lib/http.ts';
 import {stageLogger} from '../../lib/logger.ts';
 import {keywordFallbacks} from './visualQuery.ts';
 import {
+  STOCK_MIN_WIDTH,
+  pickRenderSizedFile,
   stockAssetKey,
   type StockAsset,
 } from './stockTypes.ts';
@@ -19,8 +21,7 @@ const log = stageLogger('stage-c-pixabay');
 const PIXABAY_VIDEO_URL = 'https://pixabay.com/api/videos/';
 const PIXABAY_IMAGE_URL = 'https://pixabay.com/api/';
 
-const IDEAL_WIDTH = 1280;
-const MIN_WIDTH = 640;
+const MIN_WIDTH = STOCK_MIN_WIDTH;
 
 type PixabayVideoSize = {
   url?: string;
@@ -234,11 +235,7 @@ export function pickVideoFile(
   }
   const usable = candidates.filter(file => Number(file.width ?? 0) >= MIN_WIDTH);
   const pool = usable.length > 0 ? usable : candidates;
-  return [...pool].sort(
-    (a, b) =>
-      Math.abs(Number(a.width ?? 0) - IDEAL_WIDTH) -
-      Math.abs(Number(b.width ?? 0) - IDEAL_WIDTH),
-  )[0]!;
+  return pickRenderSizedFile(pool);
 }
 
 function pixabayUserUrl(user: string | undefined, userId: number | undefined): string {

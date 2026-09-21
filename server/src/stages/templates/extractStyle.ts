@@ -53,7 +53,7 @@ Return ONE JSON object:
 {
   "summary": string,
   "energy": "calm" | "educational" | "hype" | "sales" | "story",
-  "caption_template": "hormozi" | "mrbeast" | "karaoke" | "classic" | "box" | "bounce" | "minimal",
+  "caption_template": "karaoke" | "pop" | "beast" | "grape" | "hustle" | "gaming-stream" | "basic" | "weight-shift" | "classic" | "box" | "bounce" | "minimal",
   "hook_style": "impact" | "boxed" | "minimal" | "bar" | "stack" | "outline" | "rail" | "poster" | "underline" | "duo",
   "preferred_lut": string,
   "suggested_luts": [string, string, string],
@@ -164,16 +164,16 @@ export async function extractTemplateStyle(input: {
 function fallbackRecipeFromTranscript(transcript: string): VideoTemplateRecipe {
   const text = transcript.toLowerCase();
   let energy: VideoTemplateRecipe['energy'] = 'sales';
-  let captionTemplate: VideoTemplateRecipe['captionTemplate'] = 'hormozi';
+  let captionTemplate: VideoTemplateRecipe['captionTemplate'] = 'karaoke';
   if (/\b(story|when i|remember)\b/.test(text)) {
     energy = 'story';
-    captionTemplate = 'minimal';
+    captionTemplate = 'weight-shift';
   } else if (/\b(how to|step|tip|learn)\b/.test(text)) {
     energy = 'educational';
     captionTemplate = 'karaoke';
   } else if (/[!]{2,}|\bwow\b|\bhype\b/.test(text)) {
     energy = 'hype';
-    captionTemplate = 'mrbeast';
+    captionTemplate = 'beast';
   }
   return defaultVideoTemplateRecipe({
     summary: 'Inferred from speech energy',

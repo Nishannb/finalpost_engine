@@ -23,6 +23,8 @@ describe('contrastCaptionWithFootage', () => {
     );
     expect(out.boxColor).toBeNull();
     expect(out.template).toBe('karaoke');
+    expect(out.textColor).toBe('#111111');
+    expect(out.highlightColor).toBe('#F5B942');
   });
 
   it('keeps the director template on bright walls without forcing box template', () => {
@@ -42,5 +44,21 @@ describe('contrastCaptionWithFootage', () => {
     );
     expect(out.boxColor).toBe('#111111');
     expect(out.template).toBe('box');
+  });
+
+  it('keeps gold type in a shine box regardless of wall luminance', () => {
+    const out = contrastCaptionWithFootage(
+      caption({
+        template: 'karaoke',
+        animation: 'highlight',
+        textColor: '#111111',
+        highlightColor: '#00E5FF',
+      }),
+      {r: 0.9, g: 0.9, b: 0.88, luminance: 0.9},
+    );
+    expect(out.animation).toBe('highlight');
+    expect(out.boxColor).toBeNull();
+    expect(out.textColor).toBe('#FFFFFF');
+    expect(out.highlightColor).toBe('#F5B942');
   });
 });

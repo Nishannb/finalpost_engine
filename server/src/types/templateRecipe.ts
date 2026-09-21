@@ -44,7 +44,7 @@ export function defaultVideoTemplateRecipe(
     version: 1,
     summary: 'Clean talking-head social edit',
     energy: 'sales',
-    captionTemplate: 'hormozi',
+    captionTemplate: 'karaoke',
     hookStyle: 'impact',
     preferredLutId: 'CELLULOID_01_FU_LOW',
     suggestedLutIds: ['CELLULOID_01_FU_LOW'],
