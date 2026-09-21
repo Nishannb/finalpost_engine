@@ -27,7 +27,7 @@ import {
   alanPreviewRenderStyle,
   buildAlanPreviewBlueprint,
 } from '../stages/templateDesigner/alanPreviewBlueprint.ts';
-import {loadRenderJob, startRender} from './renderRunner.ts';
+import {loadRenderJob, refreshRenderJob, startRender} from './renderRunner.ts';
 import type {TemplateDesignJob} from '../types/templateDesign.ts';
 
 const log = stageLogger('template-designer-job');
@@ -224,8 +224,13 @@ async function renderPreview(designJobId: string): Promise<void> {
   await saveTemplateDesignJob(job);
   const renderDeadline = Date.now() + STAGE_TIMEOUT_MS;
   while (Date.now() < renderDeadline) {
-    const live = await loadRenderJob(render.renderJobId);
-    if (live?.status === 'done' && live.outputUrl) {
+    let live = await loadRenderJob(render.renderJobId);
+    if (!live) {
+      throw new EngineError('render_failed', 'Alan preview render job was lost');
+    }
+    // Lambda jobs only flip to done/failed when we poll Remotion.
+    live = await refreshRenderJob(live);
+    if (live.status === 'done' && live.outputUrl) {
       const latest = (await loadTemplateDesignJob(designJobId)) ?? job;
       latest.previewUrl = live.outputUrl;
       latest.status = 'done';
@@ -234,7 +239,7 @@ async function renderPreview(designJobId: string): Promise<void> {
       await saveTemplateDesignJob(latest);
       return;
     }
-    if (live?.status === 'failed') {
+    if (live.status === 'failed') {
       throw new EngineError(
         'render_failed',
         live.errorMessage || 'Preview render failed',
