@@ -11,7 +11,13 @@
     "skipLibCheck": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "remotion-captions-themes": [
+        "./src/captions/shims/remotion-captions-themes"
+      ]
+    }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "remotion.config.ts"]
 }

@@ -6,6 +6,7 @@
     "studio": "remotion studio",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "render:local": "remotion render ShortVideo out/preview.mp4 --props=props/sample.json",
+    "render:theme-demos": "node scripts/render-package-theme-demos.mjs",
     "lambda:function": "node --env-file=../.env ../node_modules/@remotion/cli/remotion-cli.js lambda functions deploy --memory=3008 --disk=10240 --timeout=240 --region=us-east-1",
     "deploy": "node --env-file=../.env ../node_modules/@remotion/cli/remotion-cli.js lambda sites create src/index.ts --site-name=kinmel-video-engine --region=us-east-1"
   },
@@ -16,6 +17,7 @@
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "remotion": "4.0.524",
+    "remotion-captions-themes": "^1.0.8",
     "zod": "4.5.4"
   },
   "devDependencies": {

@@ -16,10 +16,16 @@ import {
   useVideoConfig,
 } from 'remotion';
 
+import {CaptionTheme} from 'remotion-captions-themes';
+
 import type {CaptionTemplateId, CaptionDirection, LanguageCode, NorthStarDesign, RenderStyle} from '../blueprintSchema';
 import {KineticCaptions} from '../components/KineticCaptions';
 import {activeLineAt, framesBetween, groupCaptionLines, secToFrame} from '../lib/timeline';
 import {fontFamilyFor, fontWeightFor, poppinsFontFamily} from '../styles/fonts';
+import {
+  isPackageCaptionThemeId,
+  packageThemeNameFor,
+} from './packageThemes';
 import type {
   CaptionCustomizationOptions,
   DynamicCaptionRendererProps,
@@ -54,8 +60,57 @@ export const DynamicCaptionRenderer: React.FC<
   design,
 }) => {
   const words = useMemo(() => toCaptionWords(transcriptData), [transcriptData]);
+  const packageCaptionsData = useMemo(
+    () => toPackageCaptionsData(words),
+    [words],
+  );
   if (words.length === 0) {
     return null;
+  }
+  if (isPackageCaptionThemeId(selectedTemplate)) {
+    const position = direction?.position ?? 'center';
+    const bottomFrac = Math.max(
+      0.08,
+      Math.min(0.34, direction?.bottomFrac ?? style?.captionBottomFrac ?? 0.18),
+    );
+    return (
+      <AbsoluteFill>
+        <div
+          style={{
+            position: 'absolute',
+            left: '50%',
+            width: '100%',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            pointerEvents: 'none',
+            ...(position === 'center'
+              ? {top: '50%', transform: 'translate(-50%, -50%)'}
+              : position === 'top'
+                ? {top: '12%', transform: 'translateX(-50%)'}
+                : {
+                    bottom: `${Math.round(bottomFrac * 100)}%`,
+                    transform: 'translateX(-50%)',
+                  }),
+          }}>
+          <CaptionTheme
+            data={packageCaptionsData}
+            theme={packageThemeNameFor(selectedTemplate)}
+            primaryColor={
+              customizationOptions?.primaryColor ||
+              direction?.textColor ||
+              '#FFFFFF'
+            }
+            secondaryColor={
+              customizationOptions?.secondaryColor ||
+              direction?.highlightColor ||
+              '#FFD700'
+            }
+            fontSize={customizationOptions?.fontSize ?? 72}
+          />
+        </div>
+      </AbsoluteFill>
+    );
   }
   if (UTILITY_TEMPLATES.has(selectedTemplate)) {
     if (selectedTemplate === 'kinetic-slam') {
@@ -234,6 +289,21 @@ type CaptionWord = {
   end: number;
   sentenceIndex: number;
 };
+
+function toPackageCaptionsData(words: CaptionWord[]): {
+  lines: Array<{words: Array<{text: string; start: number; end: number}>}>;
+} {
+  const lines = groupCaptionLines(words);
+  return {
+    lines: lines.map(line => ({
+      words: line.words.map(word => ({
+        text: word.text,
+        start: word.start,
+        end: word.end,
+      })),
+    })),
+  };
+}
 
 function toCaptionWords(raw: WhisperTranscriptWord[]): CaptionWord[] {
   return raw

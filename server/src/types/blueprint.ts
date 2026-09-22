@@ -28,6 +28,17 @@ export const CAPTION_TEMPLATES = [
   'kinetic-slam',
   'weight-shift',
   'editorial-emphasis',
+  'pop-theme',
+  'karaoke-theme',
+  'hustle-theme',
+  'grape-theme',
+  'beast-theme',
+  'poppin-theme',
+  'aarit-theme',
+  'soft-ai-theme',
+  'gaming-stream-theme',
+  'simple-one-word-theme',
+  'kinetic-01-theme',
   'hormozi',
   'mrbeast',
   'classic',
@@ -937,6 +948,13 @@ export type CaptionsEditJob = {
   languageCode: LanguageCode;
   captionTemplate: CaptionTemplateId;
   captionStyleGuide?: Record<string, unknown> | null;
+  /**
+   * `captions` = burn captions only (no A-roll cuts).
+   * `teleprompter_clean` = silence/filler/cough + script retakes, then captions.
+   */
+  mode?: 'captions' | 'teleprompter_clean';
+  /** Teleprompter script for retake detection (teleprompter_clean). */
+  scriptText?: string;
   createdAt: string;
   updatedAt: string;
   analysisJobId?: string;

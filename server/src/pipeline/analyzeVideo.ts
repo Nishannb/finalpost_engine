@@ -35,7 +35,12 @@ import {measureOccupancy, occupancyFromSpeaker} from '../stages/layout/occupancy
 import {detectSpeakerCutout, type SpeakerCutout} from '../stages/layout/speakerCutout.ts';
 import {composeBeautifulLayout} from '../stages/layout/slotCompositor.ts';
 import {normalizeLutId} from '../stages/color/luts.ts';
-import {autoTrimSilence} from '../stages/filters/autoTrim.ts';
+import {autoTrimSilence, keepSegmentsFor} from '../stages/filters/autoTrim.ts';
+import {
+  mergeTimeRanges,
+  nonSpeechExclusions,
+  scriptRetakeExclusions,
+} from '../stages/filters/scriptRetakeTrim.ts';
 import {buildCaptionWords, resolveDirectedZooms, splitSentences} from '../stages/filters/autoZoom.ts';
 import {buildTimeline, round} from '../stages/filters/timeline.ts';
 import {transcribeAudio} from '../stages/transcribe/groqTranscribe.ts';
@@ -44,6 +49,7 @@ import type {
   AnalysisStage,
   DeliveryShapingClip,
   LanguageCode,
+  TimeRange,
   TimelineBlueprint,
 } from '../types/blueprint.ts';
 import {coerceVideoTemplateRecipe} from '../types/templateRecipe.ts';
@@ -88,6 +94,13 @@ export type AnalyzeInput = {
   /** Optional caption template the Director should honor. */
   captionTemplate?: import('../types/blueprint.ts').CaptionTemplateId | null;
   noRepair?: boolean;
+  /**
+   * Teleprompter clean-edit (v1+v2): force silence/filler/cough trim + optional
+   * script-aligned retake cuts even when the visual pipeline is captions-only.
+   */
+  teleprompterClean?: boolean;
+  /** Teleprompter script text used for retake detection. */
+  scriptText?: string;
 };
 
 /** Coarse stage reporting so the app can show real progress, not a spinner. */
@@ -275,28 +288,115 @@ export async function analyzeVideo(
     }
 
     const captionsOnly = !visualEditsOn;
-    const trim =
-      deliveryShaping || captionsOnly || (recipe && recipe.trimSilence === false)
-        ? {
-            keepSegments: [
-              {
-                sourceStart: 0,
-                sourceEnd: activeDurationSec,
-                outputStart: 0,
-              },
-            ],
-            trimExclusions: [] as Array<{start: number; end: number}>,
-            removedSec: 0,
-            skipped: captionsOnly
-              ? ('captions_only' as const)
-              : ('template_trim_disabled' as const),
-          }
-        : autoTrimSilence(activeWords, {
-            thresholdSec: env.SILENCE_THRESHOLD_SEC,
-            paddingSec: env.SILENCE_PADDING_SEC,
-            sourceDurationSec: activeDurationSec,
-            removeFillers: true,
-          });
+    const teleprompterClean = Boolean(input.teleprompterClean);
+    const skipSilenceTrim =
+      Boolean(deliveryShaping) ||
+      (captionsOnly && !teleprompterClean) ||
+      (Boolean(recipe && recipe.trimSilence === false) && !teleprompterClean);
+
+    let trim: {
+      keepSegments: Array<{
+        sourceStart: number;
+        sourceEnd: number;
+        outputStart: number;
+      }>;
+      trimExclusions: TimeRange[];
+      removedSec: number;
+      skipped?: string;
+    };
+
+    if (skipSilenceTrim) {
+      trim = {
+        keepSegments: [
+          {
+            sourceStart: 0,
+            sourceEnd: activeDurationSec,
+            outputStart: 0,
+          },
+        ],
+        trimExclusions: [],
+        removedSec: 0,
+        skipped: deliveryShaping
+          ? 'delivery_shaped'
+          : captionsOnly
+            ? 'captions_only'
+            : 'template_trim_disabled',
+      };
+    } else {
+      const silence = autoTrimSilence(activeWords, {
+        thresholdSec: env.SILENCE_THRESHOLD_SEC,
+        paddingSec: env.SILENCE_PADDING_SEC,
+        sourceDurationSec: activeDurationSec,
+        removeFillers: true,
+      });
+      const exclusions: TimeRange[] = [...silence.trimExclusions];
+      const coughCuts = nonSpeechExclusions(activeWords, {
+        paddingSec: env.SILENCE_PADDING_SEC,
+      });
+      exclusions.push(...coughCuts);
+
+      let retakeDropped = 0;
+      if (teleprompterClean && (input.scriptText || '').trim()) {
+        const retakes = scriptRetakeExclusions(activeWords, input.scriptText || '', {
+          sourceDurationSec: activeDurationSec,
+          paddingSec: env.SILENCE_PADDING_SEC,
+        });
+        exclusions.push(...retakes.trimExclusions);
+        retakeDropped = retakes.droppedTakes;
+        if (retakes.droppedTakes > 0) {
+          warnings.push(`retakes_dropped:${retakes.droppedTakes}`);
+        } else if (retakes.matchedLines < 1) {
+          warnings.push('retakes_skipped:no_script_match');
+        }
+      }
+
+      if (silence.skipped && retakeDropped < 1 && coughCuts.length < 1) {
+        trim = {
+          keepSegments: silence.keepSegments,
+          trimExclusions: silence.trimExclusions,
+          removedSec: silence.removedSec,
+          skipped: silence.skipped,
+        };
+      } else {
+        const merged = mergeTimeRanges(exclusions);
+        const keepSegments = keepSegmentsFor(merged, activeDurationSec);
+        const removedSec = merged.reduce(
+          (total, range) => total + (range.end - range.start),
+          0,
+        );
+        const keptSec = activeDurationSec - removedSec;
+        const maxRemoval = 0.55;
+        const minKeepFrac = 0.4;
+        const minKeepSec = 2.5;
+        if (
+          activeDurationSec > 0 &&
+          (removedSec / activeDurationSec > maxRemoval ||
+            keptSec <
+              Math.min(
+                activeDurationSec,
+                Math.max(minKeepSec, activeDurationSec * minKeepFrac),
+              ))
+        ) {
+          // Fall back to silence-only (or intact) if combined cuts are too aggressive.
+          trim = {
+            keepSegments: silence.keepSegments,
+            trimExclusions: silence.trimExclusions,
+            removedSec: silence.removedSec,
+            skipped: silence.skipped || 'combined_trim_too_aggressive',
+          };
+          warnings.push('teleprompter_trim_guard:combined_too_aggressive');
+        } else {
+          trim = {
+            keepSegments,
+            trimExclusions: merged.map(range => ({
+              start: round(range.start),
+              end: round(range.end),
+            })),
+            removedSec: round(removedSec),
+          };
+        }
+      }
+    }
     if (trim.skipped) {
       warnings.push(`silence_trim_skipped:${trim.skipped}`);
     }

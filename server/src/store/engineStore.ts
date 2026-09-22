@@ -46,6 +46,8 @@ export function fingerprintSource(input: {
   requestedEdits?: string;
   forceDeliveryShaping?: boolean;
   captionTemplate?: string;
+  teleprompterClean?: boolean;
+  scriptKey?: string;
 }): string {
   return createHash('sha256')
     .update(
@@ -76,6 +78,8 @@ export function fingerprintSource(input: {
         env.DELIVERY_SHAPING_AUTO ? 'delivery-auto' : '',
         env.DELIVERY_LLM_EMPHASIS ? 'delivery-llm' : '',
         (input.captionTemplate ?? '').trim().toLowerCase(),
+        input.teleprompterClean ? 'tp-clean-v2' : '',
+        (input.scriptKey ?? '').trim(),
       ].join('|'),
     )
     .digest('hex')

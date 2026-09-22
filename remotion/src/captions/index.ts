@@ -12,3 +12,8 @@ export {
   DEFAULT_CAPTION_TEMPLATE,
   isDynamicCaptionTemplateId,
 } from './templateCatalog';
+export {
+  PACKAGE_CAPTION_THEME_IDS,
+  isPackageCaptionThemeId,
+  packageThemeNameFor,
+} from './packageThemes';

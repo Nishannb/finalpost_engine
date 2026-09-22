@@ -1,5 +1,5 @@
 /**
- * Server-owned captions edit:
+ * Server-owned captions / teleprompter-clean edit:
  *   POST /v1/edits/captions     presign + create job
  *   POST /v1/edits/:id/uploaded phone (or native) says the PUT finished
  *   GET  /v1/edits/:id          poll
@@ -25,6 +25,9 @@ const createSchema = z.object({
   languageCode: z.enum(SUPPORTED_LANGUAGES).default('auto'),
   captionTemplate: z.enum(CAPTION_TEMPLATES).default('karaoke'),
   captionStyleGuide: z.record(z.string(), z.unknown()).optional(),
+  /** captions (default) | teleprompter_clean (silence + retakes + captions). */
+  mode: z.enum(['captions', 'teleprompter_clean']).optional(),
+  scriptText: z.string().max(20_000).optional(),
 });
 
 export const editRoutes = Router();
@@ -45,6 +48,8 @@ editRoutes.post('/edits/captions', async (req, res) => {
     languageCode: parsed.data.languageCode,
     captionTemplate: parsed.data.captionTemplate,
     captionStyleGuide: parsed.data.captionStyleGuide,
+    mode: parsed.data.mode,
+    scriptText: parsed.data.scriptText,
   });
   res.status(202).json({
     ok: true,

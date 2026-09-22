@@ -65,9 +65,12 @@ export async function startAnalysis(input: {
   northStar?: boolean;
   requestedEdits?: string[] | null;
   captionTemplate?: string | null;
+  teleprompterClean?: boolean;
+  scriptText?: string;
 }): Promise<AnalysisJob> {
   const now = new Date().toISOString();
   const userBrollUrls = (input.userBrollUrls ?? []).filter(Boolean).slice(0, 12);
+  const scriptKey = (input.scriptText || '').trim().slice(0, 800);
   const fingerprint = fingerprintSource({
     videoUrl: input.videoUrl,
     languageCode: input.languageCode,
@@ -84,6 +87,8 @@ export async function startAnalysis(input: {
     northStar: input.northStar,
     requestedEdits: (input.requestedEdits ?? []).slice().sort().join(','),
     captionTemplate: input.captionTemplate ?? '',
+    teleprompterClean: Boolean(input.teleprompterClean),
+    scriptKey,
   });
 
   // Cache hit costs nothing and must not consume the user's monthly allowance.
@@ -133,6 +138,8 @@ export async function startAnalysis(input: {
     northStar: input.northStar,
     requestedEdits: input.requestedEdits,
     captionTemplate: input.captionTemplate,
+    teleprompterClean: input.teleprompterClean,
+    scriptText: input.scriptText,
   });
   return job;
 }
@@ -150,6 +157,8 @@ async function runAnalysis(
     northStar?: boolean;
     requestedEdits?: string[] | null;
     captionTemplate?: string | null;
+    teleprompterClean?: boolean;
+    scriptText?: string;
   },
 ): Promise<void> {
   const release = await acquireSlot();
@@ -181,6 +190,8 @@ async function runAnalysis(
         northStar: extras.northStar,
         requestedEdits: extras.requestedEdits,
         captionTemplate: extras.captionTemplate as AnalyzeInput['captionTemplate'],
+        teleprompterClean: extras.teleprompterClean,
+        scriptText: extras.scriptText,
       },
       {
         onStage: (stage, progress) => {

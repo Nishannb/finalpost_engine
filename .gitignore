@@ -8,8 +8,6 @@ dist/
 remotion/out/
 remotion/.remotion/
 remotion/build/
+remotion/props/.theme-demo-tmp/
 template-designer-bench/clips/
-
-.tmp-*/
-**/.tmp-*/
 server/.tmp-delivery/

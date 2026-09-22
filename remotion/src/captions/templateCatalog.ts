@@ -7,6 +7,7 @@ import type {
   CaptionTemplateCatalogItem,
   DynamicCaptionTemplateId,
 } from './types';
+import {PACKAGE_THEME_CATALOG} from './packageThemes';
 
 export const CAPTION_TEMPLATE_CATALOG: CaptionTemplateCatalogItem[] = [
   {id: 'basic', label: 'Basic', hint: 'No animation, just clear text', family: 'theme'},
@@ -25,6 +26,7 @@ export const CAPTION_TEMPLATE_CATALOG: CaptionTemplateCatalogItem[] = [
   {id: 'kinetic-slam', label: 'Kinetic slam', hint: 'One word, full-screen slam', family: 'utility'},
   {id: 'weight-shift', label: 'Weight shift', hint: 'Active word carries the weight', family: 'utility'},
   {id: 'editorial-emphasis', label: 'Editorial', hint: 'Line rises, underline on the word', family: 'utility'},
+  ...PACKAGE_THEME_CATALOG,
 ];
 
 export const DEFAULT_CAPTION_TEMPLATE: DynamicCaptionTemplateId = 'karaoke';

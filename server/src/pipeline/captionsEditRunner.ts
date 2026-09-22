@@ -47,12 +47,15 @@ export async function createCaptionsEditJob(input: {
   languageCode: LanguageCode;
   captionTemplate: CaptionTemplateId;
   captionStyleGuide?: Record<string, unknown> | null;
+  mode?: 'captions' | 'teleprompter_clean';
+  scriptText?: string;
 }): Promise<{job: CaptionsEditJob; uploadUrl: string}> {
   const presigned = await presignSourceVideo({
     contentType: input.contentType,
     extension: input.extension,
   });
   const now = new Date().toISOString();
+  const mode = input.mode === 'teleprompter_clean' ? 'teleprompter_clean' : 'captions';
   const job: CaptionsEditJob = {
     editJobId: `ed_${randomUUID().replace(/-/g, '').slice(0, 20)}`,
     userId: input.userId,
@@ -63,6 +66,11 @@ export async function createCaptionsEditJob(input: {
     languageCode: input.languageCode,
     captionTemplate: input.captionTemplate,
     captionStyleGuide: input.captionStyleGuide || undefined,
+    mode,
+    scriptText:
+      mode === 'teleprompter_clean'
+        ? (input.scriptText || '').trim().slice(0, 20_000) || undefined
+        : undefined,
     createdAt: now,
     updatedAt: now,
   };
@@ -152,14 +160,17 @@ async function runCaptionsPipeline(job: CaptionsEditJob): Promise<void> {
   job.updatedAt = new Date().toISOString();
   await saveCaptionsEditJob(job);
 
+  const teleprompterClean = job.mode === 'teleprompter_clean';
   const analysis = await startAnalysis({
     userId: job.userId,
     videoUrl: job.sourcePublicUrl,
     languageCode: job.languageCode,
-    useCache: !job.captionStyleGuide,
+    useCache: !job.captionStyleGuide && !teleprompterClean,
     requestedEdits: ['captions'],
     captionTemplate: job.captionTemplate,
     captionStyleGuide: job.captionStyleGuide || null,
+    teleprompterClean,
+    scriptText: job.scriptText,
   });
   job.analysisJobId = analysis.analysisJobId;
   job.updatedAt = new Date().toISOString();
@@ -185,7 +196,8 @@ async function runCaptionsPipeline(job: CaptionsEditJob): Promise<void> {
       captionCenterXFrac: 0.5,
       brollEnabled: false,
       zoomEnabled: false,
-      trimEnabled: false,
+      // Teleprompter clean must honor keepSegments (silence + retakes).
+      trimEnabled: teleprompterClean,
       colorGradeLut: '',
     },
   });
@@ -197,6 +209,7 @@ async function runCaptionsPipeline(job: CaptionsEditJob): Promise<void> {
 }
 
 async function resumeCaptionsPipeline(job: CaptionsEditJob): Promise<void> {
+  const teleprompterClean = job.mode === 'teleprompter_clean';
   if (job.status === 'analyzing') {
     const analysisDone = await waitForAnalysis(job);
     if (!analysisDone?.blueprint) {
@@ -218,7 +231,7 @@ async function resumeCaptionsPipeline(job: CaptionsEditJob): Promise<void> {
           captionCenterXFrac: 0.5,
           brollEnabled: false,
           zoomEnabled: false,
-          trimEnabled: false,
+          trimEnabled: teleprompterClean,
           colorGradeLut: '',
         },
       });
