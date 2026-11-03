@@ -72,7 +72,7 @@ Branch: `bgm-phase-2`. Not pushed.
 - Tests: vitest 56 passed, including a 2 s local lavfi MP4: after loudness within 1 LU of −14, true peak ≤ −0.5 dBFS, h264 video kept, aac audio. A bad file throws and the original bytes stay. Pytest 30 passed. Server tsc clean. Remotion tsc only the 3 known errors.
 - Failure logs `music.master_pass_failed` and the render continues with the unmastered file. Success logs `music.master_pass` with before and after LUFS and true peak.
 - The existing voice-delivery loudnorm in `deliveryAcoustics.ts` was not changed.
-- Commit: filled after the commit.
+- Commit: `715e561`.
 
 ## 3. Flags
 
