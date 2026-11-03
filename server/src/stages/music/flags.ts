@@ -67,6 +67,11 @@ export function carvedTwinEnabled(env: NodeJS.ProcessEnv = process.env): boolean
   return env.MUSIC_CARVED_TWIN === '1';
 }
 
+/** MUSIC_MASTER_PASS=1 runs a local two-pass loudnorm (I=-14, TP=-1, LRA=11) on the finished MP4 audio after a local render. Default off. */
+export function masterPassEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.MUSIC_MASTER_PASS === '1';
+}
+
 export const MUSIC_CALLER_ENV ='MUSIC_SPECIALIST_CALLER';
 
 export type SpawnSpec = {
