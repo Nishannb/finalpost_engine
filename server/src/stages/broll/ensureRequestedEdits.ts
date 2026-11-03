@@ -46,6 +46,21 @@ function placedKinds(direction: VisualDirection): Set<string> {
   if ((direction.depthOverlays ?? []).length > 0) {
     kinds.add('depth_overlay');
   }
+  if ((direction.frameInsets ?? []).length > 0) {
+    kinds.add('frame_inset');
+  }
+  if ((direction.mediaContainers ?? []).length > 0) {
+    kinds.add('media_container');
+  }
+  if ((direction.transitions ?? []).length > 0) {
+    kinds.add('transition');
+  }
+  if ((direction.motionGraphics ?? []).length > 0) {
+    kinds.add('kinetic_text');
+  }
+  for (const item of direction.semanticEmphasis ?? []) {
+    kinds.add(item.treatment === 'count' ? 'counter' : 'emphasis');
+  }
   for (const moment of direction.moments ?? []) {
     if (moment.layout === 'cutaway') {
       kinds.add('cutaway');

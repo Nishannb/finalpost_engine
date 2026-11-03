@@ -17,6 +17,7 @@ import {
 
 import type {VisualAnchor, VisualOverlay} from '../blueprintSchema';
 import {resolveMediaSrc} from '../lib/mediaSrc';
+import {getRecipe, recipeState} from '../motion/recipes/motionRecipes';
 import {SlideshowPlate, overlayHasSlideshow} from './SlideshowPlate';
 
 export const MediaCardView: React.FC<{overlay: VisualOverlay}> = ({overlay}) => {
@@ -52,9 +53,14 @@ export const MediaCardView: React.FC<{overlay: VisualOverlay}> = ({overlay}) => 
   });
 
   const treatment = overlay.treatment || 'card';
-  const opacity = Math.min(1, enter) * Math.max(0, exit);
-  const scale = (0.86 + enter * 0.14) * (1 + lift * 0.035);
-  const slide = slideFromAnchor(overlay.anchor, enter, width, height);
+  // WP19: an image_story recipe (logo_slam, sticker_pop, still_push_in, card_tilt_in) replaces the soft spring + edge slide with a video-native entrance.
+  const recipe = getRecipe(overlay.recipeId);
+  const rs = recipe ? recipeState(recipe.id, local, fps, durationInFrames) : null;
+  const opacity = (rs ? rs.opacity : Math.min(1, enter)) * Math.max(0, exit);
+  const scale = rs ? rs.scaleX * (1 + lift * 0.02) : (0.86 + enter * 0.14) * (1 + lift * 0.035);
+  const slide = rs ? {x: rs.translateX, y: rs.translateY} : slideFromAnchor(overlay.anchor, enter, width, height);
+  const tilt = rs && (rs.rotateXDeg !== 0 || rs.rotateYDeg !== 0) ? `perspective(900px) rotateX(${rs.rotateXDeg}deg) rotateY(${rs.rotateYDeg}deg) ` : '';
+  const spin = rs && rs.rotateDeg !== 0 ? ` rotate(${rs.rotateDeg}deg)` : '';
   const box = cardBox(
     overlay.anchor,
     width,
@@ -85,7 +91,8 @@ export const MediaCardView: React.FC<{overlay: VisualOverlay}> = ({overlay}) => 
         style={{
           position: 'absolute',
           ...box,
-          transform: `translate(${slide.x}px, ${slide.y}px) scale(${scale})`,
+          transform: `${tilt}translate(${slide.x}px, ${slide.y}px)${spin} scale(${scale})`,
+          ...(rs && rs.blurPx > 0 ? {filter: `blur(${rs.blurPx}px)`} : {}),
           transformOrigin: 'center center',
           borderRadius: radius,
           boxShadow: [

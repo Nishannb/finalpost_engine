@@ -1,0 +1,66 @@
+{
+  "a1-startup-office": {
+    "query": "startup office team",
+    "id": 6804068,
+    "photographer": "cottonbro studio",
+    "photographerUrl": "https://www.pexels.com/@cottonbro",
+    "pexelsUrl": "https://www.pexels.com/photo/men-sitting-at-the-desks-in-an-office-and-using-computers-6804068/",
+    "license": "Pexels License (free to use, no attribution required)"
+  },
+  "a2-counting-cash": {
+    "query": "counting cash hands",
+    "id": 6694965,
+    "photographer": "Tima Miroshnichenko",
+    "photographerUrl": "https://www.pexels.com/@tima-miroshnichenko",
+    "pexelsUrl": "https://www.pexels.com/photo/a-person-counting-money-6694965/",
+    "license": "Pexels License (free to use, no attribution required)"
+  },
+  "a3-newspaper": {
+    "query": "newspaper headline closeup",
+    "id": 3866816,
+    "photographer": "Suzy Hazelwood",
+    "photographerUrl": "https://www.pexels.com/@suzyhazelwood",
+    "pexelsUrl": "https://www.pexels.com/photo/stack-of-newspapers-3866816/",
+    "license": "Pexels License (free to use, no attribution required)"
+  },
+  "a4-city-crowd": {
+    "query": "city street crowd",
+    "id": 9739638,
+    "photographer": "Boys in Bristol Photography",
+    "photographerUrl": "https://www.pexels.com/@lebele",
+    "pexelsUrl": "https://www.pexels.com/photo/people-protesting-in-the-street-9739638/",
+    "license": "Pexels License (free to use, no attribution required)"
+  },
+  "b1-laptop-desk": {
+    "query": "typing laptop desk",
+    "id": 1181644,
+    "photographer": "Christina Morillo",
+    "photographerUrl": "https://www.pexels.com/@divinetechygirl",
+    "pexelsUrl": "https://www.pexels.com/photo/grayscale-photography-of-a-woman-working-in-front-of-laptop-1181644/",
+    "license": "Pexels License (free to use, no attribution required)"
+  },
+  "b2-empty-desk": {
+    "query": "empty office desk",
+    "id": 7658310,
+    "photographer": "Pavel Danilyuk",
+    "photographerUrl": "https://www.pexels.com/@pavel-danilyuk",
+    "pexelsUrl": "https://www.pexels.com/photo/computers-on-the-wooden-desk-7658310/",
+    "license": "Pexels License (free to use, no attribution required)"
+  },
+  "b3-subway": {
+    "query": "subway platform commuters",
+    "id": 19585349,
+    "photographer": "tslui",
+    "photographerUrl": "https://www.pexels.com/@tslui-823734490",
+    "pexelsUrl": "https://www.pexels.com/photo/people-standing-on-a-platform-with-a-subway-train-approaching-the-station-19585349/",
+    "license": "Pexels License (free to use, no attribution required)"
+  },
+  "c1-press": {
+    "query": "press conference reporters",
+    "id": 15920138,
+    "photographer": "Yunus Erdogdu",
+    "photographerUrl": "https://www.pexels.com/@yunus-erdogdu-479655827",
+    "pexelsUrl": "https://www.pexels.com/photo/microphones-on-desk-at-press-conference-15920138/",
+    "license": "Pexels License (free to use, no attribution required)"
+  }
+}

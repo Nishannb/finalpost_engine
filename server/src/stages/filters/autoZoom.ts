@@ -9,9 +9,11 @@
 
 import type {
   CaptionWord,
+  TimeRange,
   WordToken,
   ZoomTrigger,
 } from '../../types/blueprint.ts';
+import {isMvpLikeProfile, type ProductEditProfile} from '../../lib/productEditProfile.ts';
 import {round, type Timeline} from './timeline.ts';
 
 /** Trailing quotes/brackets may follow the terminator: `end."` or `end!)`. */
@@ -142,38 +144,108 @@ export function detectZoomTriggers(
   return triggers;
 }
 
-export function resolveDirectedZooms(input: {
-  directed: Array<{timestamp: number; durationSec: number}>;
+/** Punch-in scale a Director may request; anything outside is ignored (the configured default applies). */
+export const ZOOM_SCALE_BOUNDS = {min: 1.05, max: 1.6} as const;
+
+/** The requested scale when it is a finite number inside the supported bounds, otherwise undefined. */
+export function normalizeZoomScale(value: unknown): number | undefined {
+  const scale = Number(value);
+  if (value == null || value === '' || !Number.isFinite(scale)) {
+    return undefined;
+  }
+  return scale >= ZOOM_SCALE_BOUNDS.min && scale <= ZOOM_SCALE_BOUNDS.max ? round(scale) : undefined;
+}
+
+/** A focus is usable only when both coordinates are finite and inside the frame (0–1). */
+export function normalizeZoomFocus(value: unknown): {x: number; y: number} | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+  const {x, y} = value as {x?: unknown; y?: unknown};
+  if (typeof x !== 'number' || typeof y !== 'number' || !Number.isFinite(x) || !Number.isFinite(y)) {
+    return undefined;
+  }
+  return x >= 0 && x <= 1 && y >= 0 && y <= 1 ? {x: round(x), y: round(y)} : undefined;
+}
+
+export type DirectedZoomInput = {timestamp: number; durationSec: number; scale?: number; focus?: {x: number; y: number}};
+
+export function resolveDirectedZooms<Z extends DirectedZoomInput>(input: {
+  directed: Z[];
   words: WordToken[];
   timeline: Timeline;
+  /** Default punch-in scale, used when the Director gave none or an unsupported one. */
   scale: number;
   maxDurationSec: number;
-  blockedRanges: Array<{start: number; end: number}>;
+  /**
+   * Not consulted here: cutaway/overlay/depth/inset overlap is decided earlier by the editorial gate
+   * (`zoom_blocked_by_cutaway_or_overlay`). Kept so callers can pass the ranges for documentation.
+   */
+  blockedRanges?: Array<{start: number; end: number}>;
+  /** The Director's times are already output-timeline seconds (Director v2 / north-star). */
+  alreadyOutput?: boolean;
+  /**
+   * Visual-evidence gate for a zoom focus (VISUAL_CONTEXT_V2). Returns a reason to refuse the focus (the zoom itself is
+   * kept, aimed at the default origin) or null to accept it. Absent: any in-range focus is accepted (legacy).
+   */
+  focusEvidence?: (zoom: Z, window: {start: number; end: number}, focus: {x: number; y: number}) => string | null;
+  trace?: {keep: (zoom: Z, trigger: ZoomTrigger, note?: string) => void; drop: (zoom: Z, reason: string) => void};
 }): ZoomTrigger[] {
   const sentences = splitSentences(input.words);
-  return input.directed
-    .map(zoom => {
-      const start = input.timeline.mapSourceToOutputClamped(zoom.timestamp);
-      const end = Math.min(
-        start + Math.max(0, zoom.durationSec),
-        input.timeline.outputDurationSec,
-      );
-      if (end - start < 0.05) {
-        return null;
-      }
-      const sentence = sentences.find(
-        item =>
-          input.timeline.mapSourceToOutputClamped(item.start) <= start &&
-          input.timeline.mapSourceToOutputClamped(item.end) >= start,
-      );
-      return {
-        start: round(start),
-        end: round(end),
-        scale: input.scale,
-        sentenceIndex: sentence?.index ?? 0,
-      } satisfies ZoomTrigger;
-    })
-    .filter((zoom): zoom is ZoomTrigger => Boolean(zoom));
+  const toOutput = (sec: number) =>
+    input.alreadyOutput ? Math.min(Math.max(0, sec), input.timeline.outputDurationSec) : input.timeline.mapSourceToOutputClamped(sec);
+  const triggers: ZoomTrigger[] = [];
+  for (const zoom of input.directed) {
+    const start = toOutput(zoom.timestamp);
+    const end = Math.min(start + Math.max(0, zoom.durationSec), input.timeline.outputDurationSec);
+    if (end - start < 0.05) {
+      input.trace?.drop(zoom, 'zoom_has_no_duration_after_timeline_mapping');
+      continue;
+    }
+    const sentence = sentences.find(
+      item => toOutput(item.start) <= start && toOutput(item.end) >= start,
+    );
+    const requested = normalizeZoomScale(zoom.scale);
+    let focus = normalizeZoomFocus(zoom.focus);
+    const refusedFocus = focus ? input.focusEvidence?.(zoom, {start: round(start), end: round(end)}, focus) ?? null : null;
+    if (refusedFocus) {
+      focus = undefined;
+    }
+    const trigger: ZoomTrigger = {
+      start: round(start),
+      end: round(end),
+      scale: requested ?? input.scale,
+      ...(focus ? {focus} : {}),
+      sentenceIndex: sentence?.index ?? 0,
+    };
+    const notes = [
+      zoom.scale === undefined ? '' : requested === undefined ? `zoom_scale_${zoom.scale}_unsupported_default_${input.scale}_used` : `zoom_scale_${requested}`,
+      zoom.focus === undefined ? '' : refusedFocus ? `zoom_focus_dropped:${refusedFocus}` : focus ? `zoom_focus_${focus.x}_${focus.y}` : 'zoom_focus_out_of_range_ignored_default_origin_used',
+    ].filter(Boolean);
+    triggers.push(trigger);
+    input.trace?.keep(zoom, trigger, notes.length > 0 ? notes.join(';') : undefined);
+  }
+  return triggers;
+}
+
+/**
+ * WP4H: a zoom focus the Director picked against an UNMEASURED speaker box (the fake default one) can aim the punch at the wrong place and crop the real head. On the `mvp` profile with
+ * occupancy `source === 'fallback'`, every zoom is kept (times, scale, sentence index) and its focus is dropped, so the renderer grows it from its default origin (50% 32%). A measured
+ * speaker (`vision`), any other profile, and a zoom with no focus are unchanged (the same array / objects). `dropped` counts only zooms that had a focus. Pure.
+ */
+export function dropUnmeasuredZoomFocus(
+  triggers: readonly ZoomTrigger[],
+  context: {profile?: ProductEditProfile; source?: 'vision' | 'fallback'},
+): {triggers: ZoomTrigger[]; dropped: number} {
+  if (!isMvpLikeProfile(context.profile) || context.source !== 'fallback') return {triggers: [...triggers], dropped: 0};
+  let dropped = 0;
+  const next = triggers.map(trigger => {
+    if (!trigger.focus) return trigger;
+    dropped += 1;
+    const {focus: _focus, ...rest} = trigger;
+    return rest;
+  });
+  return {triggers: next, dropped};
 }
 
 export function detectSparseZoomTriggers(
@@ -295,6 +367,8 @@ function spaceZooms(zooms: ZoomTrigger[], minGapSec: number): ZoomTrigger[] {
 export function buildCaptionWords(
   words: WordToken[],
   timeline: Timeline,
+  /** WP7E: cut ranges (source seconds). A word whose midpoint is inside one is dropped even when its start edge maps onto a neighbouring kept segment, so captions match kept speech only. */
+  exclusions: readonly TimeRange[] = [],
 ): CaptionWord[] {
   const sentences = splitSentences(words);
   const sentenceByWordIndex = new Map<number, number>();
@@ -306,6 +380,10 @@ export function buildCaptionWords(
 
   const out: CaptionWord[] = [];
   words.forEach((word, index) => {
+    const middle = (word.start + word.end) / 2;
+    if (exclusions.some(range => middle >= range.start && middle <= range.end)) {
+      return;
+    }
     const start = timeline.mapSourceToOutput(word.start);
     if (start === null) {
       return;

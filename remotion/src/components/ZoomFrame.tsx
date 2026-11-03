@@ -10,7 +10,7 @@ import React from 'react';
 import {AbsoluteFill, useCurrentFrame, useVideoConfig} from 'remotion';
 
 import type {ZoomTrigger} from '../blueprintSchema';
-import {zoomScaleAt} from '../lib/timeline';
+import {activeZoomAt, zoomStyleFor} from '../lib/timeline';
 
 type ZoomFrameProps = {
   triggers: ZoomTrigger[];
@@ -24,16 +24,14 @@ export const ZoomFrame: React.FC<ZoomFrameProps> = ({
   children,
 }) => {
   const frame = useCurrentFrame();
-  const {fps} = useVideoConfig();
-  const scale = enabled ? zoomScaleAt(triggers, frame / fps) : 1;
+  const {fps, width, height} = useVideoConfig();
+  const zoom = enabled ? activeZoomAt(triggers, frame / fps) : {scale: 1};
+  const style = zoomStyleFor(zoom, width, height);
 
   return (
     <AbsoluteFill style={{overflow: 'hidden'}}>
       <AbsoluteFill
-        style={{
-          transform: `scale(${scale})`,
-          transformOrigin: '50% 32%',
-        }}>
+        style={style}>
         {children}
       </AbsoluteFill>
     </AbsoluteFill>

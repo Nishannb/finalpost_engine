@@ -4,6 +4,7 @@
  * empty pip canvases, tiles on the caption band) are rewritten, never drawn.
  */
 
+import {carryProvenance} from '../../lib/provenance.ts';
 import type {
   CaptionDirection,
   HookStyle,
@@ -23,6 +24,7 @@ import {
   rectsOverlap,
   type Occupancy,
 } from './occupancy.ts';
+import {boxCountsAsFace, composerGraphicAnchorIsUnsafe, directorAnchorOrNeutral, pipSlotBlockedByBox, pipSlotClearOfBox, topCaptionAllowed, UNMEASURED_NEUTRAL_ANCHOR} from './unmeasuredSlots.ts';
 
 export function composeBeautifulLayout(input: {
   occupancy: Occupancy;
@@ -41,8 +43,11 @@ export function composeBeautifulLayout(input: {
   mediaContainers: MediaContainerMoment[];
   semanticEmphasis: SemanticEmphasis[];
 } {
-  const graphicAnchor = legalGraphicAnchor(input.occupancy);
-  const overlayAnchor = toVisualAnchor(graphicAnchor);
+  // WP3J: with no measured face the default box is not compared with any slot: the occupancy's own anchors are used as they are.
+  const boxIsFace = boxCountsAsFace(input.occupancy);
+  // WP3K: the occupancy's graphicAnchor / overlayAnchor / preferredSide come from the symmetric default box (always top_right / right), so they are not used for an unmeasured face.
+  const graphicAnchor: MotionAnchor = boxIsFace ? legalGraphicAnchor(input.occupancy) : UNMEASURED_NEUTRAL_ANCHOR;
+  const overlayAnchor: VisualAnchor = boxIsFace ? toVisualAnchor(graphicAnchor) : UNMEASURED_NEUTRAL_ANCHOR;
   const hookStyle = input.hookStyle;
   const mediaContainers = remapMediaContainers(
     input.mediaContainers ?? [],
@@ -53,14 +58,15 @@ export function composeBeautifulLayout(input: {
 
   return {
     hookStyle,
-    hookAnchor: legalHookAnchor(input.occupancy),
+    hookAnchor: boxIsFace ? legalHookAnchor(input.occupancy) : UNMEASURED_NEUTRAL_ANCHOR,
     caption: lockedCaption(input.caption, input.occupancy),
-    motionGraphics: remapMotionGraphics(input.motionGraphics, graphicAnchor),
-    overlays: remapOverlays(input.overlays, overlayAnchor, mediaContainers),
+    motionGraphics: remapMotionGraphics(input.motionGraphics, graphicAnchor, boxIsFace),
+    overlays: remapOverlays(input.overlays, overlayAnchor, mediaContainers, boxIsFace),
     mediaContainers,
     semanticEmphasis: remapEmphasis(
       input.semanticEmphasis ?? [],
       overlayAnchor,
+      boxIsFace,
     ),
   };
 }
@@ -71,7 +77,7 @@ export function lockedCaption(
 ): CaptionDirection {
   const topSafe =
     caption.position === 'top' &&
-    (occupancy == null || occupancy.speaker.y > 0.3);
+    (occupancy == null || topCaptionAllowed({boxIsFace: boxCountsAsFace(occupancy), speakerY: occupancy.speaker.y}));
   const position =
     caption.position === 'top'
       ? topSafe
@@ -106,6 +112,7 @@ export function lockedCaption(
 function remapMotionGraphics(
   graphics: MotionGraphic[],
   anchor: MotionAnchor,
+  boxIsFace = true,
 ): MotionGraphic[] {
   const remapped = graphics.map((graphic, index) => {
     const duration = Math.max(0.9, graphic.end - graphic.start);
@@ -113,11 +120,8 @@ function remapMotionGraphics(
     const end = start + duration;
     const entrance =
       graphic.entrance === 'fade_blur' ? 'scale_pop' : graphic.entrance;
-    const unsafe =
-      graphic.anchor === 'center' ||
-      graphic.anchor === 'top' ||
-      graphic.anchor === 'bottom';
-    return {
+    const unsafe = composerGraphicAnchorIsUnsafe({boxIsFace, anchor: graphic.anchor});
+    return carryProvenance(graphic, {
       ...graphic,
       start,
       end,
@@ -126,7 +130,7 @@ function remapMotionGraphics(
       exit: graphic.exit || 'spring_out',
       shape: graphic.shape === 'none' ? 'underline' : graphic.shape,
       fontScale: Math.min(graphic.role === 'primary' ? 0.82 : 0.72, graphic.fontScale || 1),
-    };
+    });
   });
   return staggerPrimary(remapped);
 }
@@ -135,6 +139,7 @@ function remapOverlays(
   overlays: VisualOverlay[],
   anchor: VisualAnchor,
   containers: MediaContainerMoment[],
+  boxIsFace = true,
 ): VisualOverlay[] {
   const pipWindows = containers.filter(container => container.mode === 'pip_corner');
   return overlays.map(overlay => {
@@ -151,7 +156,7 @@ function remapOverlays(
       return overlay;
     }
     if (overlay.layout === 'card' || overlay.layout === 'pip' || overlay.layout === 'sticker') {
-      const unsafe = overlay.anchor === 'top' || overlay.anchor === 'bottom';
+      const unsafe = boxIsFace && (overlay.anchor === 'top' || overlay.anchor === 'bottom'); // WP3K: an unmeasured face keeps the Director's anchor
       return {
         ...overlay,
         layout: 'card',
@@ -167,14 +172,14 @@ function remapOverlays(
         ...overlay,
         layout: 'lockup',
         textStyle: 'stack',
-        anchor,
+        anchor: boxIsFace ? anchor : directorAnchorOrNeutral(overlay.anchor),
         mediaKind: overlay.mediaKind === 'video' ? 'text' : overlay.mediaKind,
         assetUrl: overlay.layout === 'banner' ? '' : overlay.assetUrl,
         visualWeight: 'accent',
       };
     }
     if (overlay.layout === 'lockup') {
-      const unsafe = overlay.anchor === 'top' || overlay.anchor === 'bottom';
+      const unsafe = boxIsFace && (overlay.anchor === 'top' || overlay.anchor === 'bottom');
       return {
         ...overlay,
         textStyle: 'stack',
@@ -185,7 +190,7 @@ function remapOverlays(
     if (overlay.layout === 'chip') {
       return {
         ...overlay,
-        anchor: overlay.anchor === 'top' ? 'bottom_right' : overlay.anchor,
+        anchor: boxIsFace && overlay.anchor === 'top' ? 'bottom_right' : overlay.anchor,
         visualWeight: 'accent',
       };
     }
@@ -207,7 +212,7 @@ function remapMediaContainers(
       1.25,
     );
     if (container.mode !== 'pip_corner') {
-      return [{...container, transitionSec}];
+      return [carryProvenance(container, {...container, transitionSec})];
     }
     if (!pipHasCanvasFill(container, overlays, graphics)) {
       return [];
@@ -216,12 +221,12 @@ function remapMediaContainers(
       return [];
     }
     return [
-      {
+      carryProvenance(container, {
         ...container,
         transitionSec,
         pipAnchor,
         scale: Math.min(0.3, Math.max(0.22, container.scale || 0.26)),
-      },
+      }),
     ];
   });
 }
@@ -247,17 +252,18 @@ function legalPipAnchor(occupancy: Occupancy): VisualAnchor | null {
   if (pip.length === 0) {
     return null;
   }
-  const preferred =
-    occupancy.preferredSide === 'right' ? 'bottom_left' : 'bottom_right';
-  const match = pip.find(slot => slot.anchor === preferred) || pip[0];
+  // WP3K: preferredSide comes from the default box for an unmeasured face (always `right`), so no side is preferred then: the first usable slot in the list order is taken.
+  const preferred = boxCountsAsFace(occupancy) ? (occupancy.preferredSide === 'right' ? 'bottom_left' : 'bottom_right') : null;
+  const match = (preferred ? pip.find(slot => slot.anchor === preferred) : undefined) || pip[0];
   if (!match) {
     return null;
   }
-  if (rectsOverlap(match.rect, CAPTION_BAND) || overlapArea(match.rect, occupancy.speaker) > 0.04) {
+  const boxIsFace = boxCountsAsFace(occupancy); // WP3J: false only for an mvp occupancy marked unmeasured
+  if (rectsOverlap(match.rect, CAPTION_BAND) || pipSlotBlockedByBox({boxIsFace, overlapWithBox: overlapArea(match.rect, occupancy.speaker)})) {
     const safer = pip.find(
       slot =>
         !rectsOverlap(slot.rect, CAPTION_BAND) &&
-        overlapArea(slot.rect, occupancy.speaker) < 0.04,
+        pipSlotClearOfBox({boxIsFace, overlapWithBox: overlapArea(slot.rect, occupancy.speaker)}),
     );
     return safer?.anchor ?? null;
   }
@@ -267,19 +273,18 @@ function legalPipAnchor(occupancy: Occupancy): VisualAnchor | null {
 function remapEmphasis(
   items: SemanticEmphasis[],
   anchor: VisualAnchor,
+  boxIsFace = true,
 ): SemanticEmphasis[] {
   return items.map((item, index) => {
-    const unsafe =
-      !item.anchor ||
-      item.anchor === 'top' ||
-      item.anchor === 'bottom';
+    // WP3K: an unmeasured face keeps every anchor the Director gave; only a missing anchor gets the neutral one (no alternating sides).
+    const unsafe = boxIsFace ? !item.anchor || item.anchor === 'top' || item.anchor === 'bottom' : !item.anchor;
     const treatment =
       item.treatment === 'highlight_shape' ? 'type_reveal' : item.treatment;
-    return {
+    return carryProvenance(item, {
       ...item,
       treatment,
-      anchor: unsafe ? (index % 2 === 0 ? anchor : oppositeVisual(anchor)) : item.anchor,
-    };
+      anchor: unsafe ? (boxIsFace ? (index % 2 === 0 ? anchor : oppositeVisual(anchor)) : anchor) : item.anchor,
+    });
   });
 }
 
@@ -303,7 +308,7 @@ function staggerPrimary(graphics: MotionGraphic[]): MotionGraphic[] {
     }
     const duration = Math.max(0.9, graphic.end - graphic.start);
     lastPrimaryEnd = start + duration;
-    return {...graphic, start, end: start + duration};
+    return carryProvenance(graphic, {...graphic, start, end: start + duration});
   });
 }
 

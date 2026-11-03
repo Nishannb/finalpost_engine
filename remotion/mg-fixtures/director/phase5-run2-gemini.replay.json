@@ -1,0 +1,29 @@
+{
+  "notes": "REPLAY: the exact Gemini motion-director response from Opus Phase 5 real run 2 (remotion/out/phase5-e2e), model gemini-3.6-flash.",
+  "graphics": [
+    {
+      "id": "hashtag-strategy",
+      "anchorWordIndex": 71,
+      "durationSeconds": 3,
+      "reason": "The speaker describes a specific numeric rule for content reach (9 hashtags split into 3 sections).",
+      "goal": "Visually break down the 9-hashtag split structure for fast comprehension.",
+      "visualDescription": "A sleek infographic card displays '9 HASHTAGS' at the top, branching down into three columns labeled 'Section 1', 'Section 2', and 'Section 3', each showing 3 hashtag icons.",
+      "placement": "split_screen",
+      "contentJson": "{\"title\":\"Hashtag Strategy\",\"totalHashtags\":9,\"structure\":\"3 Sections × 3 Hashtags\"}",
+      "box": null,
+      "graphicSide": "top"
+    },
+    {
+      "id": "editing-software-list",
+      "anchorWordIndex": 118,
+      "durationSeconds": 3.2,
+      "reason": "The speaker specifically names three professional software platforms preferred for the job.",
+      "goal": "List the three software tools clearly so interested video editors can immediately see the requirements.",
+      "visualDescription": "Three minimalist horizontal badges slide in sequentially: After Effects, Premiere Pro, and DaVinci Resolve, each with clean typography and brand-colored accent subtle borders.",
+      "placement": "split_screen",
+      "contentJson": "{\"title\":\"Preferred Editing Software\",\"tools\":[\"After Effects\",\"Premiere Pro\",\"DaVinci Resolve\"]}",
+      "box": null,
+      "graphicSide": "top"
+    }
+  ]
+}

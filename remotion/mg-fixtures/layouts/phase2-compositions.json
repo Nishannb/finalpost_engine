@@ -1,0 +1,566 @@
+{
+  "name": "phase2-compositions",
+  "durationSec": 27,
+  "videoUrl": "https://media.kinmel.shop/ai-video/source/2026-10-07/9fa92eb3-2146-49b2-be9d-82e97a4e9faf.mp4",
+  "blueprint": {
+    "captionWords": [
+      {
+        "text": "captions",
+        "start": 0.25,
+        "end": 0.7,
+        "sentenceIndex": 0
+      },
+      {
+        "text": "stay",
+        "start": 0.75,
+        "end": 1.2,
+        "sentenceIndex": 0
+      },
+      {
+        "text": "readable",
+        "start": 1.25,
+        "end": 1.7,
+        "sentenceIndex": 0
+      },
+      {
+        "text": "here",
+        "start": 1.75,
+        "end": 2.2,
+        "sentenceIndex": 0
+      },
+      {
+        "text": "captions",
+        "start": 2.25,
+        "end": 2.7,
+        "sentenceIndex": 1
+      },
+      {
+        "text": "stay",
+        "start": 2.75,
+        "end": 3.2,
+        "sentenceIndex": 1
+      },
+      {
+        "text": "readable",
+        "start": 3.25,
+        "end": 3.7,
+        "sentenceIndex": 1
+      },
+      {
+        "text": "here",
+        "start": 3.75,
+        "end": 4.2,
+        "sentenceIndex": 1
+      },
+      {
+        "text": "captions",
+        "start": 4.25,
+        "end": 4.7,
+        "sentenceIndex": 2
+      },
+      {
+        "text": "stay",
+        "start": 4.75,
+        "end": 5.2,
+        "sentenceIndex": 2
+      },
+      {
+        "text": "readable",
+        "start": 5.25,
+        "end": 5.7,
+        "sentenceIndex": 2
+      },
+      {
+        "text": "here",
+        "start": 5.75,
+        "end": 6.2,
+        "sentenceIndex": 2
+      },
+      {
+        "text": "captions",
+        "start": 6.25,
+        "end": 6.7,
+        "sentenceIndex": 3
+      },
+      {
+        "text": "stay",
+        "start": 6.75,
+        "end": 7.2,
+        "sentenceIndex": 3
+      },
+      {
+        "text": "readable",
+        "start": 7.25,
+        "end": 7.7,
+        "sentenceIndex": 3
+      },
+      {
+        "text": "here",
+        "start": 7.75,
+        "end": 8.2,
+        "sentenceIndex": 3
+      },
+      {
+        "text": "captions",
+        "start": 8.25,
+        "end": 8.7,
+        "sentenceIndex": 4
+      },
+      {
+        "text": "stay",
+        "start": 8.75,
+        "end": 9.2,
+        "sentenceIndex": 4
+      },
+      {
+        "text": "readable",
+        "start": 9.25,
+        "end": 9.7,
+        "sentenceIndex": 4
+      },
+      {
+        "text": "here",
+        "start": 9.75,
+        "end": 10.2,
+        "sentenceIndex": 4
+      },
+      {
+        "text": "captions",
+        "start": 10.25,
+        "end": 10.7,
+        "sentenceIndex": 5
+      },
+      {
+        "text": "stay",
+        "start": 10.75,
+        "end": 11.2,
+        "sentenceIndex": 5
+      },
+      {
+        "text": "readable",
+        "start": 11.25,
+        "end": 11.7,
+        "sentenceIndex": 5
+      },
+      {
+        "text": "here",
+        "start": 11.75,
+        "end": 12.2,
+        "sentenceIndex": 5
+      },
+      {
+        "text": "captions",
+        "start": 12.25,
+        "end": 12.7,
+        "sentenceIndex": 6
+      },
+      {
+        "text": "stay",
+        "start": 12.75,
+        "end": 13.2,
+        "sentenceIndex": 6
+      },
+      {
+        "text": "readable",
+        "start": 13.25,
+        "end": 13.7,
+        "sentenceIndex": 6
+      },
+      {
+        "text": "here",
+        "start": 13.75,
+        "end": 14.2,
+        "sentenceIndex": 6
+      },
+      {
+        "text": "captions",
+        "start": 14.25,
+        "end": 14.7,
+        "sentenceIndex": 7
+      },
+      {
+        "text": "stay",
+        "start": 14.75,
+        "end": 15.2,
+        "sentenceIndex": 7
+      },
+      {
+        "text": "readable",
+        "start": 15.25,
+        "end": 15.7,
+        "sentenceIndex": 7
+      },
+      {
+        "text": "here",
+        "start": 15.75,
+        "end": 16.2,
+        "sentenceIndex": 7
+      },
+      {
+        "text": "captions",
+        "start": 16.25,
+        "end": 16.7,
+        "sentenceIndex": 8
+      },
+      {
+        "text": "stay",
+        "start": 16.75,
+        "end": 17.2,
+        "sentenceIndex": 8
+      },
+      {
+        "text": "readable",
+        "start": 17.25,
+        "end": 17.7,
+        "sentenceIndex": 8
+      },
+      {
+        "text": "here",
+        "start": 17.75,
+        "end": 18.2,
+        "sentenceIndex": 8
+      },
+      {
+        "text": "captions",
+        "start": 18.25,
+        "end": 18.7,
+        "sentenceIndex": 9
+      },
+      {
+        "text": "stay",
+        "start": 18.75,
+        "end": 19.2,
+        "sentenceIndex": 9
+      },
+      {
+        "text": "readable",
+        "start": 19.25,
+        "end": 19.7,
+        "sentenceIndex": 9
+      },
+      {
+        "text": "here",
+        "start": 19.75,
+        "end": 20.2,
+        "sentenceIndex": 9
+      },
+      {
+        "text": "captions",
+        "start": 20.25,
+        "end": 20.7,
+        "sentenceIndex": 10
+      },
+      {
+        "text": "stay",
+        "start": 20.75,
+        "end": 21.2,
+        "sentenceIndex": 10
+      },
+      {
+        "text": "readable",
+        "start": 21.25,
+        "end": 21.7,
+        "sentenceIndex": 10
+      },
+      {
+        "text": "here",
+        "start": 21.75,
+        "end": 22.2,
+        "sentenceIndex": 10
+      },
+      {
+        "text": "captions",
+        "start": 22.25,
+        "end": 22.7,
+        "sentenceIndex": 11
+      },
+      {
+        "text": "stay",
+        "start": 22.75,
+        "end": 23.2,
+        "sentenceIndex": 11
+      },
+      {
+        "text": "readable",
+        "start": 23.25,
+        "end": 23.7,
+        "sentenceIndex": 11
+      },
+      {
+        "text": "here",
+        "start": 23.75,
+        "end": 24.2,
+        "sentenceIndex": 11
+      },
+      {
+        "text": "captions",
+        "start": 24.25,
+        "end": 24.7,
+        "sentenceIndex": 12
+      },
+      {
+        "text": "stay",
+        "start": 24.75,
+        "end": 25.2,
+        "sentenceIndex": 12
+      },
+      {
+        "text": "readable",
+        "start": 25.25,
+        "end": 25.7,
+        "sentenceIndex": 12
+      },
+      {
+        "text": "here",
+        "start": 25.75,
+        "end": 26.2,
+        "sentenceIndex": 12
+      },
+      {
+        "text": "captions",
+        "start": 26.25,
+        "end": 26.7,
+        "sentenceIndex": 13
+      }
+    ]
+  },
+  "graphics": [
+    {
+      "id": "stat_full",
+      "graphic": "gallery",
+      "start": 0,
+      "end": 4,
+      "placement": {
+        "mode": "full_screen"
+      },
+      "props": {
+        "content": {
+          "composition": "StatHighlight",
+          "props": {
+            "value": {
+              "from": 0,
+              "to": 12500,
+              "prefix": "$"
+            },
+            "label": "Monthly recurring revenue",
+            "sublabel": "up from $2,100 last spring",
+            "trend": [
+              2.1,
+              2.9,
+              3.4,
+              5.2,
+              6.1,
+              8.8,
+              12.5
+            ],
+            "icon": "trending-up"
+          }
+        }
+      }
+    },
+    {
+      "id": "steps_split",
+      "graphic": "gallery",
+      "start": 4,
+      "end": 8,
+      "placement": {
+        "mode": "split_screen",
+        "graphicSide": "bottom"
+      },
+      "props": {
+        "content": {
+          "composition": "ProcessSteps",
+          "props": {
+            "title": "Three steps to launch",
+            "steps": [
+              {
+                "label": "Record",
+                "icon": "camera"
+              },
+              {
+                "label": "Edit with AI",
+                "icon": "sparkles"
+              },
+              {
+                "label": "Publish everywhere",
+                "icon": "share"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "timeline_full",
+      "graphic": "gallery",
+      "start": 8,
+      "end": 12,
+      "placement": {
+        "mode": "full_screen"
+      },
+      "props": {
+        "content": {
+          "composition": "ProcessSteps",
+          "props": {
+            "variant": "timeline",
+            "title": "Our first year",
+            "steps": [
+              {
+                "label": "Idea and first prototype"
+              },
+              {
+                "label": "Beta with 50 creators"
+              },
+              {
+                "label": "Public launch"
+              },
+              {
+                "label": "10,000 users"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "before_after_split",
+      "graphic": "gallery",
+      "start": 12,
+      "end": 16,
+      "placement": {
+        "mode": "split_screen",
+        "graphicSide": "top"
+      },
+      "props": {
+        "content": {
+          "composition": "BeforeAfter",
+          "props": {
+            "title": "Editing time per video",
+            "before": {
+              "label": "Before",
+              "value": "6 hours",
+              "detail": "Manual cuts and captions"
+            },
+            "after": {
+              "label": "After",
+              "value": "12 min",
+              "detail": "Automatic first draft"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "chart_full",
+      "graphic": "gallery",
+      "start": 16,
+      "end": 20,
+      "placement": {
+        "mode": "full_screen"
+      },
+      "props": {
+        "content": {
+          "composition": "ChartExplainer",
+          "props": {
+            "kind": "line",
+            "title": "Followers",
+            "headline": {
+              "from": 1200,
+              "to": 48000
+            },
+            "data": [
+              {
+                "label": "M1",
+                "value": 1.2
+              },
+              {
+                "label": "M2",
+                "value": 2.5
+              },
+              {
+                "label": "M3",
+                "value": 3.1
+              },
+              {
+                "label": "M4",
+                "value": 6.8
+              },
+              {
+                "label": "M5",
+                "value": 9.4
+              },
+              {
+                "label": "M6",
+                "value": 17
+              },
+              {
+                "label": "M7",
+                "value": 29
+              },
+              {
+                "label": "M8",
+                "value": 48
+              }
+            ],
+            "annotation": "40× in eight months"
+          }
+        }
+      }
+    },
+    {
+      "id": "quote_full",
+      "graphic": "gallery",
+      "start": 20,
+      "end": 24,
+      "placement": {
+        "mode": "full_screen"
+      },
+      "props": {
+        "content": {
+          "composition": "QuoteCallout",
+          "props": {
+            "quote": "The first three seconds decide whether anyone sees the rest of your video.",
+            "author": "Every short-form editor",
+            "highlight": [
+              "first three seconds"
+            ]
+          }
+        },
+        "theme": {
+          "background": "#FFF7ED",
+          "surface": "#FFEDD5",
+          "text": "#1C1917",
+          "mutedText": "#78716C",
+          "primary": "#EA580C",
+          "secondary": "#FB923C",
+          "accent": "#C2410C",
+          "fontDisplay": "space_grotesk"
+        }
+      }
+    },
+    {
+      "id": "pointer_overlay",
+      "graphic": "gallery",
+      "start": 24,
+      "end": 27,
+      "placement": {
+        "mode": "overlay"
+      },
+      "props": {
+        "content": {
+          "composition": "PointerCallout",
+          "props": {
+            "target": {
+              "x": 600,
+              "y": 820,
+              "width": 300,
+              "height": 420
+            },
+            "label": "This is the product",
+            "icon": "smartphone"
+          }
+        }
+      }
+    }
+  ]
+}

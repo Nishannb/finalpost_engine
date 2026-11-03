@@ -16,6 +16,7 @@ import type {
   TimelineBlueprint,
 } from '../types/blueprint.ts';
 import type {TemplateDesignJob} from '../types/templateDesign.ts';
+import {graphicsStatusKey, parseStoredGraphicsStatus, type JobGraphicsStatus} from '../lib/productEditProfile.ts';
 import {getKv} from './kv.ts';
 
 const BLUEPRINT_PREFIX = 'engine:blueprint:';
@@ -41,6 +42,8 @@ export function fingerprintSource(input: {
   userBrollKey?: string;
   captionStyleKey?: string;
   forceSpeakerCutout?: boolean;
+  /** Non-empty only when the client provided a transparent cutout URL, so keys made without one are unchanged (a blueprint built around a provided cutout must never be served to a request without it). */
+  subjectCutoutKey?: string;
   directorV2?: boolean;
   northStar?: boolean;
   requestedEdits?: string;
@@ -48,6 +51,10 @@ export function fingerprintSource(input: {
   captionTemplate?: string;
   teleprompterClean?: boolean;
   scriptKey?: string;
+  /** WP1: non-empty only for a non-legacy product edit profile, so legacy cache keys are unchanged. */
+  editProfileKey?: string;
+  /** WP3Z: non-empty only when the request's graphics decision is `on` or `skipped_budget` (lib/productEditProfile.ts), so keys made while graphics were off are unchanged. */
+  graphicsKey?: string;
 }): string {
   return createHash('sha256')
     .update(
@@ -69,6 +76,7 @@ export function fingerprintSource(input: {
         input.forceSpeakerCutout || env.FORCE_SPEAKER_CUTOUT ? 'cutout' : '',
         input.directorV2 || env.DIRECTOR_V2 ? 'director-v2' : '',
         input.northStar || env.NORTH_STAR ? 'north-star' : '',
+        ...(input.subjectCutoutKey ? [`cutout:${input.subjectCutoutKey}`] : []),
         (input.requestedEdits ?? '').trim(),
         input.forceDeliveryShaping === true
           ? 'delivery-on'
@@ -80,6 +88,8 @@ export function fingerprintSource(input: {
         (input.captionTemplate ?? '').trim().toLowerCase(),
         input.teleprompterClean ? 'tp-clean-v2' : '',
         (input.scriptKey ?? '').trim(),
+        ...(input.editProfileKey ? [input.editProfileKey] : []),
+        ...(input.graphicsKey ? [input.graphicsKey] : []),
       ].join('|'),
     )
     .digest('hex')
@@ -89,6 +99,8 @@ export function fingerprintSource(input: {
 export async function saveBlueprint(
   blueprint: TimelineBlueprint,
   fingerprint: string,
+  /** WP3Y: the graphics decision of the run that made this blueprint, kept beside it so a cache hit can report it. Omitted = nothing stored (the field stays absent on a hit). */
+  meta: {graphics?: JobGraphicsStatus} = {},
 ): Promise<void> {
   const kv = await getKv();
   const ttl = env.BLUEPRINT_TTL_SEC;
@@ -102,6 +114,15 @@ export async function saveBlueprint(
     blueprint.blueprintId,
     ttl,
   );
+  if (meta.graphics) {
+    await kv.set(graphicsStatusKey(blueprint.blueprintId), meta.graphics, ttl);
+  }
+}
+
+/** WP3Y: the stored graphics decision for a blueprint, or `undefined` for an entry saved without one. */
+export async function loadBlueprintGraphicsStatus(blueprintId: string): Promise<JobGraphicsStatus | undefined> {
+  const kv = await getKv();
+  return parseStoredGraphicsStatus(await kv.get(graphicsStatusKey(blueprintId)));
 }
 
 export async function loadBlueprint(

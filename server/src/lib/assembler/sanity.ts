@@ -1,3 +1,4 @@
+import {env} from '../../config/env.ts';
 import type {MediaContext, Plan} from './types.ts';
 
 export function sanityCheck(plan: Plan, ctx: MediaContext): string[] {
@@ -16,7 +17,7 @@ export function sanityCheck(plan: Plan, ctx: MediaContext): string[] {
     }
   }
   const hook = plan.elements.find(element => element.kind === 'hook_title');
-  if (!hook) {
+  if (!hook && env.HOOK_TITLE_POLICY !== 'optional') {
     warnings.push('sanity:hook_missing Director did not place hook_title.');
   }
   const coverage = plan.elements.reduce((sum, element) => {

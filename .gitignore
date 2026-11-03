@@ -11,3 +11,22 @@ remotion/build/
 remotion/props/.theme-demo-tmp/
 template-designer-bench/clips/
 server/.tmp-delivery/
+remotion/public/mg-fixture-modules/
+
+# WP53: vendored visual backends (cloned by scripts/vendor-*.sh; ~13 MB each with fonts/gsap/evals). Only our adapters + vendor/NOTICE-*.md are committed.
+vendor/eian-riso-broll/
+vendor/gbro-collage-broll/
+
+# Phase 2 RVM: local-only virtualenv and model weights (never committed, never baked into an image)
+subjectmatte/.venv-rvm/
+agents/.venv/
+subjectmatte/weights/
+
+# Phase 3 RVM: generated inspection output (webm + PNGs)
+subjectmatte/out/
+
+# Kinetic engine stage cache (content-hashed, regenerable)
+.cache/
+
+# Real Runware spend record (timestamp, video, cache_key, seed, includeCost). Local only.
+agents/music_specialist/spend.log

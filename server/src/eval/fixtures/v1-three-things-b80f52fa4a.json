@@ -1,0 +1,1904 @@
+{
+ "id": "v1-three-things-b80f52fa4a",
+ "kind": "saved_response_replay",
+ "path": "v1",
+ "provenance": {
+  "directorDump": "remotion/out/phase6-sonnet/gemini-live/director/01-gemini-director.json",
+  "directorDumpSha256": "6121430197a757bd86503a968e9fb72a215a05c1a647990273fad37ab2e33db9",
+  "propsFile": "remotion/out/phase6-sonnet/gemini-live/props.json",
+  "propsSha256": "2d8ce448c4138a300a9da11b8b91aad638e3b9f6b0765a9c5c3018ab38b3cdd4",
+  "rawResponseSha256": "b80f52fa4af9beb4abb56c68980e0b9b919abb3c4a5f84644325b705fc645204",
+  "model": "gemini-3.6-flash",
+  "alsoSeenIn": [],
+  "note": "Real Gemini visual-director response saved by an earlier phase; replayed offline. Words, trim segments and durations come from the blueprint of the same run."
+ },
+ "requestedEdits": [
+  "cutaway",
+  "hook_title",
+  "zoom"
+ ],
+ "captionTemplate": "karaoke",
+ "sourceDurationSec": 41.708333,
+ "outputDurationSec": 41.708,
+ "transcript": "Never ever do these three things if you want to go viral. So that was an example of a hook which is so important for the editor to edit properly. And as an editor, you must know how to add cool effects. So edit something nice for these three lines. One, you must control the viewer's emotions from the beginning of the video until the end. Two, all you need is nine hashtags split into three sections. And three, the police touch the back of your car when they pull you over so they can have their fingerprints on it. And as an editor, you must have nice transitions and nice subtitles. I also like when editors use After Effects, Premiere Pro, and DaVinci Resolve. Now, you'll also be incentivized for performance as my editor. So if a video that you edit goes viral, you should expect a bonus. Follow me for more valuable tips.",
+ "words": [
+  {
+   "text": "Never",
+   "start": 0.02,
+   "end": 0.28
+  },
+  {
+   "text": "ever",
+   "start": 0.28,
+   "end": 0.7
+  },
+  {
+   "text": "do",
+   "start": 0.7,
+   "end": 0.98
+  },
+  {
+   "text": "these",
+   "start": 0.98,
+   "end": 1.18
+  },
+  {
+   "text": "three",
+   "start": 1.18,
+   "end": 1.4
+  },
+  {
+   "text": "things",
+   "start": 1.4,
+   "end": 1.76
+  },
+  {
+   "text": "if",
+   "start": 1.76,
+   "end": 2.02
+  },
+  {
+   "text": "you",
+   "start": 2.02,
+   "end": 2.12
+  },
+  {
+   "text": "want",
+   "start": 2.12,
+   "end": 2.24
+  },
+  {
+   "text": "to",
+   "start": 2.24,
+   "end": 2.36
+  },
+  {
+   "text": "go",
+   "start": 2.36,
+   "end": 2.48
+  },
+  {
+   "text": "viral.",
+   "start": 2.48,
+   "end": 2.94
+  },
+  {
+   "text": "So",
+   "start": 2.86,
+   "end": 3.02
+  },
+  {
+   "text": "that",
+   "start": 3.02,
+   "end": 3.24
+  },
+  {
+   "text": "was",
+   "start": 3.24,
+   "end": 3.48
+  },
+  {
+   "text": "an",
+   "start": 3.48,
+   "end": 3.62
+  },
+  {
+   "text": "example",
+   "start": 3.62,
+   "end": 4.02
+  },
+  {
+   "text": "of",
+   "start": 4.02,
+   "end": 4.3
+  },
+  {
+   "text": "a",
+   "start": 4.3,
+   "end": 4.42
+  },
+  {
+   "text": "hook",
+   "start": 4.42,
+   "end": 4.68
+  },
+  {
+   "text": "which",
+   "start": 4.68,
+   "end": 4.92
+  },
+  {
+   "text": "is",
+   "start": 4.92,
+   "end": 5.06
+  },
+  {
+   "text": "so",
+   "start": 5.06,
+   "end": 5.26
+  },
+  {
+   "text": "important",
+   "start": 5.26,
+   "end": 5.66
+  },
+  {
+   "text": "for",
+   "start": 5.66,
+   "end": 5.84
+  },
+  {
+   "text": "the",
+   "start": 5.84,
+   "end": 5.98
+  },
+  {
+   "text": "editor",
+   "start": 5.98,
+   "end": 6.24
+  },
+  {
+   "text": "to",
+   "start": 6.24,
+   "end": 6.54
+  },
+  {
+   "text": "edit",
+   "start": 6.54,
+   "end": 6.76
+  },
+  {
+   "text": "properly.",
+   "start": 6.76,
+   "end": 7.36
+  },
+  {
+   "text": "And",
+   "start": 7.34,
+   "end": 7.54
+  },
+  {
+   "text": "as",
+   "start": 7.54,
+   "end": 7.8
+  },
+  {
+   "text": "an",
+   "start": 7.8,
+   "end": 7.94
+  },
+  {
+   "text": "editor,",
+   "start": 7.94,
+   "end": 8.28
+  },
+  {
+   "text": "you",
+   "start": 8.28,
+   "end": 8.64
+  },
+  {
+   "text": "must",
+   "start": 8.64,
+   "end": 8.9
+  },
+  {
+   "text": "know",
+   "start": 8.9,
+   "end": 9.08
+  },
+  {
+   "text": "how",
+   "start": 9.08,
+   "end": 9.2
+  },
+  {
+   "text": "to",
+   "start": 9.2,
+   "end": 9.32
+  },
+  {
+   "text": "add",
+   "start": 9.32,
+   "end": 9.48
+  },
+  {
+   "text": "cool",
+   "start": 9.48,
+   "end": 9.7
+  },
+  {
+   "text": "effects.",
+   "start": 9.7,
+   "end": 10.18
+  },
+  {
+   "text": "So",
+   "start": 10.42,
+   "end": 10.58
+  },
+  {
+   "text": "edit",
+   "start": 10.58,
+   "end": 10.82
+  },
+  {
+   "text": "something",
+   "start": 10.82,
+   "end": 11.12
+  },
+  {
+   "text": "nice",
+   "start": 11.12,
+   "end": 11.5
+  },
+  {
+   "text": "for",
+   "start": 11.5,
+   "end": 11.72
+  },
+  {
+   "text": "these",
+   "start": 11.72,
+   "end": 11.9
+  },
+  {
+   "text": "three",
+   "start": 11.9,
+   "end": 12.08
+  },
+  {
+   "text": "lines.",
+   "start": 12.08,
+   "end": 12.44
+  },
+  {
+   "text": "One,",
+   "start": 12.7,
+   "end": 13.08
+  },
+  {
+   "text": "you",
+   "start": 13.08,
+   "end": 13.16
+  },
+  {
+   "text": "must",
+   "start": 13.16,
+   "end": 13.34
+  },
+  {
+   "text": "control",
+   "start": 13.34,
+   "end": 13.74
+  },
+  {
+   "text": "the",
+   "start": 13.74,
+   "end": 13.96
+  },
+  {
+   "text": "viewer's",
+   "start": 13.96,
+   "end": 14.32
+  },
+  {
+   "text": "emotions",
+   "start": 14.32,
+   "end": 14.72
+  },
+  {
+   "text": "from",
+   "start": 14.72,
+   "end": 14.96
+  },
+  {
+   "text": "the",
+   "start": 14.96,
+   "end": 15.1
+  },
+  {
+   "text": "beginning",
+   "start": 15.1,
+   "end": 15.44
+  },
+  {
+   "text": "of",
+   "start": 15.44,
+   "end": 15.72
+  },
+  {
+   "text": "the",
+   "start": 15.72,
+   "end": 15.86
+  },
+  {
+   "text": "video",
+   "start": 15.86,
+   "end": 16.12
+  },
+  {
+   "text": "until",
+   "start": 16.12,
+   "end": 16.52
+  },
+  {
+   "text": "the",
+   "start": 16.52,
+   "end": 16.8
+  },
+  {
+   "text": "end.",
+   "start": 16.8,
+   "end": 17.24
+  },
+  {
+   "text": "Two,",
+   "start": 17.04,
+   "end": 17.46
+  },
+  {
+   "text": "all",
+   "start": 17.46,
+   "end": 17.58
+  },
+  {
+   "text": "you",
+   "start": 17.58,
+   "end": 17.76
+  },
+  {
+   "text": "need",
+   "start": 17.76,
+   "end": 17.9
+  },
+  {
+   "text": "is",
+   "start": 17.9,
+   "end": 18.04
+  },
+  {
+   "text": "nine",
+   "start": 18.04,
+   "end": 18.3
+  },
+  {
+   "text": "hashtags",
+   "start": 18.3,
+   "end": 18.78
+  },
+  {
+   "text": "split",
+   "start": 18.78,
+   "end": 19.14
+  },
+  {
+   "text": "into",
+   "start": 19.14,
+   "end": 19.32
+  },
+  {
+   "text": "three",
+   "start": 19.32,
+   "end": 19.52
+  },
+  {
+   "text": "sections.",
+   "start": 19.52,
+   "end": 20.02
+  },
+  {
+   "text": "And",
+   "start": 20.26,
+   "end": 20.46
+  },
+  {
+   "text": "three,",
+   "start": 20.46,
+   "end": 20.84
+  },
+  {
+   "text": "the",
+   "start": 20.84,
+   "end": 20.98
+  },
+  {
+   "text": "police",
+   "start": 20.98,
+   "end": 21.34
+  },
+  {
+   "text": "touch",
+   "start": 21.34,
+   "end": 21.56
+  },
+  {
+   "text": "the",
+   "start": 21.56,
+   "end": 21.76
+  },
+  {
+   "text": "back",
+   "start": 21.76,
+   "end": 21.94
+  },
+  {
+   "text": "of",
+   "start": 21.94,
+   "end": 22.12
+  },
+  {
+   "text": "your",
+   "start": 22.12,
+   "end": 22.24
+  },
+  {
+   "text": "car",
+   "start": 22.24,
+   "end": 22.46
+  },
+  {
+   "text": "when",
+   "start": 22.46,
+   "end": 22.66
+  },
+  {
+   "text": "they",
+   "start": 22.66,
+   "end": 22.8
+  },
+  {
+   "text": "pull",
+   "start": 22.8,
+   "end": 23
+  },
+  {
+   "text": "you",
+   "start": 23,
+   "end": 23.14
+  },
+  {
+   "text": "over",
+   "start": 23.14,
+   "end": 23.44
+  },
+  {
+   "text": "so",
+   "start": 23.14,
+   "end": 23.66
+  },
+  {
+   "text": "they",
+   "start": 23.66,
+   "end": 23.82
+  },
+  {
+   "text": "can",
+   "start": 23.82,
+   "end": 23.92
+  },
+  {
+   "text": "have",
+   "start": 23.92,
+   "end": 24.1
+  },
+  {
+   "text": "their",
+   "start": 24.1,
+   "end": 24.26
+  },
+  {
+   "text": "fingerprints",
+   "start": 24.26,
+   "end": 24.66
+  },
+  {
+   "text": "on",
+   "start": 24.66,
+   "end": 25
+  },
+  {
+   "text": "it.",
+   "start": 25,
+   "end": 25.16
+  },
+  {
+   "text": "And",
+   "start": 25.14,
+   "end": 25.3
+  },
+  {
+   "text": "as",
+   "start": 25.3,
+   "end": 25.52
+  },
+  {
+   "text": "an",
+   "start": 25.52,
+   "end": 25.66
+  },
+  {
+   "text": "editor,",
+   "start": 25.66,
+   "end": 26.18
+  },
+  {
+   "text": "you",
+   "start": 26.18,
+   "end": 26.3
+  },
+  {
+   "text": "must",
+   "start": 26.3,
+   "end": 26.5
+  },
+  {
+   "text": "have",
+   "start": 26.5,
+   "end": 26.74
+  },
+  {
+   "text": "nice",
+   "start": 26.74,
+   "end": 27.02
+  },
+  {
+   "text": "transitions",
+   "start": 27.02,
+   "end": 27.5
+  },
+  {
+   "text": "and",
+   "start": 27.5,
+   "end": 27.76
+  },
+  {
+   "text": "nice",
+   "start": 27.76,
+   "end": 28.02
+  },
+  {
+   "text": "subtitles.",
+   "start": 28.02,
+   "end": 28.36
+  },
+  {
+   "text": "I",
+   "start": 28.46,
+   "end": 28.68
+  },
+  {
+   "text": "also",
+   "start": 28.68,
+   "end": 29.04
+  },
+  {
+   "text": "like",
+   "start": 29.04,
+   "end": 29.3
+  },
+  {
+   "text": "when",
+   "start": 29.3,
+   "end": 29.46
+  },
+  {
+   "text": "editors",
+   "start": 29.46,
+   "end": 29.84
+  },
+  {
+   "text": "use",
+   "start": 29.84,
+   "end": 30.16
+  },
+  {
+   "text": "After",
+   "start": 30.16,
+   "end": 30.46
+  },
+  {
+   "text": "Effects,",
+   "start": 30.46,
+   "end": 31.18
+  },
+  {
+   "text": "Premiere",
+   "start": 31.18,
+   "end": 31.4
+  },
+  {
+   "text": "Pro,",
+   "start": 31.4,
+   "end": 32.02
+  },
+  {
+   "text": "and",
+   "start": 32.02,
+   "end": 32.14
+  },
+  {
+   "text": "DaVinci",
+   "start": 32.14,
+   "end": 32.46
+  },
+  {
+   "text": "Resolve.",
+   "start": 32.46,
+   "end": 33.04
+  },
+  {
+   "text": "Now,",
+   "start": 33.06,
+   "end": 33.46
+  },
+  {
+   "text": "you'll",
+   "start": 33.46,
+   "end": 33.7
+  },
+  {
+   "text": "also",
+   "start": 33.7,
+   "end": 34.06
+  },
+  {
+   "text": "be",
+   "start": 34.06,
+   "end": 34.2
+  },
+  {
+   "text": "incentivized",
+   "start": 34.2,
+   "end": 34.88
+  },
+  {
+   "text": "for",
+   "start": 34.88,
+   "end": 35.06
+  },
+  {
+   "text": "performance",
+   "start": 35.06,
+   "end": 35.58
+  },
+  {
+   "text": "as",
+   "start": 35.58,
+   "end": 35.9
+  },
+  {
+   "text": "my",
+   "start": 35.9,
+   "end": 36.06
+  },
+  {
+   "text": "editor.",
+   "start": 36.06,
+   "end": 36.52
+  },
+  {
+   "text": "So",
+   "start": 36.48,
+   "end": 36.66
+  },
+  {
+   "text": "if",
+   "start": 36.66,
+   "end": 36.78
+  },
+  {
+   "text": "a",
+   "start": 36.72,
+   "end": 36.84
+  },
+  {
+   "text": "video",
+   "start": 36.84,
+   "end": 37.08
+  },
+  {
+   "text": "that",
+   "start": 37.08,
+   "end": 37.3
+  },
+  {
+   "text": "you",
+   "start": 37.3,
+   "end": 37.48
+  },
+  {
+   "text": "edit",
+   "start": 37.48,
+   "end": 37.72
+  },
+  {
+   "text": "goes",
+   "start": 37.72,
+   "end": 37.98
+  },
+  {
+   "text": "viral,",
+   "start": 37.98,
+   "end": 38.5
+  },
+  {
+   "text": "you",
+   "start": 38.5,
+   "end": 38.78
+  },
+  {
+   "text": "should",
+   "start": 38.78,
+   "end": 38.9
+  },
+  {
+   "text": "expect",
+   "start": 38.9,
+   "end": 39.18
+  },
+  {
+   "text": "a",
+   "start": 39.18,
+   "end": 39.36
+  },
+  {
+   "text": "bonus.",
+   "start": 39.36,
+   "end": 39.6
+  },
+  {
+   "text": "Follow",
+   "start": 39.84,
+   "end": 40.16
+  },
+  {
+   "text": "me",
+   "start": 40.16,
+   "end": 40.34
+  },
+  {
+   "text": "for",
+   "start": 40.34,
+   "end": 40.56
+  },
+  {
+   "text": "more",
+   "start": 40.56,
+   "end": 40.72
+  },
+  {
+   "text": "valuable",
+   "start": 40.72,
+   "end": 41.08
+  },
+  {
+   "text": "tips.",
+   "start": 41.08,
+   "end": 41.96
+  }
+ ],
+ "captionWords": [
+  {
+   "text": "Never",
+   "start": 0.02,
+   "end": 0.28,
+   "sentenceIndex": 0
+  },
+  {
+   "text": "ever",
+   "start": 0.28,
+   "end": 0.7,
+   "sentenceIndex": 0
+  },
+  {
+   "text": "do",
+   "start": 0.7,
+   "end": 0.98,
+   "sentenceIndex": 0
+  },
+  {
+   "text": "these",
+   "start": 0.98,
+   "end": 1.18,
+   "sentenceIndex": 0
+  },
+  {
+   "text": "three",
+   "start": 1.18,
+   "end": 1.4,
+   "sentenceIndex": 0
+  },
+  {
+   "text": "things",
+   "start": 1.4,
+   "end": 1.76,
+   "sentenceIndex": 0
+  },
+  {
+   "text": "if",
+   "start": 1.76,
+   "end": 2.02,
+   "sentenceIndex": 0
+  },
+  {
+   "text": "you",
+   "start": 2.02,
+   "end": 2.12,
+   "sentenceIndex": 0
+  },
+  {
+   "text": "want",
+   "start": 2.12,
+   "end": 2.24,
+   "sentenceIndex": 0
+  },
+  {
+   "text": "to",
+   "start": 2.24,
+   "end": 2.36,
+   "sentenceIndex": 0
+  },
+  {
+   "text": "go",
+   "start": 2.36,
+   "end": 2.48,
+   "sentenceIndex": 0
+  },
+  {
+   "text": "viral.",
+   "start": 2.48,
+   "end": 2.86,
+   "sentenceIndex": 0
+  },
+  {
+   "text": "So",
+   "start": 2.86,
+   "end": 3.02,
+   "sentenceIndex": 1
+  },
+  {
+   "text": "that",
+   "start": 3.02,
+   "end": 3.24,
+   "sentenceIndex": 1
+  },
+  {
+   "text": "was",
+   "start": 3.24,
+   "end": 3.48,
+   "sentenceIndex": 1
+  },
+  {
+   "text": "an",
+   "start": 3.48,
+   "end": 3.62,
+   "sentenceIndex": 1
+  },
+  {
+   "text": "example",
+   "start": 3.62,
+   "end": 4.02,
+   "sentenceIndex": 1
+  },
+  {
+   "text": "of",
+   "start": 4.02,
+   "end": 4.3,
+   "sentenceIndex": 1
+  },
+  {
+   "text": "a",
+   "start": 4.3,
+   "end": 4.42,
+   "sentenceIndex": 1
+  },
+  {
+   "text": "hook",
+   "start": 4.42,
+   "end": 4.68,
+   "sentenceIndex": 1
+  },
+  {
+   "text": "which",
+   "start": 4.68,
+   "end": 4.92,
+   "sentenceIndex": 1
+  },
+  {
+   "text": "is",
+   "start": 4.92,
+   "end": 5.06,
+   "sentenceIndex": 1
+  },
+  {
+   "text": "so",
+   "start": 5.06,
+   "end": 5.26,
+   "sentenceIndex": 1
+  },
+  {
+   "text": "important",
+   "start": 5.26,
+   "end": 5.66,
+   "sentenceIndex": 1
+  },
+  {
+   "text": "for",
+   "start": 5.66,
+   "end": 5.84,
+   "sentenceIndex": 1
+  },
+  {
+   "text": "the",
+   "start": 5.84,
+   "end": 5.98,
+   "sentenceIndex": 1
+  },
+  {
+   "text": "editor",
+   "start": 5.98,
+   "end": 6.24,
+   "sentenceIndex": 1
+  },
+  {
+   "text": "to",
+   "start": 6.24,
+   "end": 6.54,
+   "sentenceIndex": 1
+  },
+  {
+   "text": "edit",
+   "start": 6.54,
+   "end": 6.76,
+   "sentenceIndex": 1
+  },
+  {
+   "text": "properly.",
+   "start": 6.76,
+   "end": 7.34,
+   "sentenceIndex": 1
+  },
+  {
+   "text": "And",
+   "start": 7.34,
+   "end": 7.54,
+   "sentenceIndex": 2
+  },
+  {
+   "text": "as",
+   "start": 7.54,
+   "end": 7.8,
+   "sentenceIndex": 2
+  },
+  {
+   "text": "an",
+   "start": 7.8,
+   "end": 7.94,
+   "sentenceIndex": 2
+  },
+  {
+   "text": "editor,",
+   "start": 7.94,
+   "end": 8.28,
+   "sentenceIndex": 2
+  },
+  {
+   "text": "you",
+   "start": 8.28,
+   "end": 8.64,
+   "sentenceIndex": 2
+  },
+  {
+   "text": "must",
+   "start": 8.64,
+   "end": 8.9,
+   "sentenceIndex": 2
+  },
+  {
+   "text": "know",
+   "start": 8.9,
+   "end": 9.08,
+   "sentenceIndex": 2
+  },
+  {
+   "text": "how",
+   "start": 9.08,
+   "end": 9.2,
+   "sentenceIndex": 2
+  },
+  {
+   "text": "to",
+   "start": 9.2,
+   "end": 9.32,
+   "sentenceIndex": 2
+  },
+  {
+   "text": "add",
+   "start": 9.32,
+   "end": 9.48,
+   "sentenceIndex": 2
+  },
+  {
+   "text": "cool",
+   "start": 9.48,
+   "end": 9.7,
+   "sentenceIndex": 2
+  },
+  {
+   "text": "effects.",
+   "start": 9.7,
+   "end": 10.18,
+   "sentenceIndex": 2
+  },
+  {
+   "text": "So",
+   "start": 10.42,
+   "end": 10.58,
+   "sentenceIndex": 3
+  },
+  {
+   "text": "edit",
+   "start": 10.58,
+   "end": 10.82,
+   "sentenceIndex": 3
+  },
+  {
+   "text": "something",
+   "start": 10.82,
+   "end": 11.12,
+   "sentenceIndex": 3
+  },
+  {
+   "text": "nice",
+   "start": 11.12,
+   "end": 11.5,
+   "sentenceIndex": 3
+  },
+  {
+   "text": "for",
+   "start": 11.5,
+   "end": 11.72,
+   "sentenceIndex": 3
+  },
+  {
+   "text": "these",
+   "start": 11.72,
+   "end": 11.9,
+   "sentenceIndex": 3
+  },
+  {
+   "text": "three",
+   "start": 11.9,
+   "end": 12.08,
+   "sentenceIndex": 3
+  },
+  {
+   "text": "lines.",
+   "start": 12.08,
+   "end": 12.44,
+   "sentenceIndex": 3
+  },
+  {
+   "text": "One,",
+   "start": 12.7,
+   "end": 13.08,
+   "sentenceIndex": 4
+  },
+  {
+   "text": "you",
+   "start": 13.08,
+   "end": 13.16,
+   "sentenceIndex": 4
+  },
+  {
+   "text": "must",
+   "start": 13.16,
+   "end": 13.34,
+   "sentenceIndex": 4
+  },
+  {
+   "text": "control",
+   "start": 13.34,
+   "end": 13.74,
+   "sentenceIndex": 4
+  },
+  {
+   "text": "the",
+   "start": 13.74,
+   "end": 13.96,
+   "sentenceIndex": 4
+  },
+  {
+   "text": "viewer's",
+   "start": 13.96,
+   "end": 14.32,
+   "sentenceIndex": 4
+  },
+  {
+   "text": "emotions",
+   "start": 14.32,
+   "end": 14.72,
+   "sentenceIndex": 4
+  },
+  {
+   "text": "from",
+   "start": 14.72,
+   "end": 14.96,
+   "sentenceIndex": 4
+  },
+  {
+   "text": "the",
+   "start": 14.96,
+   "end": 15.1,
+   "sentenceIndex": 4
+  },
+  {
+   "text": "beginning",
+   "start": 15.1,
+   "end": 15.44,
+   "sentenceIndex": 4
+  },
+  {
+   "text": "of",
+   "start": 15.44,
+   "end": 15.72,
+   "sentenceIndex": 4
+  },
+  {
+   "text": "the",
+   "start": 15.72,
+   "end": 15.86,
+   "sentenceIndex": 4
+  },
+  {
+   "text": "video",
+   "start": 15.86,
+   "end": 16.12,
+   "sentenceIndex": 4
+  },
+  {
+   "text": "until",
+   "start": 16.12,
+   "end": 16.52,
+   "sentenceIndex": 4
+  },
+  {
+   "text": "the",
+   "start": 16.52,
+   "end": 16.8,
+   "sentenceIndex": 4
+  },
+  {
+   "text": "end.",
+   "start": 16.8,
+   "end": 17.04,
+   "sentenceIndex": 4
+  },
+  {
+   "text": "Two,",
+   "start": 17.04,
+   "end": 17.46,
+   "sentenceIndex": 5
+  },
+  {
+   "text": "all",
+   "start": 17.46,
+   "end": 17.58,
+   "sentenceIndex": 5
+  },
+  {
+   "text": "you",
+   "start": 17.58,
+   "end": 17.76,
+   "sentenceIndex": 5
+  },
+  {
+   "text": "need",
+   "start": 17.76,
+   "end": 17.9,
+   "sentenceIndex": 5
+  },
+  {
+   "text": "is",
+   "start": 17.9,
+   "end": 18.04,
+   "sentenceIndex": 5
+  },
+  {
+   "text": "nine",
+   "start": 18.04,
+   "end": 18.3,
+   "sentenceIndex": 5
+  },
+  {
+   "text": "hashtags",
+   "start": 18.3,
+   "end": 18.78,
+   "sentenceIndex": 5
+  },
+  {
+   "text": "split",
+   "start": 18.78,
+   "end": 19.14,
+   "sentenceIndex": 5
+  },
+  {
+   "text": "into",
+   "start": 19.14,
+   "end": 19.32,
+   "sentenceIndex": 5
+  },
+  {
+   "text": "three",
+   "start": 19.32,
+   "end": 19.52,
+   "sentenceIndex": 5
+  },
+  {
+   "text": "sections.",
+   "start": 19.52,
+   "end": 20.02,
+   "sentenceIndex": 5
+  },
+  {
+   "text": "And",
+   "start": 20.26,
+   "end": 20.46,
+   "sentenceIndex": 6
+  },
+  {
+   "text": "three,",
+   "start": 20.46,
+   "end": 20.84,
+   "sentenceIndex": 6
+  },
+  {
+   "text": "the",
+   "start": 20.84,
+   "end": 20.98,
+   "sentenceIndex": 6
+  },
+  {
+   "text": "police",
+   "start": 20.98,
+   "end": 21.34,
+   "sentenceIndex": 6
+  },
+  {
+   "text": "touch",
+   "start": 21.34,
+   "end": 21.56,
+   "sentenceIndex": 6
+  },
+  {
+   "text": "the",
+   "start": 21.56,
+   "end": 21.76,
+   "sentenceIndex": 6
+  },
+  {
+   "text": "back",
+   "start": 21.76,
+   "end": 21.94,
+   "sentenceIndex": 6
+  },
+  {
+   "text": "of",
+   "start": 21.94,
+   "end": 22.12,
+   "sentenceIndex": 6
+  },
+  {
+   "text": "your",
+   "start": 22.12,
+   "end": 22.24,
+   "sentenceIndex": 6
+  },
+  {
+   "text": "car",
+   "start": 22.24,
+   "end": 22.46,
+   "sentenceIndex": 6
+  },
+  {
+   "text": "when",
+   "start": 22.46,
+   "end": 22.66,
+   "sentenceIndex": 6
+  },
+  {
+   "text": "they",
+   "start": 22.66,
+   "end": 22.8,
+   "sentenceIndex": 6
+  },
+  {
+   "text": "pull",
+   "start": 22.8,
+   "end": 23,
+   "sentenceIndex": 6
+  },
+  {
+   "text": "you",
+   "start": 23,
+   "end": 23.14,
+   "sentenceIndex": 6
+  },
+  {
+   "text": "over",
+   "start": 23.14,
+   "end": 23.22,
+   "sentenceIndex": 6
+  },
+  {
+   "text": "so",
+   "start": 23.14,
+   "end": 23.66,
+   "sentenceIndex": 6
+  },
+  {
+   "text": "they",
+   "start": 23.66,
+   "end": 23.82,
+   "sentenceIndex": 6
+  },
+  {
+   "text": "can",
+   "start": 23.82,
+   "end": 23.92,
+   "sentenceIndex": 6
+  },
+  {
+   "text": "have",
+   "start": 23.92,
+   "end": 24.1,
+   "sentenceIndex": 6
+  },
+  {
+   "text": "their",
+   "start": 24.1,
+   "end": 24.26,
+   "sentenceIndex": 6
+  },
+  {
+   "text": "fingerprints",
+   "start": 24.26,
+   "end": 24.66,
+   "sentenceIndex": 6
+  },
+  {
+   "text": "on",
+   "start": 24.66,
+   "end": 25,
+   "sentenceIndex": 6
+  },
+  {
+   "text": "it.",
+   "start": 25,
+   "end": 25.14,
+   "sentenceIndex": 6
+  },
+  {
+   "text": "And",
+   "start": 25.14,
+   "end": 25.3,
+   "sentenceIndex": 7
+  },
+  {
+   "text": "as",
+   "start": 25.3,
+   "end": 25.52,
+   "sentenceIndex": 7
+  },
+  {
+   "text": "an",
+   "start": 25.52,
+   "end": 25.66,
+   "sentenceIndex": 7
+  },
+  {
+   "text": "editor,",
+   "start": 25.66,
+   "end": 26.18,
+   "sentenceIndex": 7
+  },
+  {
+   "text": "you",
+   "start": 26.18,
+   "end": 26.3,
+   "sentenceIndex": 7
+  },
+  {
+   "text": "must",
+   "start": 26.3,
+   "end": 26.5,
+   "sentenceIndex": 7
+  },
+  {
+   "text": "have",
+   "start": 26.5,
+   "end": 26.74,
+   "sentenceIndex": 7
+  },
+  {
+   "text": "nice",
+   "start": 26.74,
+   "end": 27.02,
+   "sentenceIndex": 7
+  },
+  {
+   "text": "transitions",
+   "start": 27.02,
+   "end": 27.5,
+   "sentenceIndex": 7
+  },
+  {
+   "text": "and",
+   "start": 27.5,
+   "end": 27.76,
+   "sentenceIndex": 7
+  },
+  {
+   "text": "nice",
+   "start": 27.76,
+   "end": 28.02,
+   "sentenceIndex": 7
+  },
+  {
+   "text": "subtitles.",
+   "start": 28.02,
+   "end": 28.36,
+   "sentenceIndex": 7
+  },
+  {
+   "text": "I",
+   "start": 28.46,
+   "end": 28.68,
+   "sentenceIndex": 8
+  },
+  {
+   "text": "also",
+   "start": 28.68,
+   "end": 29.04,
+   "sentenceIndex": 8
+  },
+  {
+   "text": "like",
+   "start": 29.04,
+   "end": 29.3,
+   "sentenceIndex": 8
+  },
+  {
+   "text": "when",
+   "start": 29.3,
+   "end": 29.46,
+   "sentenceIndex": 8
+  },
+  {
+   "text": "editors",
+   "start": 29.46,
+   "end": 29.84,
+   "sentenceIndex": 8
+  },
+  {
+   "text": "use",
+   "start": 29.84,
+   "end": 30.16,
+   "sentenceIndex": 8
+  },
+  {
+   "text": "After",
+   "start": 30.16,
+   "end": 30.46,
+   "sentenceIndex": 8
+  },
+  {
+   "text": "Effects,",
+   "start": 30.46,
+   "end": 31.18,
+   "sentenceIndex": 8
+  },
+  {
+   "text": "Premiere",
+   "start": 31.18,
+   "end": 31.4,
+   "sentenceIndex": 8
+  },
+  {
+   "text": "Pro,",
+   "start": 31.4,
+   "end": 32.02,
+   "sentenceIndex": 8
+  },
+  {
+   "text": "and",
+   "start": 32.02,
+   "end": 32.14,
+   "sentenceIndex": 8
+  },
+  {
+   "text": "DaVinci",
+   "start": 32.14,
+   "end": 32.46,
+   "sentenceIndex": 8
+  },
+  {
+   "text": "Resolve.",
+   "start": 32.46,
+   "end": 33.04,
+   "sentenceIndex": 8
+  },
+  {
+   "text": "Now,",
+   "start": 33.06,
+   "end": 33.46,
+   "sentenceIndex": 9
+  },
+  {
+   "text": "you'll",
+   "start": 33.46,
+   "end": 33.7,
+   "sentenceIndex": 9
+  },
+  {
+   "text": "also",
+   "start": 33.7,
+   "end": 34.06,
+   "sentenceIndex": 9
+  },
+  {
+   "text": "be",
+   "start": 34.06,
+   "end": 34.2,
+   "sentenceIndex": 9
+  },
+  {
+   "text": "incentivized",
+   "start": 34.2,
+   "end": 34.88,
+   "sentenceIndex": 9
+  },
+  {
+   "text": "for",
+   "start": 34.88,
+   "end": 35.06,
+   "sentenceIndex": 9
+  },
+  {
+   "text": "performance",
+   "start": 35.06,
+   "end": 35.58,
+   "sentenceIndex": 9
+  },
+  {
+   "text": "as",
+   "start": 35.58,
+   "end": 35.9,
+   "sentenceIndex": 9
+  },
+  {
+   "text": "my",
+   "start": 35.9,
+   "end": 36.06,
+   "sentenceIndex": 9
+  },
+  {
+   "text": "editor.",
+   "start": 36.06,
+   "end": 36.48,
+   "sentenceIndex": 9
+  },
+  {
+   "text": "So",
+   "start": 36.48,
+   "end": 36.66,
+   "sentenceIndex": 10
+  },
+  {
+   "text": "if",
+   "start": 36.66,
+   "end": 36.74,
+   "sentenceIndex": 10
+  },
+  {
+   "text": "a",
+   "start": 36.72,
+   "end": 36.84,
+   "sentenceIndex": 10
+  },
+  {
+   "text": "video",
+   "start": 36.84,
+   "end": 37.08,
+   "sentenceIndex": 10
+  },
+  {
+   "text": "that",
+   "start": 37.08,
+   "end": 37.3,
+   "sentenceIndex": 10
+  },
+  {
+   "text": "you",
+   "start": 37.3,
+   "end": 37.48,
+   "sentenceIndex": 10
+  },
+  {
+   "text": "edit",
+   "start": 37.48,
+   "end": 37.72,
+   "sentenceIndex": 10
+  },
+  {
+   "text": "goes",
+   "start": 37.72,
+   "end": 37.98,
+   "sentenceIndex": 10
+  },
+  {
+   "text": "viral,",
+   "start": 37.98,
+   "end": 38.5,
+   "sentenceIndex": 10
+  },
+  {
+   "text": "you",
+   "start": 38.5,
+   "end": 38.78,
+   "sentenceIndex": 10
+  },
+  {
+   "text": "should",
+   "start": 38.78,
+   "end": 38.9,
+   "sentenceIndex": 10
+  },
+  {
+   "text": "expect",
+   "start": 38.9,
+   "end": 39.18,
+   "sentenceIndex": 10
+  },
+  {
+   "text": "a",
+   "start": 39.18,
+   "end": 39.36,
+   "sentenceIndex": 10
+  },
+  {
+   "text": "bonus.",
+   "start": 39.36,
+   "end": 39.6,
+   "sentenceIndex": 10
+  },
+  {
+   "text": "Follow",
+   "start": 39.84,
+   "end": 40.16,
+   "sentenceIndex": 11
+  },
+  {
+   "text": "me",
+   "start": 40.16,
+   "end": 40.34,
+   "sentenceIndex": 11
+  },
+  {
+   "text": "for",
+   "start": 40.34,
+   "end": 40.56,
+   "sentenceIndex": 11
+  },
+  {
+   "text": "more",
+   "start": 40.56,
+   "end": 40.72,
+   "sentenceIndex": 11
+  },
+  {
+   "text": "valuable",
+   "start": 40.72,
+   "end": 41.08,
+   "sentenceIndex": 11
+  },
+  {
+   "text": "tips.",
+   "start": 41.08,
+   "end": 41.708,
+   "sentenceIndex": 11
+  }
+ ],
+ "keepSegments": [
+  {
+   "sourceStart": 0,
+   "sourceEnd": 41.708,
+   "outputStart": 0
+  }
+ ],
+ "rawResponse": "{\n  \"hook_title\": \"NEVER DO THESE 3 THINGS TO GO VIRAL\",\n  \"moments\": [\n    {\n      \"timestamp\": 18.04,\n      \"search_keyword\": \"social media hashtags\",\n      \"media\": \"video\",\n      \"layout\": \"cutaway\",\n      \"queries\": [\n        \"social media hashtags\",\n        \"phone hashtag screen\",\n        \"typing hashtags phone\"\n      ],\n      \"why\": \"Illustrates the topic of splitting nine hashtags across sections\"\n    },\n    {\n      \"timestamp\": 20.98,\n      \"search_keyword\": \"police car traffic stop\",\n      \"media\": \"video\",\n      \"layout\": \"cutaway\",\n      \"queries\": [\n        \"police car traffic stop\",\n        \"police officer car night\",\n        \"police car pulling over\"\n      ],\n      \"why\": \"Visualizes the hook example about police pulling over a car\"\n    },\n    {\n      \"timestamp\": 30.16,\n      \"search_keyword\": \"video editing timeline software\",\n      \"media\": \"video\",\n      \"layout\": \"cutaway\",\n      \"queries\": [\n        \"video editing timeline\",\n        \"editing video software computer\",\n        \"editor workspace desk\"\n      ],\n      \"why\": \"Shows professional video editing software mentioned in speech\"\n    },\n    {\n      \"timestamp\": 37.08,\n      \"search_keyword\": \"viral video analytics graph\",\n      \"media\": \"video\",\n      \"layout\": \"cutaway\",\n      \"user_broll_id\": \"ub_1\",\n      \"why\": \"Highlights the viral performance bonus incentive for the editor\"\n    }\n  ],\n  \"topic\": \"Video Editing Viral Hooks and Strategy\",\n  \"caption\": {\n    \"template\": \"karaoke\",\n    \"position\": \"bottom\",\n    \"box\": false,\n    \"text_color\": \"#FFFFFFOverride text color for readability against dark background cutaways and talking head frame.\"\n  }\n}",
+ "savedParsed": {
+  "topic": "Video Editing Viral Hooks and Strategy",
+  "hookTitle": "NEVER DO THESE 3 THINGS TO",
+  "hookStyle": "rail",
+  "caption": {
+   "position": "bottom",
+   "bottomFrac": 0.2,
+   "textColor": "#111111",
+   "highlightColor": "#F5B942",
+   "boxColor": null,
+   "template": "karaoke",
+   "animation": "karaoke",
+   "fontScale": 1
+  },
+  "zooms": [],
+  "moments": [
+   {
+    "timestamp": 18.04,
+    "searchKeyword": "social media hashtags",
+    "media": "video",
+    "layout": "cutaway",
+    "anchor": "top_right",
+    "overlayText": "",
+    "textStyle": "outline",
+    "accentColor": "#FFFFFF",
+    "userBrollId": null,
+    "treatment": "card",
+    "glow": true,
+    "staggerIndex": 0,
+    "focusRegion": null,
+    "visualWeight": "accent",
+    "queries": [
+     "social media hashtags",
+     "social media",
+     "hashtag screen",
+     "typing hashtags",
+     "cinematic city street night",
+     "cinematic city street",
+     "cinematic city",
+     "golden hour portrait outdoors"
+    ]
+   },
+   {
+    "timestamp": 20.98,
+    "searchKeyword": "police car traffic stop",
+    "media": "video",
+    "layout": "cutaway",
+    "anchor": "top_left",
+    "overlayText": "",
+    "textStyle": "outline",
+    "accentColor": "#FFFFFF",
+    "userBrollId": null,
+    "treatment": "card",
+    "glow": true,
+    "staggerIndex": 0,
+    "focusRegion": null,
+    "visualWeight": "accent",
+    "queries": [
+     "police car traffic stop",
+     "police car traffic",
+     "police car",
+     "police officer car night",
+     "police officer car",
+     "police officer",
+     "police car pulling over",
+     "police car pulling"
+    ]
+   },
+   {
+    "timestamp": 30.16,
+    "searchKeyword": "editing timeline software",
+    "media": "video",
+    "layout": "cutaway",
+    "anchor": "bottom_right",
+    "overlayText": "",
+    "textStyle": "outline",
+    "accentColor": "#FFFFFF",
+    "userBrollId": null,
+    "treatment": "card",
+    "glow": true,
+    "staggerIndex": 0,
+    "focusRegion": null,
+    "visualWeight": "accent",
+    "queries": [
+     "editing timeline software",
+     "editing timeline",
+     "editing software computer",
+     "editing software",
+     "editor workspace desk",
+     "editor workspace",
+     "cinematic city street night",
+     "cinematic city street"
+    ]
+   },
+   {
+    "timestamp": 37.08,
+    "searchKeyword": "viral analytics graph",
+    "media": "video",
+    "layout": "cutaway",
+    "anchor": "bottom_left",
+    "overlayText": "",
+    "textStyle": "outline",
+    "accentColor": "#FFFFFF",
+    "userBrollId": "ub_1",
+    "treatment": "card",
+    "glow": true,
+    "staggerIndex": 0,
+    "focusRegion": null,
+    "visualWeight": "accent",
+    "queries": [
+     "viral analytics graph",
+     "viral analytics",
+     "cinematic city street night",
+     "cinematic city street",
+     "cinematic city",
+     "golden hour portrait outdoors",
+     "golden hour portrait",
+     "golden hour"
+    ]
+   }
+  ],
+  "depthOverlays": [],
+  "insetReveals": [],
+  "motionGraphics": [
+   {
+    "start": 4.2,
+    "end": 6.550000000000001,
+    "text": "FOLLOW ME FOR MORE VALUABLE ",
+    "role": "primary",
+    "shape": "block",
+    "accentColor": "#FACC15",
+    "textColor": "#FFFFFF",
+    "anchor": "top_right",
+    "entrance": "type_stagger",
+    "exit": "spring_out",
+    "fontScale": 1.18,
+    "italic": false
+   },
+   {
+    "start": 21.688333160000003,
+    "end": 24.038333160000004,
+    "text": "FOLLOW ME FOR MORE VALUA",
+    "role": "secondary",
+    "shape": "pill",
+    "accentColor": "#22D3EE",
+    "textColor": "#0F172A",
+    "anchor": "top_left",
+    "entrance": "scale_pop",
+    "exit": "slide_away",
+    "fontScale": 0.98,
+    "italic": false
+   }
+  ],
+  "mediaContainers": [],
+  "semanticEmphasis": [],
+  "visualQueries": [
+   "cinematic city street night",
+   "golden hour portrait outdoors",
+   "hands writing in notebook"
+  ],
+  "preferredLutId": "",
+  "suggestedLutIds": []
+ }
+}

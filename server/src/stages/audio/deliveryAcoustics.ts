@@ -24,7 +24,7 @@ export async function analyzeDeliveryAcoustics(input: {
 }): Promise<{sentences: AcousticSentence[]; loudness: LoudnessStats}> {
   const started = Date.now();
   const [pcm, loudness] = await Promise.all([
-    decodePcm(input.sourcePath),
+    decodeMonoPcm(input.sourcePath),
     measureLoudness(input.sourcePath),
   ]);
   const sentences = input.sentences.map((sentence, sentenceIndex) => {
@@ -82,7 +82,7 @@ export async function analyzeDeliveryAcoustics(input: {
   return {sentences, loudness};
 }
 
-async function decodePcm(path: string): Promise<Float32Array> {
+export async function decodeMonoPcm(path: string): Promise<Float32Array> {
   const bytes = await runBuffer(env.FFMPEG_PATH, [
     '-hide_banner',
     '-loglevel',

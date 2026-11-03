@@ -27,6 +27,12 @@ export function resolveInsetReveals(input: {
   sentences?: Array<{start: number; end: number}>;
   themeColors?: string[];
   alreadyOutput?: boolean;
+  /**
+   * The caller resolves overlaps with cutaways, splits, frame insets and media containers by explicit
+   * priority (`resolveLayoutPriority`), so those are not blockers here. Depth overlays still are.
+   * `frameInsets` / `mediaContainers` are output-time spans.
+   */
+  priorityManaged?: boolean;
 }): {clips: InsetRevealClip[]; warnings: string[]} {
   const warnings: string[] = [];
   const directed = input.directed ?? [];
@@ -70,19 +76,21 @@ export function resolveInsetReveals(input: {
   });
 
   const blockedRanges = [
-    ...input.clips.map(clip => ({start: clip.start, end: clip.end})),
-    ...input.overlays
-      .filter(
-        overlay =>
-          overlay.layout === 'split' ||
-          overlay.layout === 'cutout' ||
-          overlay.layout === 'cutaway' ||
-          overlay.layout === 'composite',
-      )
-      .map(overlay => ({start: overlay.start, end: overlay.end})),
+    ...(input.priorityManaged ? [] : input.clips.map(clip => ({start: clip.start, end: clip.end}))),
+    ...(input.priorityManaged
+      ? []
+      : input.overlays
+          .filter(
+            overlay =>
+              overlay.layout === 'split' ||
+              overlay.layout === 'cutout' ||
+              overlay.layout === 'cutaway' ||
+              overlay.layout === 'composite',
+          )
+          .map(overlay => ({start: overlay.start, end: overlay.end}))),
     ...input.depthOverlays.map(clip => ({start: clip.start, end: clip.end})),
-    ...(input.frameInsets ?? []).map(clip => ({start: clip.start, end: clip.end})),
-    ...(input.mediaContainers ?? []).map(clip => ({start: clip.start, end: clip.end})),
+    ...(input.priorityManaged ? [] : (input.frameInsets ?? []).map(clip => ({start: clip.start, end: clip.end}))),
+    ...(input.priorityManaged ? [] : (input.mediaContainers ?? []).map(clip => ({start: clip.start, end: clip.end}))),
   ];
 
   const gated = validateInsetReveals({

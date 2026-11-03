@@ -1,3 +1,4 @@
+import {KINETIC_TYPE_MARKS, KINETIC_TYPE_NAMES} from '../broll/kineticTypeStory.ts';
 import {ASSET_ID_MAX_LENGTH, parseLegalAssetId} from '../../lib/assembler/assetId.ts';
 import {
   CAPTION_ANIMATIONS,
@@ -370,6 +371,8 @@ export const STAGE2_RESPONSE_SCHEMA = {
               count_to: number,
               count_suffix: string,
               zoom_scale: number,
+              focus_x: number,
+              focus_y: number,
               container_mode: stringEnum(MEDIA_CONTAINER_MODES),
               canvas_color: string,
               margin_color: string,
@@ -390,6 +393,8 @@ export const STAGE2_RESPONSE_SCHEMA = {
               background_type: stringEnum(['solid', 'gradient', 'loop', 'template']),
               background_value: string,
               graphic_template_id: string,
+              type_template: stringEnum(KINETIC_TYPE_NAMES),
+              type_mark: stringEnum(KINETIC_TYPE_MARKS),
               graphic_text: string,
               enter_offset: number,
               exit_offset: number,

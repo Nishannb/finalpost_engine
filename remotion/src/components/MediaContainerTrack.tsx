@@ -108,6 +108,10 @@ export const MediaContainerFrame: React.FC<MediaContainerFrameProps> = ({
           backgroundColor: canvasColor,
         }}
       />
+      {container.canvasStyle === 'blur_self' ? (
+        // WP12C: the framed talking-head beat: the same picture, blurred and dimmed, fills the canvas behind the sharp window.
+        <AbsoluteFill style={{opacity: canvasOpacity, filter: 'blur(34px) brightness(0.5) saturate(0.9)', transform: 'scale(1.18)'}}>{children}</AbsoluteFill>
+      ) : null}
       {title && !isPip ? (
         <div
           style={{

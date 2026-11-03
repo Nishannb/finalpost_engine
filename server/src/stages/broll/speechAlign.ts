@@ -47,7 +47,11 @@ export function speechHoldWindow(input: {
     };
   }
   const pad = 0.28;
-  const start = burst.start;
+  // Words closer than 0.48 s join one "burst". Continuous speech (no pause) makes the whole video a single
+  // burst starting at 0, which used to drag every window to the start of the video. When the burst is
+  // longer than the hold allows, anchor the window on the aligned word instead of on the burst start.
+  const burstTooLong = burst.end + pad - burst.start > maxSec;
+  const start = burstTooLong ? Math.max(burst.start, aligned - 0.3) : burst.start;
   const end = Math.min(start + maxSec, burst.end + pad);
   if (end - start < 0.9) {
     return {start, end: start + Math.min(maxSec, 0.9)};

@@ -9,6 +9,7 @@ import type {
   SemanticEmphasis,
   VisualOverlay,
 } from '../../types/blueprint.ts';
+import {carryProvenanceUnlessChanged} from '../../lib/provenance.ts';
 import type {EditThesis} from '../directorV2/types.ts';
 
 export type ThesisTokens = {
@@ -70,7 +71,7 @@ export function applyThesisTokens(input: {
         ? {...overlay, accentColor: tokens.primary}
         : overlay,
     ),
-    motionGraphics: input.motionGraphics.map(graphic => ({
+    motionGraphics: input.motionGraphics.map(graphic => carryProvenanceUnlessChanged(graphic, {
       ...graphic,
       accentColor: isDefaultAccent(graphic.accentColor)
         ? graphic.role === 'secondary'
@@ -79,7 +80,7 @@ export function applyThesisTokens(input: {
         : graphic.accentColor,
       textColor: isDefaultAccent(graphic.textColor) ? tokens.ink : graphic.textColor,
     })),
-    semanticEmphasis: input.semanticEmphasis.map(item => ({
+    semanticEmphasis: input.semanticEmphasis.map(item => carryProvenanceUnlessChanged(item, {
       ...item,
       accentColor: isDefaultAccent(item.accentColor) ? tokens.primary : item.accentColor,
     })),

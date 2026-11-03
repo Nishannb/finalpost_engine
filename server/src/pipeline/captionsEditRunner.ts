@@ -19,6 +19,7 @@ import type {
   CaptionsEditJob,
   LanguageCode,
 } from '../types/blueprint.ts';
+import {burnCaptionKitVideo} from './captionKitBurn.ts';
 import {startAnalysis} from './analysisRunner.ts';
 import {
   loadRenderJob,
@@ -46,6 +47,7 @@ export async function createCaptionsEditJob(input: {
   extension?: string;
   languageCode: LanguageCode;
   captionTemplate: CaptionTemplateId;
+  captionPreset?: string;
   captionStyleGuide?: Record<string, unknown> | null;
   mode?: 'captions' | 'teleprompter_clean';
   scriptText?: string;
@@ -65,6 +67,7 @@ export async function createCaptionsEditJob(input: {
     sourcePublicUrl: presigned.publicUrl,
     languageCode: input.languageCode,
     captionTemplate: input.captionTemplate,
+    captionPreset: input.captionPreset?.trim() || undefined,
     captionStyleGuide: input.captionStyleGuide || undefined,
     mode,
     scriptText:
@@ -168,6 +171,7 @@ async function runCaptionsPipeline(job: CaptionsEditJob): Promise<void> {
     useCache: !job.captionStyleGuide && !teleprompterClean,
     requestedEdits: ['captions'],
     captionTemplate: job.captionTemplate,
+    captionPreset: job.captionPreset,
     captionStyleGuide: job.captionStyleGuide || null,
     teleprompterClean,
     scriptText: job.scriptText,
@@ -185,6 +189,11 @@ async function runCaptionsPipeline(job: CaptionsEditJob): Promise<void> {
   job.progress = 0.55;
   job.updatedAt = new Date().toISOString();
   await saveCaptionsEditJob(job);
+
+  if (job.captionPreset && !teleprompterClean) {
+    await burnCaptionsWithCaptionKit(job, analysisDone.blueprint.captionWords, analysisDone.blueprint.outputDurationSec);
+    return;
+  }
 
   const render = await startRender({
     userId: job.userId,
@@ -220,6 +229,14 @@ async function resumeCaptionsPipeline(job: CaptionsEditJob): Promise<void> {
       job.progress = 0.55;
       job.updatedAt = new Date().toISOString();
       await saveCaptionsEditJob(job);
+      if (job.captionPreset && !teleprompterClean) {
+        await burnCaptionsWithCaptionKit(
+          job,
+          analysisDone.blueprint.captionWords,
+          analysisDone.blueprint.outputDurationSec,
+        );
+        return;
+      }
       const render = await startRender({
         userId: job.userId,
         blueprintId: analysisDone.blueprint.blueprintId,
@@ -240,8 +257,67 @@ async function resumeCaptionsPipeline(job: CaptionsEditJob): Promise<void> {
       await saveCaptionsEditJob(job);
     }
   }
+  if (job.captionPreset && !teleprompterClean && !job.renderJobId && job.analysisJobId) {
+    const analysisDone = await waitForAnalysis(job);
+    if (!analysisDone?.blueprint || job.status === 'failed') {
+      return;
+    }
+    if (job.status !== 'done') {
+      job.status = 'rendering';
+      job.progress = 0.55;
+      job.updatedAt = new Date().toISOString();
+      await saveCaptionsEditJob(job);
+      await burnCaptionsWithCaptionKit(
+        job,
+        analysisDone.blueprint.captionWords,
+        analysisDone.blueprint.outputDurationSec,
+      );
+    }
+    return;
+  }
   if (job.renderJobId) {
     await waitForRenderJob(job);
+  }
+}
+
+async function burnCaptionsWithCaptionKit(
+  job: CaptionsEditJob,
+  words: import('../types/blueprint.ts').CaptionWord[],
+  outputDurationSec?: number,
+): Promise<void> {
+  const presetId = (job.captionPreset || '').trim();
+  if (!presetId) {
+    await failJob(job, 'bad_request', 'Caption style is missing.');
+    return;
+  }
+  try {
+    const burned = await burnCaptionKitVideo({
+      videoUrl: job.sourcePublicUrl,
+      editJobId: job.editJobId,
+      presetId,
+      words,
+    });
+    job.status = 'done';
+    job.progress = 1;
+    job.outputUrl = burned.outputUrl;
+    job.outputDurationSec = outputDurationSec;
+    job.updatedAt = new Date().toISOString();
+    await saveCaptionsEditJob(job);
+    await notifyCreatorEditDone({
+      userId: job.userId,
+      editJobId: job.editJobId,
+      status: 'done',
+      outputUrl: burned.outputUrl,
+    });
+  } catch (error) {
+    const engineError = toEngineError(error);
+    await failJob(
+      job,
+      engineError.code || 'render_failed',
+      isEngineError(error)
+        ? engineError.message
+        : 'Could not burn captions. Try again.',
+    );
   }
 }
 

@@ -6,10 +6,10 @@ import {
 } from './promptLoader.ts';
 import {BEAT_ROLES, CONTENT_TYPES, CTA_ACTIONS, PACING_TARGETS, SPEAKER_PRESENCE, STAGE1_RESPONSE_SCHEMA, VISUAL_POTENTIAL} from './schemas.ts';
 import type {BeatRole, PerceptionPack, StoryAnalysis, StoryBeat} from './types.ts';
-import {formatAudioFacts, formatFrameLabels, formatWordIdTranscript} from './perception.ts';
+import {formatAudioFacts, formatFrameLabels, formatWordIdTranscript, frameSendLimit, framesSentToDirector} from './perception.ts';
 
 export async function analyzeStory(pack: PerceptionPack): Promise<StoryAnalysis> {
-  const frames = await frameParts(pack.storyboard.map(frame => frame.path));
+  const frames = await frameParts(framesSentToDirector(pack).map(frame => frame.path), frameSendLimit(pack));
   const system = loadPromptFile(STAGE1_PROMPT_VERSION);
   const user = fillStage1User(pack);
   const first = await callDirectorModel({

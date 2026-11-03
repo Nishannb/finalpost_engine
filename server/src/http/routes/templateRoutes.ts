@@ -9,6 +9,7 @@ import {
 import {hitRateLimit, listTemplateDesignJobs, loadTemplateDesignJob} from '../../store/engineStore.ts';
 import {extractTemplateStyle} from '../../stages/templates/extractStyle.ts';
 import {extractCaptionStyle} from '../../stages/templates/extractCaptionStyle.ts';
+import {extractThumbnailTheme} from '../../stages/templates/extractThumbnailTheme.ts';
 import {
   createTemplateDesignJob,
   markTemplateDesignUploaded,
@@ -16,6 +17,7 @@ import {
 import {getAuth} from '../auth.ts';
 import {
   extractStyleRequestSchema,
+  extractThumbnailThemeRequestSchema,
   seedanceEditRequestSchema,
 } from '../schemas.ts';
 
@@ -84,6 +86,40 @@ templateRoutes.post('/templates/extract-caption-style', async (req, res) => {
     guide: result.guide,
     transcriptPreview: result.transcriptPreview,
     sourceDurationSec: result.sourceDurationSec,
+    estimatedCostUsd: result.estimatedCostUsd,
+  });
+});
+
+/**
+ * POST /v1/templates/extract-thumbnail-theme
+ * Learn palette / typography / mood / styleNotes from reference thumbnail stills.
+ */
+templateRoutes.post('/templates/extract-thumbnail-theme', async (req, res) => {
+  const auth = getAuth(res);
+  const parsed = extractThumbnailThemeRequestSchema.safeParse(req.body);
+  if (!parsed.success) {
+    throw new EngineError('bad_request', firstIssue(parsed.error.issues), {
+      issues: parsed.error.issues.map(issue => issue.message),
+    });
+  }
+
+  const hits = await hitRateLimit(
+    `thumbnail-theme:${auth.userId}`,
+    RATE_WINDOW_SEC,
+  );
+  if (hits > RATE_LIMIT && auth.via !== 'dev') {
+    throw new EngineError(
+      'rate_limited',
+      'Too many thumbnail-theme extracts; slow down',
+    );
+  }
+
+  const result = await extractThumbnailTheme({
+    imageUrls: parsed.data.imageUrls,
+  });
+  res.status(200).json({
+    ok: true,
+    theme: result.theme,
     estimatedCostUsd: result.estimatedCostUsd,
   });
 });

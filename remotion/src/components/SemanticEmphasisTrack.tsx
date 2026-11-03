@@ -16,7 +16,7 @@ import {
 
 import type {
   LanguageCode,
-  NorthStarDesign,
+  DesignTokens,
   SemanticEmphasis,
   VisualAnchor,
 } from '../blueprintSchema';
@@ -26,7 +26,7 @@ import {fontFamilyFor, fontWeightFor} from '../styles/fonts';
 type SemanticEmphasisTrackProps = {
   emphasis: SemanticEmphasis[];
   language: LanguageCode;
-  design?: NorthStarDesign;
+  design?: DesignTokens;
 };
 
 export const SemanticEmphasisTrack: React.FC<SemanticEmphasisTrackProps> = ({
@@ -56,7 +56,7 @@ export const SemanticEmphasisTrack: React.FC<SemanticEmphasisTrackProps> = ({
 const EmphasisView: React.FC<{
   item: SemanticEmphasis;
   language: LanguageCode;
-  design?: NorthStarDesign;
+  design?: DesignTokens;
 }> = ({item, language, design}) => {
   const frame = useCurrentFrame();
   const {fps, width, height, durationInFrames} = useVideoConfig();
@@ -85,8 +85,14 @@ const EmphasisView: React.FC<{
       })
     : enter;
   const opacity = fadeIn * exit;
+  // A counter is one unbreakable run of digits: size it so the FINAL value (plus suffix) fits the box it sits in, instead
+  // of running off the frame edge (a 7-digit count at the default size was cut off). Short counts keep the default size.
+  const countChars = isCount ? String(Math.round(item.countTo ?? 0)).length + (item.countSuffix || '').length : 0;
   const fontSize = Math.round(
-    width * (isCount ? 0.11 : isPrimary ? 0.055 : 0.042),
+    Math.min(
+      width * (isCount ? 0.11 : isPrimary ? 0.055 : 0.042),
+      isCount && countChars > 0 ? (width * 0.46) / (countChars * 0.62) : Number.POSITIVE_INFINITY,
+    ),
   );
   const settle = spring({
     frame,

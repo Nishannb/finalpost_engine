@@ -47,6 +47,7 @@ type PixabayVideoHit = {
 type PixabayImageHit = {
   id?: number;
   pageURL?: string;
+  tags?: string;
   user?: string;
   user_id?: number;
   largeImageURL?: string;
@@ -208,6 +209,8 @@ async function searchPhotos(
       durationSec: 0,
       credit: String(hit.user ?? 'Pixabay'),
       creditUrl: pixabayUserUrl(hit.user, hit.user_id) || String(hit.pageURL ?? 'https://pixabay.com'),
+      ...(hit.tags ? {tags: String(hit.tags)} : {}),
+      ...(hit.pageURL ? {pageUrl: String(hit.pageURL)} : {}),
     };
   }
   return null;

@@ -16,6 +16,11 @@ export type SpeakerCutout = {
   blend: number;
   videoUrl?: string;
   speaker?: {x: number; y: number; w: number; h: number};
+  /**
+   * Phase C, planning only: how a matte would be obtained. `chroma` = the backdrop is keyable (the default meaning of `available`); `rvm` = it is NOT keyable but an RVM person matte can be made on any background.
+   * Absent = `chroma` (every existing caller). `available` alone is not a usable matte: that needs `videoUrl` too.
+   */
+  source?: 'chroma' | 'rvm';
 };
 
 export type RgbSample = {r: number; g: number; b: number};
@@ -75,6 +80,13 @@ export async function detectSpeakerCutout(stillPath: string): Promise<SpeakerCut
 export function describeCutoutForDirector(cutout: SpeakerCutout): string {
   if (!cutout.available) {
     return 'SPEAKER_CUTOUT: not available (busy background). Do not use layout=cutout.';
+  }
+  if (cutout.source === 'rvm') {
+    return [
+      'SPEAKER_CUTOUT: available. The creator can be cut out of ANY background (a person matte is made for the moments that use it).',
+      'layout=cutout: B-roll or a designed canvas fills the frame; the creator stands in front as a cut-out (like a product/order explainer over chat cards). Text-behind and depth overlays work too.',
+      'Each use costs matte processing time: use it for a few strong moments (speech about messages, orders, products, screens, proof), not on every beat.',
+    ].join(' ');
   }
   return [
     'SPEAKER_CUTOUT: available. The creator can be keyed off the backdrop.',

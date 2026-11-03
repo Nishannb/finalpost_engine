@@ -5,10 +5,12 @@ import {fileURLToPath} from 'node:url';
 import pino from 'pino';
 
 import {env, isProduction} from '../config/env.ts';
+import {resolveLogDir} from './logDir.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 /** ai-video-engine/logs — works for both `src/` and compiled `dist/`. */
-const logDir = path.resolve(here, '../../../logs');
+// Phase 36E: ENGINE_LOG_DIR (validated, never silently ignored) lets an isolated run keep its logs in its own workspace; unset keeps the default.
+const logDir = resolveLogDir(path.resolve(here, '../../../logs'), process.env.ENGINE_LOG_DIR);
 mkdirSync(logDir, {recursive: true});
 const logFile = path.join(logDir, 'engine.log');
 

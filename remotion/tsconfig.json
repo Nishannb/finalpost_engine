@@ -1,7 +1,10 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2022", "DOM"],
+    "lib": [
+      "ES2022",
+      "DOM"
+    ],
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "jsx": "react-jsx",
@@ -16,8 +19,15 @@
     "paths": {
       "remotion-captions-themes": [
         "./src/captions/shims/remotion-captions-themes"
+      ],
+      "@finalpost/motion": [
+        "./src/motion/index.ts"
       ]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "remotion.config.ts"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "remotion.config.ts"
+  ]
 }

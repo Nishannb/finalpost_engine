@@ -12,7 +12,7 @@ import {AbsoluteFill, OffthreadVideo, Sequence, useVideoConfig} from 'remotion';
 
 import type {KeepSegment, LayoutStyle} from '../blueprintSchema';
 import {resolveMediaSrc} from '../lib/mediaSrc';
-import {framesBetween, secToFrame} from '../lib/timeline';
+import {segmentFrames} from '../lib/timeline';
 
 type VideoTrackProps = {
   src: string;
@@ -21,6 +21,8 @@ type VideoTrackProps = {
   objectPosition?: string;
   transparent?: boolean;
   muted?: boolean;
+  /** WP13B: a CSS filter for the whole track (a grade-flip beat); undefined = untouched. */
+  grade?: string;
 };
 
 export const VideoTrack: React.FC<VideoTrackProps> = ({
@@ -30,23 +32,21 @@ export const VideoTrack: React.FC<VideoTrackProps> = ({
   objectPosition = '50% 50%',
   transparent = false,
   muted = false,
+  grade,
 }) => {
   const {fps} = useVideoConfig();
 
   return (
-    <AbsoluteFill style={{backgroundColor: '#000000'}}>
-      {segments.map((segment, index) => {
-        const trimBefore = secToFrame(segment.sourceStart, fps);
-        const trimAfter = secToFrame(segment.sourceEnd, fps);
+    // A transparent (keyed-alpha) track must not paint its own black field, or it hides everything beneath it.
+    <AbsoluteFill style={{backgroundColor: transparent ? 'transparent' : '#000000', ...(grade ? {filter: grade} : {})}}>
+      {segmentFrames(segments, fps).map((placed, index) => {
+        const segment = segments[index]!;
+        const {trimBefore, trimAfter} = placed;
         return (
           <Sequence
             key={`${segment.sourceStart}-${index}`}
-            from={secToFrame(segment.outputStart, fps)}
-            durationInFrames={framesBetween(
-              segment.sourceStart,
-              segment.sourceEnd,
-              fps,
-            )}>
+            from={placed.from}
+            durationInFrames={placed.durationInFrames}>
             {layoutStyle === 'podcastSplit' ? (
               <PodcastSplitLayout
                 src={src}

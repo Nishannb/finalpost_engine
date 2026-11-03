@@ -9,6 +9,7 @@ import {brollLibraryRoutes} from './http/routes/brollLibraryRoutes.ts';
 import {editRoutes} from './http/routes/editRoutes.ts';
 import {healthRoutes} from './http/routes/healthRoutes.ts';
 import {localRenderRoutes} from './http/routes/localRenderRoutes.ts';
+import {mattingRoutes} from './http/routes/mattingRoutes.ts';
 import {renderRoutes} from './http/routes/renderRoutes.ts';
 import {storageRoutes} from './http/routes/storageRoutes.ts';
 import {templateRoutes} from './http/routes/templateRoutes.ts';
@@ -46,6 +47,7 @@ export function createApp() {
   app.use('/v1', requireAuth, brollLibraryRoutes);
   app.use('/v1', requireAuth, renderRoutes);
   app.use('/v1', requireAuth, templateRoutes);
+  app.use('/v1', requireAuth, mattingRoutes);
 
   app.use((_req, res) => {
     res.status(404).json({ok: false, code: 'not_found', error: 'Unknown route'});

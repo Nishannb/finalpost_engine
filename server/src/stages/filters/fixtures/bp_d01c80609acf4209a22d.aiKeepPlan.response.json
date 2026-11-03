@@ -1,0 +1,8 @@
+{"keep":[
+ {"start":13.1,"end":18.74,"reason":"opening: the only complete take of the Figma pitch; earlier 'revolutionized' / 'Redefined' attempts are false starts"},
+ {"start":39.8,"end":49.42,"reason":"one best take of 'Figma raised ... one single problem' (last, fullest)"},
+ {"start":58.2,"end":62.44,"reason":"clean pitch-deck line; the 'sorted it out' attempts are retakes"},
+ {"start":70.8,"end":80.48,"reason":"final take of 'traditional design tools weren't built...'"},
+ {"start":81.46,"end":83.42,"reason":"bottlenecks line; the lone 'productivity.' is a stutter"},
+ {"start":87.56,"end":91.92,"reason":"closing lines"}
+],"notes":"Hand-authored replay of what the model should return for bp_d01c80609acf4209a22d (offline fixture, not a recorded live call)."}

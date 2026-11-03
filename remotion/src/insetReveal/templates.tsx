@@ -10,6 +10,8 @@
 import React from 'react';
 import {interpolate} from 'remotion';
 
+import {insetDisplayText} from '../lib/insetText';
+
 export type InsetGraphicRenderParams = {
   text: string;
   data?: Record<string, string | number>;
@@ -19,11 +21,13 @@ export type InsetGraphicRenderParams = {
   height: number;
   accent: string;
   ink: string;
+  /** WP4G: the blueprint carries `legibility`; an empty text then draws no words instead of the template's fallback. */
+  legible?: boolean;
 };
 
 export type InsetGraphicRenderer = (params: InsetGraphicRenderParams) => React.ReactNode;
 
-function StatCallout({text, data, progress, width, height, accent, ink}: InsetGraphicRenderParams) {
+function StatCallout({text, data, progress, width, height, accent, ink, legible}: InsetGraphicRenderParams) {
   const label = String(data?.label ?? '').trim();
   const scale = interpolate(progress, [0, 1], [0.86, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   const opacity = progress;
@@ -52,7 +56,7 @@ function StatCallout({text, data, progress, width, height, accent, ink}: InsetGr
           textAlign: 'center',
           textShadow: `0 8px 28px ${accent}66`,
         }}>
-        {text || '—'}
+        {insetDisplayText(text, '—', Boolean(legible))}
       </div>
       {label ? (
         <div
@@ -74,7 +78,7 @@ function StatCallout({text, data, progress, width, height, accent, ink}: InsetGr
   );
 }
 
-function KeywordTitle({text, progress, width, height, accent, ink}: InsetGraphicRenderParams) {
+function KeywordTitle({text, progress, width, height, accent, ink, legible}: InsetGraphicRenderParams) {
   const y = interpolate(progress, [0, 1], [18, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   const fontSize = Math.round(Math.min(width, height) * 0.055);
   return (
@@ -108,7 +112,7 @@ function KeywordTitle({text, progress, width, height, accent, ink}: InsetGraphic
           textAlign: 'center',
           textTransform: 'uppercase',
         }}>
-        {text || 'KEY POINT'}
+        {insetDisplayText(text, 'KEY POINT', Boolean(legible))}
       </div>
     </div>
   );

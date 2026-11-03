@@ -1,0 +1,231 @@
+{
+ "_note": "WP40 offline fixture: an explainer-style VO (hook, claim, proof logos, catch, CTA). Fixed timestamps, no ASR, no network.",
+ "durationSec": 24.57,
+ "words": [
+  {
+   "text": "Most",
+   "start": 0.25,
+   "end": 0.65
+  },
+  {
+   "text": "people",
+   "start": 0.7,
+   "end": 1.25
+  },
+  {
+   "text": "think",
+   "start": 1.3,
+   "end": 1.77
+  },
+  {
+   "text": "AI",
+   "start": 1.82,
+   "end": 2.07
+  },
+  {
+   "text": "agents",
+   "start": 2.12,
+   "end": 2.67
+  },
+  {
+   "text": "are",
+   "start": 2.72,
+   "end": 3.04
+  },
+  {
+   "text": "magic.",
+   "start": 3.09,
+   "end": 3.56
+  },
+  {
+   "text": "They",
+   "start": 4.01,
+   "end": 4.41
+  },
+  {
+   "text": "are",
+   "start": 4.46,
+   "end": 4.79
+  },
+  {
+   "text": "not.",
+   "start": 4.84,
+   "end": 5.17
+  },
+  {
+   "text": "An",
+   "start": 5.62,
+   "end": 5.87
+  },
+  {
+   "text": "agent",
+   "start": 5.92,
+   "end": 6.39
+  },
+  {
+   "text": "is",
+   "start": 6.44,
+   "end": 6.69
+  },
+  {
+   "text": "just",
+   "start": 6.74,
+   "end": 7.14
+  },
+  {
+   "text": "a",
+   "start": 7.19,
+   "end": 7.36
+  },
+  {
+   "text": "loop.",
+   "start": 7.41,
+   "end": 7.81
+  },
+  {
+   "text": "It",
+   "start": 8.26,
+   "end": 8.51
+  },
+  {
+   "text": "reads",
+   "start": 8.56,
+   "end": 9.04
+  },
+  {
+   "text": "a",
+   "start": 9.09,
+   "end": 9.27
+  },
+  {
+   "text": "goal,",
+   "start": 9.32,
+   "end": 9.72
+  },
+  {
+   "text": "picks",
+   "start": 9.95,
+   "end": 10.43
+  },
+  {
+   "text": "a",
+   "start": 10.48,
+   "end": 10.66
+  },
+  {
+   "text": "tool,",
+   "start": 10.71,
+   "end": 11.11
+  },
+  {
+   "text": "and",
+   "start": 11.34,
+   "end": 11.66
+  },
+  {
+   "text": "checks",
+   "start": 11.71,
+   "end": 12.26
+  },
+  {
+   "text": "the",
+   "start": 12.31,
+   "end": 12.63
+  },
+  {
+   "text": "result.",
+   "start": 12.68,
+   "end": 13.23
+  },
+  {
+   "text": "Stripe,",
+   "start": 13.68,
+   "end": 14.23
+  },
+  {
+   "text": "Notion",
+   "start": 14.46,
+   "end": 15.01
+  },
+  {
+   "text": "and",
+   "start": 15.06,
+   "end": 15.38
+  },
+  {
+   "text": "Linear",
+   "start": 15.43,
+   "end": 15.98
+  },
+  {
+   "text": "already",
+   "start": 16.03,
+   "end": 16.66
+  },
+  {
+   "text": "ship",
+   "start": 16.71,
+   "end": 17.11
+  },
+  {
+   "text": "them.",
+   "start": 17.16,
+   "end": 17.56
+  },
+  {
+   "text": "The",
+   "start": 18.01,
+   "end": 18.33
+  },
+  {
+   "text": "catch",
+   "start": 18.38,
+   "end": 18.86
+  },
+  {
+   "text": "is",
+   "start": 18.91,
+   "end": 19.16
+  },
+  {
+   "text": "the",
+   "start": 19.21,
+   "end": 19.54
+  },
+  {
+   "text": "context.",
+   "start": 19.59,
+   "end": 20.21
+  },
+  {
+   "text": "Keep",
+   "start": 20.66,
+   "end": 21.06
+  },
+  {
+   "text": "it",
+   "start": 21.11,
+   "end": 21.36
+  },
+  {
+   "text": "small.",
+   "start": 21.41,
+   "end": 21.89
+  },
+  {
+   "text": "Follow",
+   "start": 22.34,
+   "end": 22.89
+  },
+  {
+   "text": "for",
+   "start": 22.94,
+   "end": 23.27
+  },
+  {
+   "text": "more.",
+   "start": 23.32,
+   "end": 23.72
+  }
+ ]
+}

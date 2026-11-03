@@ -1,0 +1,518 @@
+{
+ "caseId": "v1-three-things-5ef5d9cd6d",
+ "clips": [
+  {
+   "assetUrl": "https://stock.invalid/4364609.mp4",
+   "end": 15.5,
+   "keyword": "couple romantic sunset",
+   "start": 7.5
+  },
+  {
+   "assetUrl": "https://stock.invalid/161604542.mp4",
+   "end": 37.16,
+   "keyword": "editing timeline",
+   "start": 29.16
+  }
+ ],
+ "decisions": [
+  {
+   "action": "keep",
+   "id": "caption@0#1405df"
+  },
+  {
+   "action": "keep",
+   "id": "cutaway@13340#e8832a"
+  },
+  {
+   "action": "keep",
+   "id": "cutaway@30160#ec8c51"
+  },
+  {
+   "action": "keep",
+   "id": "hook_title@0#54b328"
+  }
+ ],
+ "depthOverlays": [],
+ "directedZooms": [
+  {
+   "durationSec": 1.2,
+   "timestamp": 5.06
+  },
+  {
+   "durationSec": 1.5,
+   "timestamp": 26.18
+  },
+  {
+   "durationSec": 1.2,
+   "timestamp": 40.16
+  }
+ ],
+ "frameInsets": [],
+ "hook": {
+  "duration": 3,
+  "start": 0,
+  "style": "impact",
+  "text": "NEVER DO THESE THREE THINGS"
+ },
+ "insetReveals": [],
+ "ledger": [
+  {
+   "events": [
+    {
+     "decision": "proposed",
+     "stage": "plan_assembly"
+    },
+    {
+     "decision": "accepted",
+     "stage": "conflict_validator"
+    },
+    {
+     "decision": "rendered",
+     "stage": "renderer",
+     "track": "KineticCaptions",
+     "visibility": "visible"
+    }
+   ],
+   "final": {
+    "end": 41.708,
+    "start": 0
+   },
+   "id": "caption@0#1405df",
+   "proposed": {
+    "end": 0,
+    "start": 0
+   },
+   "type": "caption"
+  },
+  {
+   "events": [
+    {
+     "decision": "proposed",
+     "stage": "visual_director"
+    },
+    {
+     "decision": "accepted",
+     "stage": "moment_planner"
+    },
+    {
+     "decision": "accepted",
+     "stage": "editorial_gate"
+    },
+    {
+     "decision": "accepted",
+     "stage": "conflict_validator"
+    },
+    {
+     "decision": "rendered",
+     "stage": "renderer",
+     "track": "BRollTrack",
+     "visibility": "visible"
+    }
+   ],
+   "final": {
+    "end": 15.5,
+    "start": 7.5
+   },
+   "id": "cutaway@13340#e8832a",
+   "proposed": {
+    "end": 13.34,
+    "start": 13.34
+   },
+   "type": "cutaway"
+  },
+  {
+   "events": [
+    {
+     "decision": "proposed",
+     "stage": "visual_director"
+    },
+    {
+     "decision": "accepted",
+     "stage": "moment_planner"
+    },
+    {
+     "decision": "dropped",
+     "reason": "cutaway_within_3.2s_of_previous_cutaway",
+     "stage": "editorial_gate"
+    }
+   ],
+   "final": null,
+   "id": "cutaway@18040#801504",
+   "proposed": {
+    "end": 18.04,
+    "start": 18.04
+   },
+   "type": "cutaway"
+  },
+  {
+   "events": [
+    {
+     "decision": "proposed",
+     "stage": "visual_director"
+    },
+    {
+     "decision": "accepted",
+     "stage": "moment_planner"
+    },
+    {
+     "decision": "dropped",
+     "reason": "clip_within_1.5s_of_previous_clip",
+     "stage": "plan_assembly"
+    }
+   ],
+   "final": null,
+   "id": "cutaway@20980#931e93",
+   "proposed": {
+    "end": 20.98,
+    "start": 20.98
+   },
+   "type": "cutaway"
+  },
+  {
+   "events": [
+    {
+     "decision": "proposed",
+     "stage": "visual_director"
+    },
+    {
+     "decision": "accepted",
+     "stage": "moment_planner"
+    },
+    {
+     "decision": "accepted",
+     "stage": "editorial_gate"
+    },
+    {
+     "decision": "accepted",
+     "stage": "conflict_validator"
+    },
+    {
+     "decision": "rendered",
+     "stage": "renderer",
+     "track": "BRollTrack",
+     "visibility": "visible"
+    }
+   ],
+   "final": {
+    "end": 37.16,
+    "start": 29.16
+   },
+   "id": "cutaway@30160#ec8c51",
+   "proposed": {
+    "end": 30.16,
+    "start": 30.16
+   },
+   "type": "cutaway"
+  },
+  {
+   "events": [
+    {
+     "decision": "proposed",
+     "stage": "visual_director"
+    },
+    {
+     "decision": "accepted",
+     "stage": "moment_planner"
+    },
+    {
+     "decision": "dropped",
+     "reason": "clip_within_1.5s_of_previous_clip",
+     "stage": "plan_assembly"
+    }
+   ],
+   "final": null,
+   "id": "cutaway@37980#101b3f",
+   "proposed": {
+    "end": 37.98,
+    "start": 37.98
+   },
+   "type": "cutaway"
+  },
+  {
+   "events": [
+    {
+     "decision": "proposed",
+     "stage": "visual_director"
+    },
+    {
+     "decision": "accepted",
+     "stage": "plan_assembly"
+    },
+    {
+     "decision": "accepted",
+     "stage": "conflict_validator"
+    },
+    {
+     "decision": "rendered",
+     "stage": "renderer",
+     "track": "HookTitle",
+     "visibility": "visible"
+    }
+   ],
+   "final": {
+    "end": 3,
+    "start": 0
+   },
+   "id": "hook_title@0#54b328",
+   "proposed": {
+    "end": 3,
+    "start": 0
+   },
+   "type": "hook_title"
+  },
+  {
+   "events": [
+    {
+     "decision": "proposed",
+     "stage": "visual_director"
+    },
+    {
+     "decision": "rejected",
+     "reason": "not_in_edit_allowlist",
+     "stage": "visual_director"
+    }
+   ],
+   "final": null,
+   "id": "kinetic_text@21688#06f438",
+   "proposed": {
+    "end": 24.038,
+    "start": 21.688
+   },
+   "type": "kinetic_text"
+  },
+  {
+   "events": [
+    {
+     "decision": "proposed",
+     "stage": "visual_director"
+    },
+    {
+     "decision": "rejected",
+     "reason": "not_in_edit_allowlist",
+     "stage": "visual_director"
+    }
+   ],
+   "final": null,
+   "id": "kinetic_text@4200#3aa846",
+   "proposed": {
+    "end": 6.55,
+    "start": 4.2
+   },
+   "type": "kinetic_text"
+  },
+  {
+   "events": [
+    {
+     "decision": "proposed",
+     "stage": "plan_assembly"
+    },
+    {
+     "decision": "dropped",
+     "reason": "transition_not_near_a_visual",
+     "stage": "editorial_gate"
+    }
+   ],
+   "final": null,
+   "id": "transition@18000#6bafab",
+   "proposed": {
+    "end": 18.38,
+    "start": 18
+   },
+   "type": "transition"
+  },
+  {
+   "events": [
+    {
+     "decision": "proposed",
+     "stage": "plan_assembly"
+    },
+    {
+     "decision": "accepted",
+     "stage": "editorial_gate"
+    },
+    {
+     "decision": "rendered",
+     "reason": "transition_has_no_asset_so_TransitionTrack_skips_it",
+     "stage": "renderer",
+     "track": "TransitionTrack",
+     "visibility": "noop"
+    }
+   ],
+   "final": {
+    "end": 29.54,
+    "start": 29.16
+   },
+   "id": "transition@29160#1ca784",
+   "proposed": {
+    "end": 29.54,
+    "start": 29.16
+   },
+   "type": "transition"
+  },
+  {
+   "events": [
+    {
+     "decision": "proposed",
+     "stage": "plan_assembly"
+    },
+    {
+     "decision": "accepted",
+     "stage": "editorial_gate"
+    },
+    {
+     "decision": "rendered",
+     "reason": "transition_has_no_asset_so_TransitionTrack_skips_it",
+     "stage": "renderer",
+     "track": "TransitionTrack",
+     "visibility": "noop"
+    }
+   ],
+   "final": {
+    "end": 7.88,
+    "start": 7.5
+   },
+   "id": "transition@7500#bb3f60",
+   "proposed": {
+    "end": 7.88,
+    "start": 7.5
+   },
+   "type": "transition"
+  },
+  {
+   "events": [
+    {
+     "decision": "proposed",
+     "stage": "visual_director"
+    },
+    {
+     "decision": "accepted",
+     "stage": "editorial_gate"
+    },
+    {
+     "decision": "accepted",
+     "stage": "plan_assembly"
+    },
+    {
+     "decision": "rendered",
+     "stage": "renderer",
+     "track": "ZoomFrame",
+     "visibility": "visible"
+    }
+   ],
+   "final": {
+    "end": 27.68,
+    "start": 26.18
+   },
+   "id": "zoom@26180#922988",
+   "proposed": {
+    "end": 27.68,
+    "start": 26.18
+   },
+   "type": "zoom"
+  },
+  {
+   "events": [
+    {
+     "decision": "proposed",
+     "stage": "visual_director"
+    },
+    {
+     "decision": "accepted",
+     "stage": "editorial_gate"
+    },
+    {
+     "decision": "accepted",
+     "stage": "plan_assembly"
+    },
+    {
+     "decision": "rendered",
+     "stage": "renderer",
+     "track": "ZoomFrame",
+     "visibility": "visible"
+    }
+   ],
+   "final": {
+    "end": 41.36,
+    "start": 40.16
+   },
+   "id": "zoom@40160#922988",
+   "proposed": {
+    "end": 41.36,
+    "start": 40.16
+   },
+   "type": "zoom"
+  },
+  {
+   "events": [
+    {
+     "decision": "proposed",
+     "stage": "visual_director"
+    },
+    {
+     "decision": "accepted",
+     "stage": "editorial_gate"
+    },
+    {
+     "decision": "accepted",
+     "stage": "plan_assembly"
+    },
+    {
+     "decision": "rendered",
+     "stage": "renderer",
+     "track": "ZoomFrame",
+     "visibility": "visible"
+    }
+   ],
+   "final": {
+    "end": 6.26,
+    "start": 5.06
+   },
+   "id": "zoom@5060#922988",
+   "proposed": {
+    "end": 6.26,
+    "start": 5.06
+   },
+   "type": "zoom"
+  }
+ ],
+ "mediaContainers": [],
+ "motionGraphics": [],
+ "overlays": [],
+ "semanticEmphasis": [],
+ "transitions": [
+  {
+   "at": 7.5,
+   "duration": 0.38,
+   "keyword": "light leak overlay"
+  },
+  {
+   "at": 29.16,
+   "duration": 0.38,
+   "keyword": "ink splash"
+  }
+ ],
+ "warnings": [
+  "cutaway_spaced",
+  "overlapping_clips_dropped"
+ ],
+ "zoomTriggers": [
+  {
+   "end": 6.26,
+   "scale": 1.25,
+   "sentenceIndex": 1,
+   "start": 5.06
+  },
+  {
+   "end": 27.68,
+   "scale": 1.25,
+   "sentenceIndex": 7,
+   "start": 26.18
+  },
+  {
+   "end": 41.36,
+   "scale": 1.25,
+   "sentenceIndex": 11,
+   "start": 40.16
+  }
+ ]
+}

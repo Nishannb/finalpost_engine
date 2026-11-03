@@ -19,7 +19,8 @@ import {
   MOTION_EXITS,
   MOTION_SHAPES,
 } from '../../types/blueprint.ts';
-import type {DirectedMoment, DirectedZoom, DirectedDepthOverlay, DirectedInsetReveal, VisualDirection} from '../broll/geminiDirector.ts';
+import type {DirectedMoment, DirectedZoom, DirectedDepthOverlay, DirectedInsetReveal, DirectedTransition, VisualDirection} from '../broll/geminiDirector.ts';
+import {stampProvenance} from '../../lib/provenance.ts';
 import {isHugeSpokenNumber} from '../broll/fastCounter.ts';
 import {parseSpokenMagnitude} from '../broll/fastCounter.ts';
 import {
@@ -47,6 +48,8 @@ export async function compileCreativePlan(input: {
   story?: StoryAnalysis;
   forceSpeakerCutout?: boolean;
   noRepair?: boolean;
+  /** WP55 phase 2: the kinetic-type family was offered to the Director for this edit: kinetic_text elements carrying `type_template` become kinetic-type candidates (not legacy motion graphics). */
+  kineticType?: boolean;
 }): Promise<{
   direction: VisualDirection;
   report: DirectorRunReport;
@@ -91,7 +94,7 @@ export async function compileCreativePlan(input: {
     return [{...source, start: element.resolved.start, end: element.resolved.end}];
   });
   const hook = scheduled.elements.find(element => element.kind === 'hook_title');
-  const direction = toVisualDirection(plan, compiled, input.pack);
+  const direction = toVisualDirection(plan, compiled, input.pack, {kineticType: input.kineticType});
   if (hook) {
     direction.hookStartSec = hook.resolved.start;
     direction.hookEndSec = hook.resolved.end;
@@ -224,11 +227,14 @@ export async function compileCreativePlan(input: {
 
 
 
-function toVisualDirection(
+/** Exported for the capability-matrix tests. */
+export function toVisualDirection(
   plan: CreativePlan,
   elements: CompiledElement[],
   pack: PerceptionPack,
+  options: {kineticType?: boolean} = {},
 ): VisualDirection {
+  const kineticType: NonNullable<VisualDirection['kineticType']> = [];
   const moments: DirectedMoment[] = [];
   const zooms: DirectedZoom[] = [];
   const motionGraphics: MotionGraphic[] = [];
@@ -237,16 +243,27 @@ function toVisualDirection(
   const semanticEmphasis: SemanticEmphasis[] = [];
   const depthOverlays: DirectedDepthOverlay[] = [];
   const insetReveals: DirectedInsetReveal[] = [];
+  const transitions: DirectedTransition[] = [];
 
   for (const element of elements) {
     if (element.kind === 'hook_title') {
       continue;
     }
     if (element.kind === 'zoom') {
+      // Carried as the Director wrote it; resolveDirectedZooms validates it and reports an unsupported value.
+      const requested = element.params?.zoomScale;
+      const {focusX, focusY} = element.params ?? {};
       zooms.push({
         timestamp: element.start,
         durationSec: Math.max(0, element.end - element.start),
+        ...(requested !== undefined && Number.isFinite(requested) ? {scale: requested} : {}),
+        ...(focusX !== undefined || focusY !== undefined ? {focus: {x: Number(focusX), y: Number(focusY)}} : {}),
       });
+      continue;
+    }
+    if (options.kineticType && element.kind === 'kinetic_text' && element.params?.typeTemplate && (element.text || '').trim()) {
+      // WP55 phase 2: the Director chose a KINETIC_TYPE_STORYTELLING template for this exact phrase. It becomes a candidate for the craft planner (validated, budgeted, grounded) and is NOT also drawn as a legacy motion graphic.
+      kineticType.push({template: element.params.typeTemplate, text: (element.text || '').trim(), start: element.start, end: element.end, ...(element.params.typeMark ? {mark: element.params.typeMark} : {}), ...(element.intent ? {reason: element.intent} : {})});
       continue;
     }
     if (element.kind === 'kinetic_text' || element.kind === 'lockup') {
@@ -279,6 +296,11 @@ function toVisualDirection(
       continue;
     }
     if (element.kind === 'transition') {
+      transitions.push({
+        start: element.start,
+        end: element.end,
+        ...(element.params?.transitionStyle ? {style: element.params.transitionStyle} : {}),
+      });
       continue;
     }
     moments.push(
@@ -317,9 +339,12 @@ function toVisualDirection(
     frameInsets,
     depthOverlays,
     insetReveals,
+    transitions,
     semanticEmphasis,
     estimatedCostUsd: plan.estimatedCostUsd,
     source: 'gemini',
+    // present (even empty) only when the family was offered: an empty list is the Director's decision not to use kinetic type
+    ...(options.kineticType ? {kineticType} : {}),
   };
 }
 
@@ -355,6 +380,8 @@ function toMoment(
         ? 'slideshow'
         : element.treatment ?? element.params?.treatment,
     visualWeight: element.kind === 'cutout' || element.kind === 'split' ? 'hero' : 'accent',
+    ...(element.params?.speakerSide && element.kind === 'split' ? {speakerSide: element.params.speakerSide} : {}),
+    ...(typeof element.params?.glow === 'boolean' ? {glow: element.params.glow} : {}),
     queries: (element.queries ?? []).slice(0, 6),
   };
 }
@@ -384,7 +411,7 @@ function toMotionGraphic(element: CompiledElement): MotionGraphic {
   const anchor = (MOTION_ANCHORS as readonly string[]).includes(element.anchor || '')
     ? element.anchor
     : MOTION_GRAPHIC_DEFAULTS.anchor;
-  return {
+  return stampProvenance({
     start: element.start,
     end: element.end,
     text,
@@ -397,14 +424,14 @@ function toMotionGraphic(element: CompiledElement): MotionGraphic {
     exit,
     fontScale: element.params?.fontScale ?? MOTION_GRAPHIC_DEFAULTS.fontScale,
     italic: element.params?.italic,
-  };
+  }, {accentColor: element.accentColor ? 'director' : 'default', textColor: element.textColor ? 'director' : 'default'});
 }
 
 function toEmphasis(element: CompiledElement): SemanticEmphasis {
   const text = (element.text || element.overlayText || '').trim();
   const magnitude = parseSpokenMagnitude(text);
   const huge = Boolean(magnitude && isHugeSpokenNumber(magnitude));
-  return {
+  return stampProvenance({
     start: element.start,
     end: element.end,
     text,
@@ -415,7 +442,7 @@ function toEmphasis(element: CompiledElement): SemanticEmphasis {
     countFrom: element.params?.countFrom ?? magnitude?.countFrom,
     countTo: element.params?.countTo ?? magnitude?.countTo,
     countSuffix: element.params?.countSuffix ?? magnitude?.suffix,
-  };
+  }, {accentColor: element.accentColor ? 'director' : 'default'});
 }
 
 function toContainer(element: CompiledElement): MediaContainerMoment {
@@ -424,7 +451,7 @@ function toContainer(element: CompiledElement): MediaContainerMoment {
   )
     ? (element.params!.containerMode as MediaContainerMoment['mode'])
     : 'card';
-  return {
+  return stampProvenance({
     start: element.start,
     end: element.end,
     mode,
@@ -433,7 +460,7 @@ function toContainer(element: CompiledElement): MediaContainerMoment {
     scale: 0.72,
     transitionSec: 0.85,
     canvasTitle: element.text || element.overlayText,
-  };
+  }, {canvasColor: element.params?.canvasColor ? 'director' : 'default'});
 }
 
 function toFrameInset(element: CompiledElement): FrameInset {
@@ -443,14 +470,19 @@ function toFrameInset(element: CompiledElement): FrameInset {
     (element.params?.marginColor || element.params?.canvasColor || element.accentColor || '#000000').trim() ||
     '#000000';
   const transition = Number(element.params?.transitionSec);
-  return {
+  // `color` comes from margin_color, else canvas_color, else accent_color (the last two are other colours the compiler borrows), else the
+  // #000000 constant. Only a usable 6-digit margin_color is the Director's choice of margin; an explicit #000000 there is `director`,
+  // the same value from the constant or from a borrowed colour is `default`.
+  const usable = /^#([0-9a-f]{6})$/i.test(color);
+  const supplied = /^#([0-9a-f]{6})$/i.test((element.params?.marginColor || '').trim());
+  return stampProvenance({
     start: element.start,
     end: element.end,
     scale,
-    marginColor: /^#([0-9a-f]{6})$/i.test(color) ? color : '#000000',
+    marginColor: usable ? color : '#000000',
     cornerRadius: element.params?.cornerRadius ?? 18,
     transitionSec: Number.isFinite(transition) && transition > 0.4 ? transition : 0.9,
-  };
+  }, {marginColor: supplied ? 'director' : 'default'});
 }
 
 

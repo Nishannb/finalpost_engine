@@ -13,7 +13,21 @@ export const FROZEN_TOOL_KINDS = [
   'callout_highlight',
   'transition',
   'depth_overlay',
+  'frame_inset',
+  'media_container',
+  'split',
+  'slideshow',
+  'cutout',
+  'card',
+  'bubble',
+  'lockup',
+  'kinetic_text',
+  'counter',
+  'emphasis',
 ] as const;
+
+/** Kinds that draw words on screen; an empty string would compile to nothing. */
+export const TEXT_TOOL_KINDS = ['kinetic_text', 'counter', 'emphasis', 'lockup', 'bubble'] as const;
 
 export type ToolKind = (typeof FROZEN_TOOL_KINDS)[number];
 
@@ -83,6 +97,7 @@ export type RefusalCode =
   | 'duration_out_of_range'
   | 'coverage_exceeded'
   | 'params_invalid'
+  | 'text_missing'
   | 'unknown_kind'
   | 'render_failed';
 

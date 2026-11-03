@@ -1,0 +1,55 @@
+{
+  "module": {
+    "url": "https://media.kinmel.shop/ai-video/motion-graphics/v0/bbeb33106b9a618bdd8d0b21d94d0f81d25550acc5e3a30d5d693f80d3057fcf.js",
+    "sha256": "bbeb33106b9a618bdd8d0b21d94d0f81d25550acc5e3a30d5d693f80d3057fcf"
+  },
+  "usage": {
+    "inputTokens": 2724,
+    "outputTokens": 1799,
+    "cacheReadInputTokens": 12517,
+    "cacheCreationInputTokens": 0
+  },
+  "attempts": [
+    {
+      "attempt": 1,
+      "kind": "generate",
+      "ok": false,
+      "report": {
+        "safety": [
+          "line 20: banned non-deterministic API (Math.random)",
+          "line 139: banned hard-coded SVG id (use useSvgId() from @finalpost/motion) (id=\")"
+        ],
+        "typecheck": [
+          "line 108:22 TS2322: Type '{ frm: number; from: number; to: number; suffix: string; decimals: number; delay: number; duration: number; width: number; height: number; weight: number; color: string; }' is not assignable to type 'IntrinsicAttributes & NumberFormat & { from?: number | undefined; to: number; width: number; height: number; delay?: number | undefined; duration?: number | undefined; ... 4 more ...; align?: \"left\" | ... 2 more ... | undefined; }'.\n  Property 'frm' does not exist on type 'IntrinsicAttributes & NumberFormat & { from?: number | undefined; to: number; width: number; height: number; delay?: number | undefined; duration?: number | undefined; ... 4 more ...; align?: \"left\" | ... 2 more ... | undefined; }'. Did you mean 'from'?"
+        ],
+        "compile": []
+      },
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0
+      },
+      "ms": 1258
+    },
+    {
+      "attempt": 2,
+      "kind": "repair",
+      "ok": true,
+      "report": {
+        "safety": [],
+        "typecheck": [],
+        "compile": []
+      },
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 2724,
+        "outputTokens": 1799,
+        "cacheReadInputTokens": 12517,
+        "cacheCreationInputTokens": 0
+      },
+      "ms": 13483
+    }
+  ]
+}

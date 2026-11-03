@@ -9,6 +9,7 @@ import type {
   SemanticEmphasis,
   VisualOverlay,
 } from '../../types/blueprint.ts';
+import {carryProvenanceUnlessChanged} from '../../lib/provenance.ts';
 import type {FramePalette} from '../../media/ffmpeg.ts';
 import {contrastCaptionWithFootage} from '../broll/captionContrast.ts';
 
@@ -61,11 +62,11 @@ export function applyPlateContrast(input: {
     if (!plate) {
       return graphic;
     }
-    return {
+    return carryProvenanceUnlessChanged(graphic, {
       ...graphic,
       textColor: readableOnPlate(graphic.textColor, plate),
       accentColor: readableOnPlate(graphic.accentColor, plate, {preferAccent: true}),
-    };
+    });
   });
 
   const semanticEmphasis = input.semanticEmphasis.map(item => {
@@ -83,14 +84,14 @@ export function applyPlateContrast(input: {
     const textColor = readableOnPlate(item.textColor || '#FFFFFF', plate);
     const accentColor = readableOnPlate(item.accentColor, plate, {preferAccent: true});
     if (item.treatment === 'color' && plate.luminance >= 0.58) {
-      return {
+      return carryProvenanceUnlessChanged(item, {
         ...item,
         treatment: 'underline' as const,
         textColor,
         accentColor,
-      };
+      });
     }
-    return {...item, textColor, accentColor};
+    return carryProvenanceUnlessChanged(item, {...item, textColor, accentColor});
   });
 
   return {caption, overlays, motionGraphics, semanticEmphasis};

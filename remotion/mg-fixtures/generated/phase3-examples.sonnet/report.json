@@ -1,0 +1,318 @@
+[
+  {
+    "id": "g_revenue_growth",
+    "ok": true,
+    "reused": false,
+    "ms": 16131,
+    "model": "claude-sonnet-5-5",
+    "url": "https://media.kinmel.shop/ai-video/motion-graphics/v0/6d16fafd70cb86d3e08018c2cb3be16d4cb17fe5b46353e72a20f3cf36f3cac4.js",
+    "bytes": 3009,
+    "gzipBytes": 1305,
+    "sourceBytes": 5095,
+    "toolkitImports": [
+      "Arrow",
+      "Background",
+      "Box",
+      "Counter",
+      "FitText",
+      "LineChart",
+      "Reveal",
+      "contentBox",
+      "isWide",
+      "sliceTop",
+      "splitRow",
+      "GraphicProps"
+    ],
+    "attempts": [
+      {
+        "attempt": 1,
+        "kind": "generate",
+        "ok": true,
+        "ms": 15722,
+        "model": "claude-sonnet-5-5",
+        "inputTokens": 628,
+        "outputTokens": 2101,
+        "cacheCreationInputTokens": 12811,
+        "cacheReadInputTokens": 0,
+        "cache": "write",
+        "costUsd": 0.054294,
+        "runtime": {
+          "ok": true,
+          "frame": 105,
+          "ms": 3754,
+          "stillPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase3-examples.sonnet/g_revenue_growth.attempt1.png"
+        },
+        "report": {
+          "safety": [],
+          "typecheck": [],
+          "compile": [],
+          "runtime": []
+        }
+      }
+    ],
+    "usage": {
+      "inputTokens": 628,
+      "outputTokens": 2101,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 12811,
+      "cacheCreation5mInputTokens": 12811,
+      "cacheCreation1hInputTokens": 0
+    },
+    "costUsd": 0.054294,
+    "previewPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase3-examples.sonnet/g_revenue_growth.attempt1.png",
+    "warnings": []
+  },
+  {
+    "id": "g_three_steps",
+    "ok": true,
+    "reused": false,
+    "ms": 35406,
+    "model": "claude-sonnet-5-5",
+    "url": "https://media.kinmel.shop/ai-video/motion-graphics/v0/9d3d94f175e6e26a5283d6ee02b13ea73c0b4820810f9cb79ff76402e692188b.js",
+    "bytes": 3820,
+    "gzipBytes": 1774,
+    "sourceBytes": 7029,
+    "toolkitImports": [
+      "Arrow",
+      "Background",
+      "Box",
+      "FitText",
+      "Icon",
+      "Reveal",
+      "contentBox",
+      "fitTextGroup",
+      "lerp",
+      "progress",
+      "sliceTop",
+      "splitColumn",
+      "splitRow",
+      "withAlpha",
+      "GraphicProps"
+    ],
+    "attempts": [
+      {
+        "attempt": 1,
+        "kind": "generate",
+        "ok": true,
+        "ms": 35048,
+        "model": "claude-sonnet-5-5",
+        "inputTokens": 561,
+        "outputTokens": 5220,
+        "cacheCreationInputTokens": 0,
+        "cacheReadInputTokens": 12811,
+        "cache": "read",
+        "costUsd": 0.055884,
+        "runtime": {
+          "ok": true,
+          "frame": 105,
+          "ms": 505,
+          "stillPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase3-examples.sonnet/g_three_steps.attempt1.png"
+        },
+        "report": {
+          "safety": [],
+          "typecheck": [],
+          "compile": [],
+          "runtime": []
+        }
+      }
+    ],
+    "usage": {
+      "inputTokens": 561,
+      "outputTokens": 5220,
+      "cacheReadInputTokens": 12811,
+      "cacheCreationInputTokens": 0,
+      "cacheCreation5mInputTokens": 0,
+      "cacheCreation1hInputTokens": 0
+    },
+    "costUsd": 0.055884,
+    "previewPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase3-examples.sonnet/g_three_steps.attempt1.png",
+    "warnings": []
+  },
+  {
+    "id": "g_feature_pointer",
+    "ok": true,
+    "reused": false,
+    "ms": 16956,
+    "model": "claude-sonnet-5-5",
+    "url": "https://media.kinmel.shop/ai-video/motion-graphics/v0/7f627d49c3bf13410a1f62f7d3aa85768b14dac48a3fff61b09a766bfac5fc47.js",
+    "bytes": 1774,
+    "gzipBytes": 951,
+    "sourceBytes": 2935,
+    "toolkitImports": [
+      "Arrow",
+      "Badge",
+      "Box",
+      "FocusRing",
+      "contentBox",
+      "measureLine",
+      "useMotionTheme",
+      "GraphicProps"
+    ],
+    "attempts": [
+      {
+        "attempt": 1,
+        "kind": "generate",
+        "ok": true,
+        "ms": 16643,
+        "model": "claude-sonnet-5-5",
+        "inputTokens": 520,
+        "outputTokens": 2433,
+        "cacheCreationInputTokens": 0,
+        "cacheReadInputTokens": 12811,
+        "cache": "read",
+        "costUsd": 0.027932,
+        "runtime": {
+          "ok": true,
+          "frame": 74,
+          "ms": 515,
+          "stillPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase3-examples.sonnet/g_feature_pointer.attempt1.png"
+        },
+        "report": {
+          "safety": [],
+          "typecheck": [],
+          "compile": [],
+          "runtime": []
+        }
+      }
+    ],
+    "usage": {
+      "inputTokens": 520,
+      "outputTokens": 2433,
+      "cacheReadInputTokens": 12811,
+      "cacheCreationInputTokens": 0,
+      "cacheCreation5mInputTokens": 0,
+      "cacheCreation1hInputTokens": 0
+    },
+    "costUsd": 0.027932,
+    "previewPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase3-examples.sonnet/g_feature_pointer.attempt1.png",
+    "warnings": []
+  },
+  {
+    "id": "g_sound_off_stat",
+    "ok": true,
+    "reused": false,
+    "ms": 7518,
+    "model": "claude-sonnet-5-5",
+    "url": "https://media.kinmel.shop/ai-video/motion-graphics/v0/1b600887ca0333ed257c4bb67911f14dd24f2a090b1d274d9732d71ef3418fc6.js",
+    "bytes": 2016,
+    "gzipBytes": 997,
+    "sourceBytes": 3221,
+    "toolkitImports": [
+      "Box",
+      "Card",
+      "Counter",
+      "FitText",
+      "Progress",
+      "Reveal",
+      "contentBox",
+      "isWide",
+      "progress",
+      "sliceTop",
+      "splitRow",
+      "GraphicProps"
+    ],
+    "attempts": [
+      {
+        "attempt": 1,
+        "kind": "generate",
+        "ok": true,
+        "ms": 7064,
+        "model": "claude-sonnet-5-5",
+        "inputTokens": 477,
+        "outputTokens": 1268,
+        "cacheCreationInputTokens": 0,
+        "cacheReadInputTokens": 12811,
+        "cache": "read",
+        "costUsd": 0.016196,
+        "runtime": {
+          "ok": true,
+          "frame": 74,
+          "ms": 458,
+          "stillPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase3-examples.sonnet/g_sound_off_stat.attempt1.png"
+        },
+        "report": {
+          "safety": [],
+          "typecheck": [],
+          "compile": [],
+          "runtime": []
+        }
+      }
+    ],
+    "usage": {
+      "inputTokens": 477,
+      "outputTokens": 1268,
+      "cacheReadInputTokens": 12811,
+      "cacheCreationInputTokens": 0,
+      "cacheCreation5mInputTokens": 0,
+      "cacheCreation1hInputTokens": 0
+    },
+    "costUsd": 0.016196,
+    "previewPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase3-examples.sonnet/g_sound_off_stat.attempt1.png",
+    "warnings": []
+  },
+  {
+    "id": "g_creator_funnel",
+    "ok": true,
+    "reused": false,
+    "ms": 35624,
+    "model": "claude-sonnet-5-5",
+    "url": "https://media.kinmel.shop/ai-video/motion-graphics/v0/4c6d34c8254aa3c38db01b8da06949596efdb2bd666d787e5d4f55a7f6fa0ffe.js",
+    "bytes": 3775,
+    "gzipBytes": 1725,
+    "sourceBytes": 7053,
+    "toolkitImports": [
+      "Background",
+      "Badge",
+      "Box",
+      "Counter",
+      "FitText",
+      "KineticText",
+      "Reveal",
+      "Card",
+      "contentBox",
+      "fitTextGroup",
+      "progress",
+      "sliceTop",
+      "withAlpha",
+      "GraphicProps"
+    ],
+    "attempts": [
+      {
+        "attempt": 1,
+        "kind": "generate",
+        "ok": true,
+        "ms": 34946,
+        "model": "claude-sonnet-5-5",
+        "inputTokens": 685,
+        "outputTokens": 5150,
+        "cacheCreationInputTokens": 0,
+        "cacheReadInputTokens": 12811,
+        "cache": "read",
+        "costUsd": 0.055432,
+        "runtime": {
+          "ok": true,
+          "frame": 105,
+          "ms": 482,
+          "stillPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase3-examples.sonnet/g_creator_funnel.attempt1.png"
+        },
+        "report": {
+          "safety": [],
+          "typecheck": [],
+          "compile": [],
+          "runtime": []
+        }
+      }
+    ],
+    "usage": {
+      "inputTokens": 685,
+      "outputTokens": 5150,
+      "cacheReadInputTokens": 12811,
+      "cacheCreationInputTokens": 0,
+      "cacheCreation5mInputTokens": 0,
+      "cacheCreation1hInputTokens": 0
+    },
+    "costUsd": 0.055432,
+    "previewPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase3-examples.sonnet/g_creator_funnel.attempt1.png",
+    "warnings": []
+  }
+]

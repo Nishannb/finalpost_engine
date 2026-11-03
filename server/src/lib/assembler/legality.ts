@@ -10,6 +10,7 @@ import {
   type PlanElement,
   type Refusal,
   type ToolKind,
+  TEXT_TOOL_KINDS,
   type Word,
 } from './types.ts';
 
@@ -65,6 +66,17 @@ export function validate(plan: Plan, ctx: MediaContext): ValidateResult {
         message: `startWord ${element.anchor.startWord} is after endWord ${element.anchor.endWord}.`,
       });
       continue;
+    }
+    if ((TEXT_TOOL_KINDS as readonly string[]).includes(element.kind)) {
+      const text = String(element.params.text ?? element.params.overlayText ?? '').trim();
+      if (!text) {
+        refusals.push({
+          elementId: element.id,
+          code: 'text_missing',
+          message: `${element.kind} has no on-screen text, so it would draw nothing.`,
+        });
+        continue;
+      }
     }
     resolved.set(element.id, {...range, startIndex, endIndex});
     kept.push(element);
@@ -243,7 +255,7 @@ export function validate(plan: Plan, ctx: MediaContext): ValidateResult {
       if (!rangesOverlap(aWindow, bWindow)) {
         continue;
       }
-      const winner = pickWinner(a, b, i, j);
+      const winner = pickWinner(a, b, aWindow, bWindow);
       const loser = winner.id === a.id ? b : a;
       losers.add(loser.id);
       winners.add(winner.id);
@@ -320,11 +332,16 @@ function rangesOverlap(
   return a.start < b.end && b.start < a.end;
 }
 
+/**
+ * Which of two conflicting elements stays. Independent of the order they appear in the plan:
+ * an explicit Director priority wins; otherwise the element the Director placed EARLIER in the video,
+ * then the longer one, then the id (so the result is still deterministic on an exact tie).
+ */
 function pickWinner(
   a: PlanElement,
   b: PlanElement,
-  aIndex: number,
-  bIndex: number,
+  aWindow: {start: number; end: number},
+  bWindow: {start: number; end: number},
 ): PlanElement {
   const aPriority = parsePriority(a.priority);
   const bPriority = parsePriority(b.priority);
@@ -337,7 +354,15 @@ function pickWinner(
   if (bPriority != null && aPriority == null) {
     return b;
   }
-  return aIndex <= bIndex ? a : b;
+  if (aWindow.start !== bWindow.start) {
+    return aWindow.start < bWindow.start ? a : b;
+  }
+  const aLength = aWindow.end - aWindow.start;
+  const bLength = bWindow.end - bWindow.start;
+  if (aLength !== bLength) {
+    return aLength > bLength ? a : b;
+  }
+  return a.id <= b.id ? a : b;
 }
 
 function kindMatchesRequest(kind: string, requested: string): boolean {

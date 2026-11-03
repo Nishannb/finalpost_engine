@@ -1,0 +1,246 @@
+{
+ "_note": "WP41 offline fixture: explainer VO with number / amount / percent / name claims. Fixed timestamps, no ASR, no network.",
+ "durationSec": 26.45,
+ "words": [
+  {
+   "text": "Most",
+   "start": 0.25,
+   "end": 0.65
+  },
+  {
+   "text": "people",
+   "start": 0.69,
+   "end": 1.23
+  },
+  {
+   "text": "think",
+   "start": 1.27,
+   "end": 1.74
+  },
+  {
+   "text": "AI",
+   "start": 1.78,
+   "end": 2.04
+  },
+  {
+   "text": "agents",
+   "start": 2.08,
+   "end": 2.62
+  },
+  {
+   "text": "are",
+   "start": 2.66,
+   "end": 2.99
+  },
+  {
+   "text": "magic.",
+   "start": 3.03,
+   "end": 3.5
+  },
+  {
+   "text": "They",
+   "start": 4,
+   "end": 4.4
+  },
+  {
+   "text": "are",
+   "start": 4.44,
+   "end": 4.77
+  },
+  {
+   "text": "not.",
+   "start": 4.81,
+   "end": 5.14
+  },
+  {
+   "text": "Last",
+   "start": 5.45,
+   "end": 5.85
+  },
+  {
+   "text": "year",
+   "start": 5.89,
+   "end": 6.29
+  },
+  {
+   "text": "Stripe",
+   "start": 6.33,
+   "end": 6.87
+  },
+  {
+   "text": "processed",
+   "start": 6.91,
+   "end": 7.66
+  },
+  {
+   "text": "$1.4",
+   "start": 7.7,
+   "end": 8.03
+  },
+  {
+   "text": "trillion.",
+   "start": 8.07,
+   "end": 8.75
+  },
+  {
+   "text": "Stripe,",
+   "start": 9.75,
+   "end": 10.29
+  },
+  {
+   "text": "Notion",
+   "start": 10.33,
+   "end": 10.87
+  },
+  {
+   "text": "and",
+   "start": 10.91,
+   "end": 11.24
+  },
+  {
+   "text": "Linear",
+   "start": 11.28,
+   "end": 11.82
+  },
+  {
+   "text": "already",
+   "start": 11.86,
+   "end": 12.47
+  },
+  {
+   "text": "ship",
+   "start": 12.51,
+   "end": 12.91
+  },
+  {
+   "text": "them.",
+   "start": 12.95,
+   "end": 13.35
+  },
+  {
+   "text": "An",
+   "start": 14,
+   "end": 14.26
+  },
+  {
+   "text": "agent",
+   "start": 14.3,
+   "end": 14.77
+  },
+  {
+   "text": "is",
+   "start": 14.81,
+   "end": 15.07
+  },
+  {
+   "text": "just",
+   "start": 15.11,
+   "end": 15.51
+  },
+  {
+   "text": "a",
+   "start": 15.55,
+   "end": 15.77
+  },
+  {
+   "text": "loop.",
+   "start": 15.81,
+   "end": 16.21
+  },
+  {
+   "text": "But",
+   "start": 17.2,
+   "end": 17.53
+  },
+  {
+   "text": "the",
+   "start": 17.57,
+   "end": 17.9
+  },
+  {
+   "text": "catch",
+   "start": 17.94,
+   "end": 18.41
+  },
+  {
+   "text": "is",
+   "start": 18.45,
+   "end": 18.71
+  },
+  {
+   "text": "the",
+   "start": 18.75,
+   "end": 19.08
+  },
+  {
+   "text": "context.",
+   "start": 19.12,
+   "end": 19.73
+  },
+  {
+   "text": "Over",
+   "start": 19.7,
+   "end": 20.1
+  },
+  {
+   "text": "40%",
+   "start": 20.14,
+   "end": 20.47
+  },
+  {
+   "text": "of",
+   "start": 20.51,
+   "end": 20.77
+  },
+  {
+   "text": "agents",
+   "start": 20.81,
+   "end": 21.35
+  },
+  {
+   "text": "fail",
+   "start": 21.39,
+   "end": 21.79
+  },
+  {
+   "text": "on",
+   "start": 21.83,
+   "end": 22.09
+  },
+  {
+   "text": "it.",
+   "start": 22.13,
+   "end": 22.39
+  },
+  {
+   "text": "Keep",
+   "start": 22.9,
+   "end": 23.3
+  },
+  {
+   "text": "it",
+   "start": 23.34,
+   "end": 23.6
+  },
+  {
+   "text": "small.",
+   "start": 23.64,
+   "end": 24.11
+  },
+  {
+   "text": "Follow",
+   "start": 24.5,
+   "end": 25.04
+  },
+  {
+   "text": "for",
+   "start": 25.08,
+   "end": 25.41
+  },
+  {
+   "text": "more.",
+   "start": 25.45,
+   "end": 25.85
+  }
+ ]
+}

@@ -1,0 +1,19 @@
+Robust Video Matting (RVM) - official model package, vendored unmodified.
+
+Upstream repo : https://github.com/PeterL1n/RobustVideoMatting
+Tag           : v1.0.0
+Commit SHA    : 17d1774b032fd503bfe53c57d295db719f9e3da1  (v1.0.0^{commit}, verified with git rev-parse)
+Vendored      : model/ (all .py files, byte-identical to the tag; checked with diff -r) and LICENSE (GPL-3.0).
+Not vendored  : inference.py, training/evaluation code, documentation.
+
+Weights (NOT committed; local and gitignored at subjectmatte/weights/):
+  URL     : https://github.com/PeterL1n/RobustVideoMatting/releases/download/v1.0.0/rvm_mobilenetv3.pth
+  sha256  : 3c7c1d92033f7c38d6577c481d13a195d7d80a159b960f4f3119ac7b534cf4f8
+  bytes   : 15217721
+
+Compatibility note: v1.0.0 imports torchvision.models.utils.load_state_dict_from_url, which modern
+torchvision removed. The vendored files are left untouched; human_matting/model/rvm_loader.py registers
+an equivalent alias (torch.hub.load_state_dict_from_url) before importing the package. The shim is only
+needed to import the module; this code never downloads backbone weights (pretrained_backbone=False).
+
+License: GPL-3.0 (see LICENSE in this directory).

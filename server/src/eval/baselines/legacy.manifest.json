@@ -1,0 +1,163 @@
+{
+ "kind": "legacy_compatibility_baseline",
+ "definition": "The working state approved at the start of Phase 13 (Phases 8–12 uncommitted work included), plus three harness-driven planner/schema fixes listed under `changesSinceStartOfPhase13`, with every experimental flag off.",
+ "generatedBy": "server/src/eval/baselineCli.ts",
+ "codeState": {
+  "head": "82d302a8db85221647b7ad1d7bedc7f9d160d5dc",
+  "branch": "main",
+  "dirtyTrackedFiles": 37,
+  "untrackedSourceFiles": 31,
+  "treeSha256": "60d22d1163d21f85976a8f72b1f32c78b2ddfaa801cba8c0990d1927753cc07c",
+  "trackedDiffSha256": "09e05f1eceba8d0eec96faccd3e32fb3278f69b497c9594ceff7342bcd48962e",
+  "note": "The working tree has uncommitted work; HEAD alone does not identify the approved state. treeSha256 does."
+ },
+ "flags": {
+  "GENERATED_TRANSITIONS_ENABLED": false,
+  "DIRECTOR_V2": false,
+  "NORTH_STAR": false,
+  "MOTION_GRAPHICS_ENABLED": false,
+  "CONTENT_PROFILE_ENABLED": true,
+  "PIPELINE_MODE": "lean",
+  "ZOOM_SCALE": 1.25,
+  "VISUAL_CONTEXT_V2": false
+ },
+ "nodeVersion": "v24.5.0",
+ "fixtures": [
+  {
+   "path": "server/src/eval/fixtures/v1-hi-relationship-89d9a6364d.json",
+   "sha256": "fb875935660fcaba2fca9e8b3ab35ee81614e046f58ae1670e5894a8517ceaf6",
+   "id": "v1-hi-relationship-89d9a6364d",
+   "kind": "saved_response_replay",
+   "source": "remotion/out/phase7-content-profile/hi/director/01-gemini-director.json",
+   "sourceSha256": "2c443241faffc6ace001d3926612e6fe1ab7f528e32ae9c8cf48921305f7459c"
+  },
+  {
+   "path": "server/src/eval/fixtures/v1-hi-relationship-dd7e055645.json",
+   "sha256": "7baf439d15ade0203355108c4db84637425489eb859490b76e1b4e63d1c1ad47",
+   "id": "v1-hi-relationship-dd7e055645",
+   "kind": "saved_response_replay",
+   "source": "remotion/out/phase6-sonnet/full-edits/director/01-gemini-director.json",
+   "sourceSha256": "dfe654290b2d446e8eb0e1a87c96afc947b64fd80e6bbac3e26bc41f620f355f"
+  },
+  {
+   "path": "server/src/eval/fixtures/v1-three-things-5ef5d9cd6d.json",
+   "sha256": "0c8b0a9c644013b83a5e3fcc7987f0416c5aeb6fba81e6998997fdddc037a0de",
+   "id": "v1-three-things-5ef5d9cd6d",
+   "kind": "saved_response_replay",
+   "source": "remotion/out/phase5-e2e-run1/director/01-gemini-director.json",
+   "sourceSha256": "ae6b34cb1249b06feb1f3247ebc97ca2acb4da1fc19af14e041c78a4e7abd453"
+  },
+  {
+   "path": "server/src/eval/fixtures/v1-three-things-64a69d9cf4.json",
+   "sha256": "18b3582c8d35f0f4797f5e7d19ac3f640b8eab301c02a840b901aa9a7dc06c0d",
+   "id": "v1-three-things-64a69d9cf4",
+   "kind": "saved_response_replay",
+   "source": "remotion/out/phase5-e2e/director/01-gemini-director.json",
+   "sourceSha256": "9d9a0783b7dcb5feed520003b16fd84763e4d30090cc972ae6a6781e1d092e82"
+  },
+  {
+   "path": "server/src/eval/fixtures/v1-three-things-a967af3e27.json",
+   "sha256": "db9cf35ad5dca50da7d9b462dfb480ca9740b3652eac2eb11f7c4c90d8a088f6",
+   "id": "v1-three-things-a967af3e27",
+   "kind": "saved_response_replay",
+   "source": "remotion/out/phase6-sonnet/gemini-run2-replay/director/01-gemini-director.json",
+   "sourceSha256": "934cb7c6509eae93c0b9446c09912b75a07e52d596acc282124a53bb91d36ab9"
+  },
+  {
+   "path": "server/src/eval/fixtures/v1-three-things-b80f52fa4a.json",
+   "sha256": "caff8a134427f972a65ca3c3b436824da9f9e321d94ab0246a97e1104896aca4",
+   "id": "v1-three-things-b80f52fa4a",
+   "kind": "saved_response_replay",
+   "source": "remotion/out/phase6-sonnet/gemini-live/director/01-gemini-director.json",
+   "sourceSha256": "6121430197a757bd86503a968e9fb72a215a05c1a647990273fad37ab2e33db9"
+  },
+  {
+   "path": "server/src/eval/fixtures/v1-three-things-bd4ac630ce.json",
+   "sha256": "964bf9e6950b1ba9b700346925d28e070e4c19aca23514447900eb0ab28364c6",
+   "id": "v1-three-things-bd4ac630ce",
+   "kind": "saved_response_replay",
+   "source": "remotion/out/phase5-e2e-all-placements/director/01-gemini-director.json",
+   "sourceSha256": "806d97320c25d01f4a0bf101d2e8b7264e15206ec85b869f02bcf78dcb10bddd"
+  },
+  {
+   "path": "server/src/eval/fixtures/v1-three-things-f76b279540.json",
+   "sha256": "9f45278fe4e67cc7b99256286820e954090fa91e0633e84dfaeaac0b94b2129f",
+   "id": "v1-three-things-f76b279540",
+   "kind": "saved_response_replay",
+   "source": "remotion/out/phase6-sonnet/all-placements/director/01-gemini-director.json",
+   "sourceSha256": "c313be7e9d9d3fc2c436da2d554a71cb0aa34b89e53d34a49a24f7f5651733ba"
+  }
+ ],
+ "goldens": [
+  {
+   "path": "server/src/eval/golden/legacy-frame-times.json",
+   "sha256": "ba2819235393e53b2944e574dfa753e47bcf455fd1e630bdf8a22a0546d0fcba"
+  },
+  {
+   "path": "server/src/eval/golden/prompt-lint.json",
+   "sha256": "6e6f88fce2687d4ba2c6d47be0bac451136e5905aef206e67d0c32d3b3bcbf23"
+  },
+  {
+   "path": "server/src/eval/golden/v1-hi-relationship-89d9a6364d.planner.json",
+   "sha256": "3f257e43fef5ca67a9a91db348a8539c792e997bc8a58e8090111865250f6a86"
+  },
+  {
+   "path": "server/src/eval/golden/v1-hi-relationship-dd7e055645.planner.json",
+   "sha256": "c64b122745f4daa950c6505f8859975500290cfbf9da4e81c09dd1f3dcb6b7cc"
+  },
+  {
+   "path": "server/src/eval/golden/v1-three-things-5ef5d9cd6d.planner.json",
+   "sha256": "74166044dd54eb2ff5296a5b8f2f500720656d66e263ff3ceb342a1f2ff00d4a"
+  },
+  {
+   "path": "server/src/eval/golden/v1-three-things-64a69d9cf4.planner.json",
+   "sha256": "8cd3f2bc5895c5c74d2a9d6cdc45b28a32d232de5b38f25b64355206c9d266e5"
+  },
+  {
+   "path": "server/src/eval/golden/v1-three-things-a967af3e27.planner.json",
+   "sha256": "a7c4d5aaaca219b3b9c931b551367acb934d990891f8ae774c8c07d3557fddbe"
+  },
+  {
+   "path": "server/src/eval/golden/v1-three-things-b80f52fa4a.planner.json",
+   "sha256": "0f03c172de77e7a9f1b34ba889ed0823b0a80a76a0fac72cb1227f4b4e93dd04"
+  },
+  {
+   "path": "server/src/eval/golden/v1-three-things-bd4ac630ce.planner.json",
+   "sha256": "2eaab18c16f3cd5849c3a8dbc4b9ed527a7fd95cb43819513dd9a76316f1c430"
+  },
+  {
+   "path": "server/src/eval/golden/v1-three-things-f76b279540.planner.json",
+   "sha256": "4797f62d18ea97f6d0ae47b7c558940078ae9e675cfccf25a8b721cf8b6d501c"
+  }
+ ],
+ "changesSinceStartOfPhase13": [
+  "brollPlanner.finishRemap: per-kind cap keeps the EARLIEST edits instead of the first N in array order (M3 determinism)",
+  "editConflicts.ledgerIdResolver: matches a moved edit by its FINAL span, so the Director's ledger entry reaches the renderer instead of a duplicate being created (M6)",
+  "remotion blueprintSchema: inset transitionIn/Out accept 0.25–1.2 s, the range the planner and renderer already use (M1)"
+ ],
+ "preFixPlannerOutputs": "remotion/out/phase13-eval/prefix-goldens/ (planner goldens as they were before those three changes; differences are ledger ids for moved cutaways, an inset reveal id, and the emphasis cap in the Hi case)",
+ "referenceOutputs": [
+  {
+   "path": "remotion/out/phase7-content-profile/hi/blueprint.json",
+   "sha256": "b80168c0fe27cec7e2d0ac9e5756f25f6d9ad3024ecfd3417151a6642ed5972f",
+   "role": "earlier_pipeline_output_reference_only"
+  },
+  {
+   "path": "remotion/out/phase6-sonnet/full-edits/blueprint.json",
+   "sha256": "bbdd8729225baca05fabb1ae51e0fed0b7cad3d3fb878d24749063693a742bf4",
+   "role": "earlier_pipeline_output_reference_only"
+  },
+  {
+   "path": "remotion/out/phase5-e2e/blueprint.json",
+   "sha256": "223dd875f005b0f0f3ac4bf14733d8bc9fa5f58ac65163ba27542eff6f2625c0",
+   "role": "earlier_pipeline_output_reference_only"
+  }
+ ],
+ "limitations": [
+  "Goldens are SELF-GENERATED by replaying saved responses through the current code. They pin behaviour; they are not independently verified correct output.",
+  "No genuinely approved legacy PIPELINE output (end-to-end blueprint or render) from the current code exists: earlier real outputs were produced by earlier code, and planner behaviour changed on purpose in Phases 8–10B, so they cannot serve as goldens.",
+  "The corpus is 8 distinct saved v1 responses over 2 source clips (three-things, hi-relationship); content diversity is limited.",
+  "There is no real v2 Director response in the repo, so v2 has no legacy baseline.",
+  "Code identity is treeSha256 over behaviour-defining files; HEAD is not sufficient because the tree is uncommitted."
+ ]
+}

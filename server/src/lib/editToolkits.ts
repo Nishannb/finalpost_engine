@@ -102,7 +102,8 @@ export const EDIT_TOOLKITS: EditToolkit[] = [
     category: 'visual',
     directorKinds: ['kinetic_text'],
     layouts: [],
-    description: 'Motion-graphic type with shape and entrance choreography.',
+    description:
+      'Motion-graphic type with shape and entrance choreography. Includes the KINETIC_TYPE_STORYTELLING overlay family (L2 templates, polish only, POLISH_MOTION_TEMPLATES=1): type_environmental_hero (oversized word behind the presenter; real occlusion only with a person matte, else headroom layout), type_impact_number, type_staggered_phrase, type_split_color_headline, type_kinetic_word_pop, type_stacked_statement, type_floating_social_proof (creator assets / spoken figure only), type_logo_reveal (logo or brand name), type_kinetic_cta, type_illustrated_emphasis, and type_text_match_cut (full-frame hard-cut montage that keeps ONE spoken keyword locked in a highlight box while the layout, typeface and background change on every cut; for a concept being named or contrasted, at most ~1 per 20 s). Every string must be spoken or brand data; captions are never muted.',
   },
   {
     id: 'counter',
@@ -214,6 +215,40 @@ export const EDIT_TOOLKITS: EditToolkit[] = [
 ];
 
 export const LEAN_DEFAULT_EDITS = ['captions'] as const;
+
+/**
+ * WP8I: what the polish profile edits when the client / CLI named no edits. The generic lean default is captions only (no visual toolkit), which would leave a polish job without any Director,
+ * so polish defaults to captions + zoom + the toolkits Edit Looks use: hook title, kinetic text, lockup, card, emphasis, counter (WP52: bubble removed). WP8X added `cutaway` (face <-> cutaway is the cadence the
+ * looks are built on; it resolves from creator B-roll, and from stock only where stock is allowed, otherwise the cadence falls back to cards / library seeds). No split / depth overlay / inset (they need
+ * a matte or more assets), no delivery shaping, no grade, no sound. Creator B-roll stays user-only (`userBrollOnly` on polish).
+ */
+export const POLISH_LEAN_EDITS = ['captions', 'zoom', 'hook_title', 'kinetic_text', 'lockup', 'card', 'emphasis', 'counter', 'cutaway'] as const; // WP52: no 'bubble' (ChatBubbleStack scatter chips)
+
+/**
+ * WP8I: the polish version of `defaultRequestedEdits`. Explicit edits are kept exactly as `defaultRequestedEdits` reads them (`null` / `all` = every toolkit; named ids as given); only an
+ * OMITTED list (undefined or empty) changes: `lean` (default) -> POLISH_LEAN_EDITS, `all` -> every toolkit. Pure; the same function serves the HTTP runner and analyzeVideo (so the CLI).
+ */
+export function polishRequestedEdits(requested: string[] | null | undefined, mode: 'lean' | 'all' = 'lean'): string[] | null {
+  const explicit = defaultRequestedEdits(requested, 'full');
+  // WP8L: "captions only" is what BOTH entry points hand over when the client / CLI named no edits (resolvePipelineEdits turns an omitted list into the lean ['captions']), so on polish it
+  // means "unspecified", exactly like an omitted list. `null` stays "every toolkit" (--full-edits / all): it cannot mean omitted, or full-edits would be undone.
+  if (isCaptionsOnlyEdits(requested)) {
+    return mode === 'all' ? null : [...POLISH_LEAN_EDITS];
+  }
+  if (requested === null || explicit !== null || (requested ?? []).some(value => value.trim())) {
+    return explicit;
+  }
+  return mode === 'all' ? null : [...POLISH_LEAN_EDITS];
+}
+
+/**
+ * WP8L: is this edit list exactly the captions-only singleton (any spelling of the captions toolkit, case-insensitive, repeated or comma-joined is still one id)? `['captions']`, `['Captions']`,
+ * `['caption']`, `['captions,captions']` yes; `['captions', 'zoom']`, `['zoom']`, `[]`, `null`, `undefined` no. Pure.
+ */
+export function isCaptionsOnlyEdits(requested: string[] | null | undefined): boolean {
+  const tokens = (requested ?? []).flatMap(value => value.split(',')).map(value => value.trim()).filter(Boolean);
+  return tokens.length > 0 && tokens.every(token => normalizeToolkitId(token) === 'captions');
+}
 
 const ALWAYS_ON_TOOLKIT_IDS = new Set<string>();
 const ALWAYS_ON_KINDS = new Set<string>();
@@ -490,6 +525,7 @@ export function filterVisualDirection<T extends {
   motionGraphics?: unknown[];
   semanticEmphasis?: unknown[];
   zooms?: unknown[];
+  transitions?: unknown[];
 }>(direction: T, allowed: Set<string> | null): T {
   if (!allowed) {
     return direction;
@@ -507,5 +543,6 @@ export function filterVisualDirection<T extends {
         ? direction.semanticEmphasis
         : [],
     zooms: !allowed || allowed.has('zoom') ? direction.zooms : [],
+    ...(direction.transitions ? {transitions: allowed.has('transition') ? direction.transitions : []} : {}),
   };
 }

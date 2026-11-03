@@ -1,3 +1,4 @@
+import {KINETIC_TYPE_MARKS, KINETIC_TYPE_NAMES} from '../broll/kineticTypeStory.ts';
 import {
   CAPTION_ANIMATIONS,
   CAPTION_POSITIONS,
@@ -14,7 +15,8 @@ import {formatLutsForDirectorPrompt, lutCatalogEntries, lutCatalogIds, LUT_RANK_
 import {legalSlots} from '../layout/occupancy.ts';
 import {defaultCaptionDirection} from '../broll/geminiDirector.ts';
 import {inferStockSubject, stockFriendlyQueries} from '../broll/visualQuery.ts';
-import {speakerVisibleRanges} from '../../lib/depthOverlay.ts';
+import {env} from '../../config/env.ts';
+import {speakerFramingAllowsDepthOverlay, speakerVisibleRanges} from '../../lib/depthOverlay.ts';
 import {allowedEditsPromptBlock, isKindAllowed} from '../../lib/editToolkits.ts';
 import {insetGraphicTemplatesForDirector} from '../../lib/insetReveal.ts';
 import {callDirectorModel, frameParts} from './geminiClient.ts';
@@ -28,7 +30,11 @@ import {
   formatFrameLabels,
   formatOccupancySlices,
   formatWordIdTranscript,
+  frameSendLimit,
+  framesSentToDirector,
 } from './perception.ts';
+import {biasEditLook, editLookPromptBlock, enforceEditLook, remapLookForUnusableMatte, resolveEditLook, type LookBiasProfile, stage2SchemaWithEditLook, type EditLookDecision} from './editLooks.ts';
+import {formatCraftStandardsForDirector} from '../broll/motionCraftStandards.ts';
 import {ELEMENT_KINDS, STAGE2_RESPONSE_SCHEMA} from './schemas.ts';
 import type {
   CreativeElement,
@@ -44,14 +50,16 @@ export async function designEdit(
   story: StoryAnalysis,
   forceSpeakerCutout = false,
   requestedEdits: Set<string> | null = null,
+  options: {editLooks?: boolean; matteUsable?: boolean; lookBias?: LookBiasProfile; /** WP55 phase 2: the KINETIC_TYPE_STORYTELLING block (formatKineticTypeForDirector); only when the family is active for this edit. */ kineticTypePrompt?: string} = {},
 ): Promise<CreativePlan> {
-  const frames = await frameParts(pack.storyboard.map(frame => frame.path));
+  const frames = await frameParts(framesSentToDirector(pack).map(frame => frame.path), frameSendLimit(pack));
   const system = loadPromptFile(STAGE2_PROMPT_VERSION);
-  const user = fillStage2User(pack, story, '', forceSpeakerCutout, requestedEdits);
+  // WP8B: with Edit Looks on (polish only) the model must pick one look; otherwise the request is byte-for-byte what it was.
+  const user = fillStage2User(pack, story, '', forceSpeakerCutout, requestedEdits) + (options.editLooks ? `\n\n${editLookPromptBlock()}` : '') + (options.editLooks ? `\n\n${formatCraftStandardsForDirector()}` : '') + (options.kineticTypePrompt ? `\n\n${options.kineticTypePrompt}` : ''); // WP55 phase 2: kinetic type is offered only when the family is active; WP54: craft standards ride the polish path only
   const result = await callDirectorModel({
     system,
     label: 'Director v2 creative director',
-    responseSchema: STAGE2_RESPONSE_SCHEMA,
+    responseSchema: options.editLooks ? stage2SchemaWithEditLook() : STAGE2_RESPONSE_SCHEMA,
     temperature: 0.8,
     thinkingBudget: 8_192,
     timeoutMs: 180_000,
@@ -60,6 +68,7 @@ export async function designEdit(
   return parseCreativePlan(result.json, result.estimatedCostUsd, pack, story, {
     promptVersion: STAGE2_PROMPT_VERSION,
     inputHash: result.inputHash,
+    editLooks: options.editLooks ? {matteUsable: options.matteUsable, bias: options.lookBias} : undefined,
   });
 }
 
@@ -69,22 +78,24 @@ export async function repairEdit(
   story: StoryAnalysis,
   violations: Array<{code: string; elementId?: string; reason: string}>,
 ): Promise<CreativePlan> {
-  const frames = await frameParts(pack.storyboard.map(frame => frame.path));
+  const frames = await frameParts(framesSentToDirector(pack).map(frame => frame.path), frameSendLimit(pack));
   const system = loadPromptFile(STAGE2_PROMPT_VERSION);
   const repairBlock =
     'REPAIR BLOCK — targeted fixes only. Keep the thesis. Change only the listed elements.\n' +
     violations.map(item => `- ${item.code} ${item.elementId ?? ''} ${item.reason}`).join('\n');
+  // WP8B: a repair keeps the look the first plan chose (the plan carries `editLook`); it is never re-picked.
+  const fixedLookId = previous.editLook?.id;
   const user = fillStage2User(
     pack,
     story,
     repairBlock,
     false,
     pack.requestedEdits ? new Set(pack.requestedEdits) : null,
-  );
+  ) + (fixedLookId ? `\n\n${editLookPromptBlock(fixedLookId)}` : '');
   const result = await callDirectorModel({
     system,
     label: 'Director v2 repair',
-    responseSchema: STAGE2_RESPONSE_SCHEMA,
+    responseSchema: fixedLookId ? stage2SchemaWithEditLook() : STAGE2_RESPONSE_SCHEMA,
     temperature: 0.4,
     thinkingBudget: 4_096,
     timeoutMs: 120_000,
@@ -98,6 +109,7 @@ export async function repairEdit(
   return parseCreativePlan(result.json, result.estimatedCostUsd, pack, story, {
     promptVersion: STAGE2_PROMPT_VERSION,
     inputHash: result.inputHash,
+    editLooks: fixedLookId ? {lookId: fixedLookId, matteUsable: previous.editLook?.matteUsable} : undefined,
   });
 }
 
@@ -126,9 +138,11 @@ export function fillStage2User(
     ? 'available. You MAY emit kind=depth_overlay when an asset is relevant and the speaker is visible.'
     : 'not available. Do NOT emit kind=depth_overlay.';
   const visible = speakerVisibleRanges(pack.occupancySlices);
-  const visibleText = visible.length
-    ? visible.map(range => `${range.start.toFixed(2)}–${range.end.toFixed(2)}s`).join(', ')
-    : 'unknown (treat as visible unless occupancy says the speaker is cropped/tiny)';
+  const visibleText = env.OCCUPANCY_CONTEXT_V2
+    ? confirmedVisibilityText(pack)
+    : visible.length
+      ? visible.map(range => `${range.start.toFixed(2)}–${range.end.toFixed(2)}s`).join(', ')
+      : 'unknown (treat as visible unless occupancy says the speaker is cropped/tiny)';
   return fillTemplate(template, {
     OUTPUT_DURATION_SEC: pack.outputDurationSec.toFixed(1),
     LANGUAGE: pack.language || 'en',
@@ -160,7 +174,7 @@ export function parseCreativePlan(
   estimatedCostUsd: number,
   pack: PerceptionPack,
   story?: StoryAnalysis,
-  meta: {promptVersion: string; inputHash: string} = {
+  meta: {promptVersion: string; inputHash: string; editLooks?: {lookId?: string; matteUsable?: boolean; bias?: LookBiasProfile}} = {
     promptVersion: STAGE2_PROMPT_VERSION,
     inputHash: '',
   },
@@ -234,6 +248,23 @@ export function parseCreativePlan(
     });
   }
 
+  // WP8B: Edit Looks (polish only). One look for the whole edit; elements outside it are dropped and reported, never kept silently. A repair passes the first plan's look in `lookId`.
+  let editLook: EditLookDecision | undefined;
+  if (meta.editLooks) {
+    // WP8P: a fixed look (a repair) is never biased; a fresh sparse pick becomes explainer_cutaway only when the content profile says the piece carries designed graphics (editLooks.ts, `biasEditLook`).
+    const picked = resolveEditLook(meta.editLooks.lookId ?? record.edit_look);
+    const biased = meta.editLooks.lookId ? {resolution: picked, biasedFrom: undefined} : biasEditLook(picked, meta.editLooks.bias);
+    // WP8C: the planning matte gate (lib/matteGate.ts) when the caller supplied one; otherwise the pack's own flag.
+    const matteUsable = meta.editLooks.matteUsable ?? pack.speakerCutoutAvailable;
+    // WP8W: a matte-built look with no usable matte is planned as explainer_cutaway (a repair's fixed look is left as is).
+    const remapped = meta.editLooks.lookId ? {resolution: biased.resolution, matteFallbackFrom: undefined} : remapLookForUnusableMatte(biased.resolution, matteUsable);
+    const resolution = remapped.resolution;
+    const enforced = enforceEditLook(elements, resolution.look, {matteUsable});
+    const keptIds = new Set(enforced.kept);
+    for (let index = elements.length - 1; index >= 0; index -= 1) if (!keptIds.has(elements[index]!)) elements.splice(index, 1);
+    editLook = {id: resolution.look.id, requested: resolution.requested, fellBack: resolution.fellBack, dropped: enforced.dropped, matteUsable, ...(biased.biasedFrom !== undefined ? {biasedFrom: biased.biasedFrom} : {}), ...(remapped.matteFallbackFrom !== undefined ? {matteFallbackFrom: remapped.matteFallbackFrom} : {})};
+  }
+
   const captionRaw = record.caption_style && typeof record.caption_style === 'object'
     ? (record.caption_style as Record<string, unknown>)
     : {};
@@ -273,6 +304,7 @@ export function parseCreativePlan(
     : {};
 
   return {
+    ...(editLook ? {editLook} : {}),
     editThesis: [thesis.look, thesis.rhythm, thesis.motionLanguage, thesis.colorStory, thesis.why]
       .filter(Boolean)
       .join(' '),
@@ -351,6 +383,8 @@ function parseParams(raw: unknown): ElementParams {
     countTo: Number.isFinite(Number(item.count_to)) ? Number(item.count_to) : undefined,
     countSuffix: String(item.count_suffix ?? '') || undefined,
     zoomScale: Number(item.zoom_scale ?? 0) || undefined,
+    focusX: item.focus_x === undefined || item.focus_x === null || item.focus_x === '' ? undefined : Number(item.focus_x),
+    focusY: item.focus_y === undefined || item.focus_y === null || item.focus_y === '' ? undefined : Number(item.focus_y),
     containerMode: String(item.container_mode ?? '') || undefined,
     canvasColor: String(item.canvas_color ?? '') || undefined,
     marginColor: String(item.margin_color ?? '') || undefined,
@@ -359,7 +393,8 @@ function parseParams(raw: unknown): ElementParams {
     transitionSec: Number(item.transition_sec ?? 0) || undefined,
     scale: Number(item.scale ?? 0) || undefined,
     speakerSide: item.speaker_side === 'bottom' ? 'bottom' : item.speaker_side === 'top' ? 'top' : undefined,
-    glow: item.glow === true,
+    // Preserve "not given": only an explicit boolean is a Director choice (the renderer default is glow on).
+    glow: typeof item.glow === 'boolean' ? item.glow : undefined,
     direction: item.direction === 'up' ? 'up' : item.direction === 'down' ? 'down' : undefined,
     opacity: Number.isFinite(Number(item.opacity)) ? Number(item.opacity) : undefined,
     duration: Number.isFinite(Number(item.duration)) ? Number(item.duration) : undefined,
@@ -379,6 +414,8 @@ function parseParams(raw: unknown): ElementParams {
     backgroundValue: String(item.background_value ?? item.backgroundValue ?? '') || undefined,
     graphicTemplateId: String(item.graphic_template_id ?? item.graphicTemplateId ?? '') || undefined,
     graphicText: String(item.graphic_text ?? item.graphicText ?? '') || undefined,
+    typeTemplate: (KINETIC_TYPE_NAMES as readonly string[]).includes(String(item.type_template ?? item.typeTemplate ?? '')) ? String(item.type_template ?? item.typeTemplate) : undefined,
+    typeMark: (KINETIC_TYPE_MARKS as readonly string[]).includes(String(item.type_mark ?? item.typeMark ?? '')) ? String(item.type_mark ?? item.typeMark) : undefined,
     enterOffset: Number.isFinite(Number(item.enter_offset ?? item.enterOffset))
       ? Number(item.enter_offset ?? item.enterOffset)
       : undefined,
@@ -461,4 +498,16 @@ export function calmHookStyle(style: HookStyle): HookStyle {
 function coerceEnum<T extends string>(raw: unknown, allowed: readonly T[]): T | undefined {
   const value = String(raw ?? '').trim();
   return (allowed as readonly string[]).includes(value) ? (value as T) : undefined;
+}
+
+/**
+ * OCCUPANCY_CONTEXT_V2: speaker visibility is confirmed only AT measured instants where a speaker was detected and framed
+ * acceptably. It is never extended across unobserved time, and unknown is never turned into "assume visible".
+ */
+export function confirmedVisibilityText(pack: PerceptionPack): string {
+  const measured = pack.occupancyMeasured ?? pack.measuredOccupancy ?? [];
+  const confirmed = measured.filter(slice => slice.occupancy.source !== 'fallback' && speakerFramingAllowsDepthOverlay(slice.occupancy.speaker)).map(slice => slice.atSec);
+  return confirmed.length > 0
+    ? `confirmed only at the measured instants ${confirmed.map(t => `${t.toFixed(1)}s`).join(', ')}; unknown at every other time (do not assume the speaker is visible there)`
+    : 'unknown: visibility is not confirmed at any time (it needs a detected speaker framed acceptably). Do not assume the speaker is visible.';
 }

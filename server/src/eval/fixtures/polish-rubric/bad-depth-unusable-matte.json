@@ -1,0 +1,15 @@
+{
+  "_note": "Synthetic fixture (not a real run): FAILS on purpose. The matte gate says unusable, yet a depth_overlay and a cutout survived; an explainer look kept a kind it does not allow; a graphic has no provenance; library_only but a Claude graphic is reported.",
+  "profile": "polish",
+  "editLook": {"id": "explainer_cutaway", "fellBack": false},
+  "warnings": [
+    "matte_gate:unusable:fallback_box",
+    "edit_look:explainer_cutaway",
+    "motion_graphic:claude"
+  ],
+  "elementKinds": ["zoom", "depth_overlay", "cutout", "card", "lockup"],
+  "generatedGraphics": [{"id": "g1"}, {"id": "g2", "provenance": "claude"}],
+  "captionPresent": true,
+  "graphicsStatus": "library_only",
+  "fingerprintKey": "edit-profile:cuts-v1"
+}

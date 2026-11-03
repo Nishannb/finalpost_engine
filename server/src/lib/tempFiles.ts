@@ -10,11 +10,15 @@ import {createWriteStream} from 'node:fs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import {Readable} from 'node:stream';
+import {Transform} from 'node:stream';
 import {pipeline} from 'node:stream/promises';
+import type {IncomingMessage} from 'node:http';
 
+import {env} from '../config/env.ts';
+import {MAX_REDIRECT_HOPS, pinPublicHttpUrl, redirectTarget} from './addressGuard.ts';
 import {EngineError} from './errors.ts';
 import {logger} from './logger.ts';
+import {isIdentityContentEncoding, pinnedGet, sourceRequestHeaders} from './pinnedGet.ts';
 
 export type Workspace = {
   dir: string;
@@ -68,43 +72,57 @@ export async function downloadToFile(
     options.timeoutMs ?? 120_000,
   );
   try {
-    const response = await fetch(url, {
-      redirect: 'follow',
-      signal: controller.signal,
-      headers: {
-        // GCS and some CDNs 403 the default Node fetch user-agent.
-        'User-Agent': 'KinmelVideoEngine/0.1 (video ingest)',
-        Accept: '*/*',
-      },
-    });
-    if (!response.ok || !response.body) {
+    // WP2: every hop (the first URL and each redirect target) must resolve only to public addresses before it is fetched. Redirects are followed by hand for that reason.
+    // WP4A: each hop is also PINNED: the connection goes only to the addresses that were just checked (`pinnedGet`), so the HTTP client never resolves the hostname again.
+    const allowHosts = env.INGEST_ALLOWED_PRIVATE_HOSTS.split(',').map(item => item.trim()).filter(Boolean);
+    let target = await pinPublicHttpUrl(url, {allowHosts});
+    let response: IncomingMessage;
+    for (let hops = 0; ; hops += 1) {
+      response = await pinnedGet(target, {
+        signal: controller.signal,
+        headers: sourceRequestHeaders(),
+      });
+      const location = response.headers.location;
+      const next = redirectTarget(response.statusCode ?? 0, typeof location === 'string' ? location : null, target.url);
+      if (!next) break;
+      response.destroy();
+      if (hops >= MAX_REDIRECT_HOPS) {
+        throw new EngineError('source_unreachable', 'Could not download source video (too many redirects)');
+      }
+      target = await pinPublicHttpUrl(next.href, {allowHosts});
+    }
+    const status = response.statusCode ?? 0;
+    if (status < 200 || status > 299) {
+      response.destroy();
       throw new EngineError(
         'source_unreachable',
-        `Could not download source video (HTTP ${response.status})`,
+        `Could not download source video (HTTP ${status})`,
       );
     }
-    const declared = Number(response.headers.get('content-length') || 0);
+    // WP4B: the body is written as is and never decompressed, so a compressed response is refused before any byte is written.
+    if (!isIdentityContentEncoding(response.headers['content-encoding'])) {
+      response.destroy();
+      throw new EngineError('source_unreachable', 'Could not download source video (compressed)');
+    }
+    const declared = Number(response.headers['content-length'] || 0);
     if (declared > options.maxBytes) {
+      response.destroy();
       throw new EngineError('source_too_large', 'Source video is too large');
     }
 
     let bytes = 0;
-    const guard = new TransformStream<Uint8Array, Uint8Array>({
-      transform(chunk, sink) {
+    const guard = new Transform({
+      transform(chunk: Buffer, _encoding, done) {
         bytes += chunk.byteLength;
         if (bytes > options.maxBytes) {
-          throw new EngineError('source_too_large', 'Source video is too large');
+          done(new EngineError('source_too_large', 'Source video is too large'));
+          return;
         }
-        sink.enqueue(chunk);
+        done(null, chunk);
       },
     });
 
-    await pipeline(
-      Readable.fromWeb(
-        response.body.pipeThrough(guard) as import('node:stream/web').ReadableStream<Uint8Array>,
-      ),
-      createWriteStream(destination),
-    );
+    await pipeline(response, guard, createWriteStream(destination));
 
     if (bytes < 1) {
       throw new EngineError('source_unreachable', 'Source video was empty');

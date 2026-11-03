@@ -1,0 +1,467 @@
+{
+  "name": "phase3-examples",
+  "durationSec": 24,
+  "videoUrl": "https://media.kinmel.shop/ai-video/source/2026-10-07/ed6b5786-e3a5-4ea8-9289-8cddf537207d.mp4",
+  "blueprint": {
+    "captionWords": [
+      {
+        "text": "captions",
+        "start": 0.25,
+        "end": 0.7,
+        "sentenceIndex": 0
+      },
+      {
+        "text": "stay",
+        "start": 0.75,
+        "end": 1.2,
+        "sentenceIndex": 0
+      },
+      {
+        "text": "readable",
+        "start": 1.25,
+        "end": 1.7,
+        "sentenceIndex": 0
+      },
+      {
+        "text": "here",
+        "start": 1.75,
+        "end": 2.2,
+        "sentenceIndex": 0
+      },
+      {
+        "text": "captions",
+        "start": 2.25,
+        "end": 2.7,
+        "sentenceIndex": 1
+      },
+      {
+        "text": "stay",
+        "start": 2.75,
+        "end": 3.2,
+        "sentenceIndex": 1
+      },
+      {
+        "text": "readable",
+        "start": 3.25,
+        "end": 3.7,
+        "sentenceIndex": 1
+      },
+      {
+        "text": "here",
+        "start": 3.75,
+        "end": 4.2,
+        "sentenceIndex": 1
+      },
+      {
+        "text": "captions",
+        "start": 4.25,
+        "end": 4.7,
+        "sentenceIndex": 2
+      },
+      {
+        "text": "stay",
+        "start": 4.75,
+        "end": 5.2,
+        "sentenceIndex": 2
+      },
+      {
+        "text": "readable",
+        "start": 5.25,
+        "end": 5.7,
+        "sentenceIndex": 2
+      },
+      {
+        "text": "here",
+        "start": 5.75,
+        "end": 6.2,
+        "sentenceIndex": 2
+      },
+      {
+        "text": "captions",
+        "start": 6.25,
+        "end": 6.7,
+        "sentenceIndex": 3
+      },
+      {
+        "text": "stay",
+        "start": 6.75,
+        "end": 7.2,
+        "sentenceIndex": 3
+      },
+      {
+        "text": "readable",
+        "start": 7.25,
+        "end": 7.7,
+        "sentenceIndex": 3
+      },
+      {
+        "text": "here",
+        "start": 7.75,
+        "end": 8.2,
+        "sentenceIndex": 3
+      },
+      {
+        "text": "captions",
+        "start": 8.25,
+        "end": 8.7,
+        "sentenceIndex": 4
+      },
+      {
+        "text": "stay",
+        "start": 8.75,
+        "end": 9.2,
+        "sentenceIndex": 4
+      },
+      {
+        "text": "readable",
+        "start": 9.25,
+        "end": 9.7,
+        "sentenceIndex": 4
+      },
+      {
+        "text": "here",
+        "start": 9.75,
+        "end": 10.2,
+        "sentenceIndex": 4
+      },
+      {
+        "text": "captions",
+        "start": 10.25,
+        "end": 10.7,
+        "sentenceIndex": 5
+      },
+      {
+        "text": "stay",
+        "start": 10.75,
+        "end": 11.2,
+        "sentenceIndex": 5
+      },
+      {
+        "text": "readable",
+        "start": 11.25,
+        "end": 11.7,
+        "sentenceIndex": 5
+      },
+      {
+        "text": "here",
+        "start": 11.75,
+        "end": 12.2,
+        "sentenceIndex": 5
+      },
+      {
+        "text": "captions",
+        "start": 12.25,
+        "end": 12.7,
+        "sentenceIndex": 6
+      },
+      {
+        "text": "stay",
+        "start": 12.75,
+        "end": 13.2,
+        "sentenceIndex": 6
+      },
+      {
+        "text": "readable",
+        "start": 13.25,
+        "end": 13.7,
+        "sentenceIndex": 6
+      },
+      {
+        "text": "here",
+        "start": 13.75,
+        "end": 14.2,
+        "sentenceIndex": 6
+      },
+      {
+        "text": "captions",
+        "start": 14.25,
+        "end": 14.7,
+        "sentenceIndex": 7
+      },
+      {
+        "text": "stay",
+        "start": 14.75,
+        "end": 15.2,
+        "sentenceIndex": 7
+      },
+      {
+        "text": "readable",
+        "start": 15.25,
+        "end": 15.7,
+        "sentenceIndex": 7
+      },
+      {
+        "text": "here",
+        "start": 15.75,
+        "end": 16.2,
+        "sentenceIndex": 7
+      },
+      {
+        "text": "captions",
+        "start": 16.25,
+        "end": 16.7,
+        "sentenceIndex": 8
+      },
+      {
+        "text": "stay",
+        "start": 16.75,
+        "end": 17.2,
+        "sentenceIndex": 8
+      },
+      {
+        "text": "readable",
+        "start": 17.25,
+        "end": 17.7,
+        "sentenceIndex": 8
+      },
+      {
+        "text": "here",
+        "start": 17.75,
+        "end": 18.2,
+        "sentenceIndex": 8
+      },
+      {
+        "text": "captions",
+        "start": 18.25,
+        "end": 18.7,
+        "sentenceIndex": 9
+      },
+      {
+        "text": "stay",
+        "start": 18.75,
+        "end": 19.2,
+        "sentenceIndex": 9
+      },
+      {
+        "text": "readable",
+        "start": 19.25,
+        "end": 19.7,
+        "sentenceIndex": 9
+      },
+      {
+        "text": "here",
+        "start": 19.75,
+        "end": 20.2,
+        "sentenceIndex": 9
+      },
+      {
+        "text": "captions",
+        "start": 20.25,
+        "end": 20.7,
+        "sentenceIndex": 10
+      },
+      {
+        "text": "stay",
+        "start": 20.75,
+        "end": 21.2,
+        "sentenceIndex": 10
+      },
+      {
+        "text": "readable",
+        "start": 21.25,
+        "end": 21.7,
+        "sentenceIndex": 10
+      },
+      {
+        "text": "here",
+        "start": 21.75,
+        "end": 22.2,
+        "sentenceIndex": 10
+      },
+      {
+        "text": "captions",
+        "start": 22.25,
+        "end": 22.7,
+        "sentenceIndex": 11
+      },
+      {
+        "text": "stay",
+        "start": 22.75,
+        "end": 23.2,
+        "sentenceIndex": 11
+      },
+      {
+        "text": "readable",
+        "start": 23.25,
+        "end": 23.7,
+        "sentenceIndex": 11
+      }
+    ]
+  },
+  "graphics": [
+    {
+      "start": 0.3,
+      "end": 5.3,
+      "brief": {
+        "id": "g_revenue_growth",
+        "goal": "Make the jump from $2M to $10M in annual revenue feel big and earned.",
+        "visualDescription": "Full-screen stat moment. The old figure ($2M) appears small and muted, then the new figure counts up to $10M in large green type. Underneath, a rising line chart of yearly revenue draws left to right and ends on a highlighted final point. A short caption line explains the multiple.",
+        "placement": "full_screen",
+        "content": {
+          "label": "Annual revenue",
+          "currency": "$",
+          "unit": "M",
+          "from": 2,
+          "to": 10,
+          "years": [
+            "2020",
+            "2021",
+            "2022",
+            "2023",
+            "2024",
+            "2025"
+          ],
+          "series": [
+            2,
+            2.8,
+            3.9,
+            5.6,
+            7.4,
+            10
+          ],
+          "caption": "5× in five years"
+        },
+        "designIntent": {
+          "emphasis": [
+            "$10M",
+            "5×"
+          ],
+          "tone": "confident, celebratory but clean",
+          "hierarchy": "$10M first, chart second, caption third"
+        }
+      }
+    },
+    {
+      "start": 5.6,
+      "end": 10.6,
+      "brief": {
+        "id": "g_three_steps",
+        "goal": "Explain the three-step workflow the speaker describes, in the order they say it.",
+        "visualDescription": "Three steps that light up one after another, joined by arrows, each with a fitting icon and a short label. The current step is emphasised; finished steps stay visible but calmer.",
+        "placement": "split_screen",
+        "graphicSide": "bottom",
+        "content": {
+          "title": "How it works",
+          "steps": [
+            {
+              "label": "Record one take"
+            },
+            {
+              "label": "FinalPost edits it"
+            },
+            {
+              "label": "Post everywhere"
+            }
+          ],
+          "stepTimesSec": [
+            0.4,
+            1.9,
+            3.4
+          ]
+        },
+        "designIntent": {
+          "tone": "simple, friendly",
+          "hierarchy": "steps over title"
+        },
+        "constraints": [
+          "Steps must appear at stepTimesSec (seconds from the start of the graphic)."
+        ]
+      }
+    },
+    {
+      "start": 10.9,
+      "end": 14.4,
+      "brief": {
+        "id": "g_feature_pointer",
+        "goal": "Point the viewer at the Auto captions button in the product UI the speaker is showing.",
+        "visualDescription": "Transparent overlay over the screen recording: a ring draws around the target area and an arrow curves in from a short label that names the feature. Nothing else on screen.",
+        "placement": "overlay",
+        "content": {
+          "label": "Auto captions",
+          "sublabel": "one click",
+          "target": {
+            "x": 0.56,
+            "y": 0.43,
+            "w": 0.28,
+            "h": 0.2
+          }
+        },
+        "constraints": [
+          "target is the feature location as fractions of this overlay region (x, y, w, h).",
+          "Keep the label clear of the target."
+        ]
+      }
+    },
+    {
+      "start": 14.7,
+      "end": 18.2,
+      "brief": {
+        "id": "g_sound_off_stat",
+        "goal": "Back up the claim that most people watch with the sound off.",
+        "visualDescription": "Compact stat card in the corner: a progress ring fills to 85% while the number counts up, with a short label below. Readable at small size.",
+        "placement": "pip",
+        "box": {
+          "x": 0.54,
+          "y": 0.07,
+          "w": 0.4,
+          "h": 0.2
+        },
+        "content": {
+          "value": 85,
+          "suffix": "%",
+          "label": "watch with sound off"
+        },
+        "designIntent": {
+          "emphasis": [
+            "85%"
+          ],
+          "tone": "factual"
+        }
+      }
+    },
+    {
+      "start": 18.5,
+      "end": 23.5,
+      "brief": {
+        "id": "g_creator_funnel",
+        "goal": "Show where viewers drop off between seeing a video and buying, so the 2.5% end conversion lands.",
+        "visualDescription": "A vertical funnel of four stages that narrows as it goes down: each stage is a bar whose width is proportional to its count, revealed top to bottom with its count ticking up and a label. Between stages, a small badge shows the step conversion rate. The final stage is highlighted in the accent colour, with the overall conversion called out.",
+        "placement": "split_screen",
+        "graphicSide": "top",
+        "content": {
+          "title": "From views to sales",
+          "stages": [
+            {
+              "label": "Views",
+              "value": 40000
+            },
+            {
+              "label": "Profile visits",
+              "value": 6000
+            },
+            {
+              "label": "Link clicks",
+              "value": 2400
+            },
+            {
+              "label": "Purchases",
+              "value": 1000
+            }
+          ],
+          "overall": "2.5% of viewers buy"
+        },
+        "designIntent": {
+          "emphasis": [
+            "Purchases",
+            "2.5%"
+          ],
+          "tone": "analytical",
+          "hierarchy": "funnel shape first, numbers second, conversion badges third"
+        },
+        "constraints": [
+          "Compute the step conversion percentages from the stage values, do not hard-code them."
+        ]
+      }
+    }
+  ]
+}

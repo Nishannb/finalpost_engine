@@ -21,7 +21,7 @@ ENV NODE_ENV=production
 
 # ffmpeg/ffprobe are required by src/media/ffmpeg.ts for audio extraction.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ffmpeg ca-certificates curl \
+  && apt-get install -y --no-install-recommends ffmpeg python3 ca-certificates curl \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package.json ./
@@ -30,6 +30,16 @@ RUN npm install --omit=dev --workspace=server --ignore-scripts \
   && npm cache clean --force
 
 COPY --from=build /app/server/dist ./server/dist
+# Person matte = Robust Video Matting (RVM). MediaPipe is retired; there is no matte build stage any more. Only the RVM CODE is copied (not .venv-rvm, weights or out/):
+# production must PROVISION the RVM virtualenv (torch CPU/CUDA, requirements-rvm.txt) and the weights file (subjectmatte/weights/rvm_mobilenetv3.pth) on the host / a mounted volume and point
+# RVM_PYTHON at that interpreter (RVM_DEVICE=auto|cuda|mps|cpu). Without them the matte reports not_configured and kinetic type keeps the headroom layout. Weights are never baked into this image.
+COPY subjectmatte/human_matting ./subjectmatte/human_matting
+COPY subjectmatte/vendor ./subjectmatte/vendor
+COPY subjectmatte/requirements-rvm.txt ./subjectmatte/requirements-rvm.txt
+COPY captionkit_tmp/captionkit.py captionkit_tmp/presets.json ./captionkit_tmp/
+COPY captionkit_tmp/fonts ./captionkit_tmp/fonts
+ENV CAPTIONKIT_ROOT=/app/captionkit_tmp
+ENV CAPTIONKIT_PYTHON=python3
 
 # Scratch files land in /tmp; a tmpfs mount there keeps the image read-only.
 RUN useradd --create-home --uid 10001 engine

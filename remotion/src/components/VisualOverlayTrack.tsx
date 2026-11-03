@@ -17,7 +17,7 @@ import {
 
 import type {
   LanguageCode,
-  NorthStarDesign,
+  DesignTokens,
   VisualAnchor,
   VisualOverlay,
 } from '../blueprintSchema';
@@ -31,7 +31,7 @@ const FADE_SEC = 0.42;
 type VisualOverlayTrackProps = {
   overlays: VisualOverlay[];
   language: LanguageCode;
-  design?: NorthStarDesign;
+  design?: DesignTokens;
 };
 
 export const VisualOverlayTrack: React.FC<VisualOverlayTrackProps> = ({
@@ -126,7 +126,7 @@ export function activeCutoutAt(
 const OverlayView: React.FC<{
   overlay: VisualOverlay;
   language: LanguageCode;
-  design?: NorthStarDesign;
+  design?: DesignTokens;
 }> = ({overlay, language, design}) => {
   const frame = useCurrentFrame();
   const {fps, durationInFrames, width, height} = useVideoConfig();
@@ -260,7 +260,7 @@ function PhraseStack({
   pop: number;
   width: number;
   height: number;
-  design?: NorthStarDesign;
+  design?: DesignTokens;
 }) {
   const leftSide = overlay.anchor.includes('left') || overlay.anchor === 'top';
   const lines = stackLines(overlay.overlayText || overlay.keyword);

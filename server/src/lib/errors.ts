@@ -6,6 +6,8 @@
  * without string-matching English messages.
  */
 
+import {noteBillingFailure} from './billingGuard.ts';
+
 export type EngineErrorCode =
   | 'bad_request'
   | 'unauthorized'
@@ -18,9 +20,12 @@ export type EngineErrorCode =
   | 'transcribe_failed'
   | 'broll_failed'
   | 'render_failed'
+  | 'matting_failed'
   | 'quota_exceeded'
   | 'rate_limited'
   | 'upstream_timeout'
+  | 'billing_blocked'
+  | 'ai_direction_failed'
   | 'internal';
 
 const STATUS_BY_CODE: Record<EngineErrorCode, number> = {
@@ -35,9 +40,12 @@ const STATUS_BY_CODE: Record<EngineErrorCode, number> = {
   transcribe_failed: 502,
   broll_failed: 502,
   render_failed: 502,
+  matting_failed: 502,
   quota_exceeded: 429,
   rate_limited: 429,
   upstream_timeout: 504,
+  billing_blocked: 402,
+  ai_direction_failed: 502,
   internal: 500,
 };
 
@@ -56,6 +64,9 @@ export class EngineError extends Error {
     this.code = code;
     this.status = STATUS_BY_CODE[code] ?? 500;
     this.details = details;
+    // Inside an opt-in strict run this records a terminal billing failure; anywhere else it is a no-op.
+    const status = typeof details?.status === 'number' ? details.status : undefined;
+    noteBillingFailure(/gemini|director|content profile|occupancy|layout critique|motion graphics/i.test(message) ? 'gemini' : 'unknown', status, `${message} ${typeof details?.detail === 'string' ? details.detail : ''}`);
   }
 
   toJSON(): Record<string, unknown> {

@@ -1,0 +1,615 @@
+{
+ "provenance": {
+  "note": "Copied from the Phase 23 synthetic \"morning habits\" run (remotion/out/phase23-audit): transcript/words from the fixture builder, keepSegments/captionWords from the blueprint the real pipeline produced for it, Director reply authored for the fixture. Synthetic; no real footage.",
+  "scenarioSha256": "d47273a55bf7e8983b7e1f88b2b3a03bc6dcd261b78967d9f07b8c2517de89ab",
+  "blueprintSha256": "e2fad0cd4a70caa146107614c4ff9a39bddf4fe489c1d76e634065709da953a2"
+ },
+ "sourceDurationSec": 28.633,
+ "outputDurationSec": 23.797,
+ "transcript": "Stop scrolling. Three small habits will change your mornings. One. Drink cold water first. It wakes your body up. Two. Um, walk outside for ten minutes. Sunlight sets your body clock. Three. Write down one goal. Small goals build momentum. That is it. Try them tomorrow.",
+ "words": [
+  {
+   "text": "Stop",
+   "start": 0.5,
+   "end": 0.969
+  },
+  {
+   "text": "scrolling.",
+   "start": 1.039,
+   "end": 1.647
+  },
+  {
+   "text": "Three",
+   "start": 1.867,
+   "end": 2.267
+  },
+  {
+   "text": "small",
+   "start": 2.337,
+   "end": 2.818
+  },
+  {
+   "text": "habits",
+   "start": 2.888,
+   "end": 3.301
+  },
+  {
+   "text": "will",
+   "start": 3.371,
+   "end": 3.713
+  },
+  {
+   "text": "change",
+   "start": 3.783,
+   "end": 4.307
+  },
+  {
+   "text": "your",
+   "start": 4.377,
+   "end": 4.771
+  },
+  {
+   "text": "mornings.",
+   "start": 4.841,
+   "end": 5.408
+  },
+  {
+   "text": "One.",
+   "start": 5.758,
+   "end": 6.17
+  },
+  {
+   "text": "Drink",
+   "start": 6.39,
+   "end": 6.804
+  },
+  {
+   "text": "cold",
+   "start": 6.874,
+   "end": 7.275
+  },
+  {
+   "text": "water",
+   "start": 7.345,
+   "end": 7.754
+  },
+  {
+   "text": "first.",
+   "start": 7.824,
+   "end": 8.26
+  },
+  {
+   "text": "It",
+   "start": 8.48,
+   "end": 8.671
+  },
+  {
+   "text": "wakes",
+   "start": 8.741,
+   "end": 9.125
+  },
+  {
+   "text": "your",
+   "start": 9.195,
+   "end": 9.588
+  },
+  {
+   "text": "body",
+   "start": 9.658,
+   "end": 10.058
+  },
+  {
+   "text": "up.",
+   "start": 10.128,
+   "end": 10.374
+  },
+  {
+   "text": "Two.",
+   "start": 11.674,
+   "end": 12.027
+  },
+  {
+   "text": "Um,",
+   "start": 12.247,
+   "end": 12.576
+  },
+  {
+   "text": "walk",
+   "start": 12.776,
+   "end": 13.155
+  },
+  {
+   "text": "outside",
+   "start": 13.225,
+   "end": 13.849
+  },
+  {
+   "text": "for",
+   "start": 13.919,
+   "end": 14.281
+  },
+  {
+   "text": "ten",
+   "start": 14.351,
+   "end": 14.761
+  },
+  {
+   "text": "minutes.",
+   "start": 14.831,
+   "end": 15.159
+  },
+  {
+   "text": "Sunlight",
+   "start": 15.379,
+   "end": 16.003
+  },
+  {
+   "text": "sets",
+   "start": 16.073,
+   "end": 16.456
+  },
+  {
+   "text": "your",
+   "start": 16.526,
+   "end": 16.92
+  },
+  {
+   "text": "body",
+   "start": 16.99,
+   "end": 17.389
+  },
+  {
+   "text": "clock.",
+   "start": 17.459,
+   "end": 17.86
+  },
+  {
+   "text": "Three.",
+   "start": 18.56,
+   "end": 18.96
+  },
+  {
+   "text": "Write",
+   "start": 19.18,
+   "end": 19.53
+  },
+  {
+   "text": "down",
+   "start": 19.6,
+   "end": 19.987
+  },
+  {
+   "text": "one",
+   "start": 20.057,
+   "end": 20.468
+  },
+  {
+   "text": "goal.",
+   "start": 20.538,
+   "end": 20.867
+  },
+  {
+   "text": "Small",
+   "start": 21.087,
+   "end": 21.567
+  },
+  {
+   "text": "goals",
+   "start": 21.637,
+   "end": 22.082
+  },
+  {
+   "text": "build",
+   "start": 22.152,
+   "end": 22.458
+  },
+  {
+   "text": "momentum.",
+   "start": 22.528,
+   "end": 23.199
+  },
+  {
+   "text": "That",
+   "start": 25.199,
+   "end": 25.529
+  },
+  {
+   "text": "is",
+   "start": 25.599,
+   "end": 25.963
+  },
+  {
+   "text": "it.",
+   "start": 26.033,
+   "end": 26.224
+  },
+  {
+   "text": "Try",
+   "start": 26.444,
+   "end": 26.937
+  },
+  {
+   "text": "them",
+   "start": 27.007,
+   "end": 27.381
+  },
+  {
+   "text": "tomorrow.",
+   "start": 27.451,
+   "end": 28.026
+  }
+ ],
+ "captionWords": [
+  {
+   "text": "Stop",
+   "start": 0.08,
+   "end": 0.549,
+   "sentenceIndex": 0
+  },
+  {
+   "text": "scrolling.",
+   "start": 0.619,
+   "end": 1.227,
+   "sentenceIndex": 0
+  },
+  {
+   "text": "Three",
+   "start": 1.447,
+   "end": 1.847,
+   "sentenceIndex": 1
+  },
+  {
+   "text": "small",
+   "start": 1.917,
+   "end": 2.398,
+   "sentenceIndex": 1
+  },
+  {
+   "text": "habits",
+   "start": 2.468,
+   "end": 2.881,
+   "sentenceIndex": 1
+  },
+  {
+   "text": "will",
+   "start": 2.951,
+   "end": 3.293,
+   "sentenceIndex": 1
+  },
+  {
+   "text": "change",
+   "start": 3.363,
+   "end": 3.887,
+   "sentenceIndex": 1
+  },
+  {
+   "text": "your",
+   "start": 3.957,
+   "end": 4.351,
+   "sentenceIndex": 1
+  },
+  {
+   "text": "mornings.",
+   "start": 4.421,
+   "end": 4.988,
+   "sentenceIndex": 1
+  },
+  {
+   "text": "One.",
+   "start": 5.338,
+   "end": 5.75,
+   "sentenceIndex": 2
+  },
+  {
+   "text": "Drink",
+   "start": 5.97,
+   "end": 6.384,
+   "sentenceIndex": 3
+  },
+  {
+   "text": "cold",
+   "start": 6.454,
+   "end": 6.855,
+   "sentenceIndex": 3
+  },
+  {
+   "text": "water",
+   "start": 6.925,
+   "end": 7.334,
+   "sentenceIndex": 3
+  },
+  {
+   "text": "first.",
+   "start": 7.404,
+   "end": 7.84,
+   "sentenceIndex": 3
+  },
+  {
+   "text": "It",
+   "start": 8.06,
+   "end": 8.251,
+   "sentenceIndex": 4
+  },
+  {
+   "text": "wakes",
+   "start": 8.321,
+   "end": 8.705,
+   "sentenceIndex": 4
+  },
+  {
+   "text": "your",
+   "start": 8.775,
+   "end": 9.168,
+   "sentenceIndex": 4
+  },
+  {
+   "text": "body",
+   "start": 9.238,
+   "end": 9.638,
+   "sentenceIndex": 4
+  },
+  {
+   "text": "up.",
+   "start": 9.708,
+   "end": 9.954,
+   "sentenceIndex": 4
+  },
+  {
+   "text": "Two.",
+   "start": 10.114,
+   "end": 10.467,
+   "sentenceIndex": 5
+  },
+  {
+   "text": "walk",
+   "start": 10.847,
+   "end": 11.226,
+   "sentenceIndex": 6
+  },
+  {
+   "text": "outside",
+   "start": 11.296,
+   "end": 11.92,
+   "sentenceIndex": 6
+  },
+  {
+   "text": "for",
+   "start": 11.99,
+   "end": 12.352,
+   "sentenceIndex": 6
+  },
+  {
+   "text": "ten",
+   "start": 12.422,
+   "end": 12.832,
+   "sentenceIndex": 6
+  },
+  {
+   "text": "minutes.",
+   "start": 12.902,
+   "end": 13.23,
+   "sentenceIndex": 6
+  },
+  {
+   "text": "Sunlight",
+   "start": 13.45,
+   "end": 14.074,
+   "sentenceIndex": 7
+  },
+  {
+   "text": "sets",
+   "start": 14.144,
+   "end": 14.527,
+   "sentenceIndex": 7
+  },
+  {
+   "text": "your",
+   "start": 14.597,
+   "end": 14.991,
+   "sentenceIndex": 7
+  },
+  {
+   "text": "body",
+   "start": 15.061,
+   "end": 15.46,
+   "sentenceIndex": 7
+  },
+  {
+   "text": "clock.",
+   "start": 15.53,
+   "end": 15.931,
+   "sentenceIndex": 7
+  },
+  {
+   "text": "Three.",
+   "start": 16.091,
+   "end": 16.491,
+   "sentenceIndex": 8
+  },
+  {
+   "text": "Write",
+   "start": 16.711,
+   "end": 17.061,
+   "sentenceIndex": 9
+  },
+  {
+   "text": "down",
+   "start": 17.131,
+   "end": 17.518,
+   "sentenceIndex": 9
+  },
+  {
+   "text": "one",
+   "start": 17.588,
+   "end": 17.999,
+   "sentenceIndex": 9
+  },
+  {
+   "text": "goal.",
+   "start": 18.069,
+   "end": 18.398,
+   "sentenceIndex": 9
+  },
+  {
+   "text": "Small",
+   "start": 18.618,
+   "end": 19.098,
+   "sentenceIndex": 10
+  },
+  {
+   "text": "goals",
+   "start": 19.168,
+   "end": 19.613,
+   "sentenceIndex": 10
+  },
+  {
+   "text": "build",
+   "start": 19.683,
+   "end": 19.989,
+   "sentenceIndex": 10
+  },
+  {
+   "text": "momentum.",
+   "start": 20.059,
+   "end": 20.73,
+   "sentenceIndex": 10
+  },
+  {
+   "text": "That",
+   "start": 20.89,
+   "end": 21.22,
+   "sentenceIndex": 11
+  },
+  {
+   "text": "is",
+   "start": 21.29,
+   "end": 21.654,
+   "sentenceIndex": 11
+  },
+  {
+   "text": "it.",
+   "start": 21.724,
+   "end": 21.915,
+   "sentenceIndex": 11
+  },
+  {
+   "text": "Try",
+   "start": 22.135,
+   "end": 22.628,
+   "sentenceIndex": 12
+  },
+  {
+   "text": "them",
+   "start": 22.698,
+   "end": 23.072,
+   "sentenceIndex": 12
+  },
+  {
+   "text": "tomorrow.",
+   "start": 23.142,
+   "end": 23.717,
+   "sentenceIndex": 12
+  }
+ ],
+ "keepSegments": [
+  {
+   "sourceStart": 0.42,
+   "sourceEnd": 10.454,
+   "outputStart": 0
+  },
+  {
+   "sourceStart": 11.594,
+   "sourceEnd": 12.227,
+   "outputStart": 10.034
+  },
+  {
+   "sourceStart": 12.596,
+   "sourceEnd": 17.94,
+   "outputStart": 10.667
+  },
+  {
+   "sourceStart": 18.48,
+   "sourceEnd": 23.279,
+   "outputStart": 16.011
+  },
+  {
+   "sourceStart": 25.119,
+   "sourceEnd": 28.106,
+   "outputStart": 20.81
+  },
+  {
+   "sourceStart": 28.633,
+   "sourceEnd": 28.633,
+   "outputStart": 23.797
+  }
+ ],
+ "directorRaw": "{\"hook_title\": \"Three Habits For Better Mornings\", \"hook_style\": \"impact\", \"topic\": \"Three morning habits\", \"moments\": [{\"timestamp\": 7.345, \"search_keyword\": \"glass of water\", \"media\": \"video\", \"layout\": \"cutaway\", \"accent_color\": \"#FFD700\", \"anchor\": \"top\", \"glow\": false, \"overlay_text\": \"\", \"queries\": [\"glass of water\"], \"stagger_index\": 0, \"text_style\": \"bar\", \"treatment\": \"card\", \"user_broll_id\": \"ub_1\", \"visual_weight\": \"hero\", \"why\": \"rendered with user asset ub_1 (WATER)\"}, {\"timestamp\": 13.225, \"search_keyword\": \"sunlight outdoors\", \"media\": \"video\", \"layout\": \"cutaway\", \"accent_color\": \"#FFD700\", \"anchor\": \"top\", \"glow\": false, \"overlay_text\": \"\", \"queries\": [\"sunlight outdoors\"], \"stagger_index\": 1, \"text_style\": \"bar\", \"treatment\": \"card\", \"user_broll_id\": \"ub_2\", \"visual_weight\": \"hero\", \"why\": \"rendered with user asset ub_2 (SUNLIGHT)\"}, {\"timestamp\": 20.538, \"search_keyword\": \"notebook goal\", \"media\": \"video\", \"layout\": \"cutaway\", \"accent_color\": \"#FFD700\", \"anchor\": \"top\", \"glow\": false, \"overlay_text\": \"\", \"queries\": [\"notebook goal\"], \"stagger_index\": 2, \"text_style\": \"bar\", \"treatment\": \"card\", \"user_broll_id\": \"ub_3\", \"visual_weight\": \"hero\", \"why\": \"rendered with user asset ub_3 (NOTEBOOK)\"}, {\"timestamp\": 27.451, \"search_keyword\": \"city skyline night\", \"media\": \"video\", \"layout\": \"cutaway\", \"accent_color\": \"#FFD700\", \"anchor\": \"top\", \"glow\": false, \"overlay_text\": \"\", \"queries\": [\"city skyline night\"], \"stagger_index\": 3, \"text_style\": \"bar\", \"treatment\": \"card\", \"user_broll_id\": \"\", \"visual_weight\": \"hero\", \"why\": \"no local asset exists for it: expected to be dropped (stock unavailable); NOT expected on screen\"}], \"caption\": {\"template\": \"karaoke\", \"position\": \"bottom\", \"box\": false, \"animation\": \"karaoke\", \"box_color\": \"\", \"font_scale\": 1.0, \"highlight_color\": \"#FFEA00\", \"text_color\": \"#FFFFFF\"}, \"depth_overlays\": [], \"inset_reveals\": [], \"media_containers\": [], \"motion_graphics\": [], \"preferred_lut\": \"\", \"semantic_emphasis\": [], \"suggested_luts\": [], \"visual_world\": [\"water\", \"sunlight\", \"notebook\"], \"zooms\": [{\"timestamp\": 2.337, \"duration\": 1.4}]}",
+ "userAssets": [
+  {
+   "id": "ub_1",
+   "url": "/synthetic/broll_ub1.mp4",
+   "description": "Blue background with a drinking glass filling with water; the word WATER.",
+   "durationSec": 5,
+   "width": 1080,
+   "height": 1920,
+   "kind": "clip",
+   "regions": []
+  },
+  {
+   "id": "ub_2",
+   "url": "/synthetic/broll_ub2.mp4",
+   "description": "Warm orange sky with a rising sun and rays; the word SUNLIGHT.",
+   "durationSec": 3,
+   "width": 1080,
+   "height": 1920,
+   "kind": "clip",
+   "regions": []
+  },
+  {
+   "id": "ub_3",
+   "url": "/synthetic/broll_ub3.mp4",
+   "description": "White notebook page with lines of handwriting appearing; the word NOTEBOOK.",
+   "durationSec": 6,
+   "width": 1080,
+   "height": 1920,
+   "kind": "clip",
+   "regions": []
+  }
+ ],
+ "expected": {
+  "moments": [
+   {
+    "id": "m1",
+    "beat": "one",
+    "timestamp": 7.345,
+    "search_keyword": "glass of water",
+    "user_broll_id": "ub_1",
+    "expected": "rendered with user asset ub_1 (WATER)"
+   },
+   {
+    "id": "m2",
+    "beat": "two",
+    "timestamp": 13.225,
+    "search_keyword": "sunlight outdoors",
+    "user_broll_id": "ub_2",
+    "expected": "rendered with user asset ub_2 (SUNLIGHT)"
+   },
+   {
+    "id": "m3",
+    "beat": "three",
+    "timestamp": 20.538,
+    "search_keyword": "notebook goal",
+    "user_broll_id": "ub_3",
+    "expected": "rendered with user asset ub_3 (NOTEBOOK)"
+   },
+   {
+    "id": "m4",
+    "beat": "outro",
+    "timestamp": 27.451,
+    "search_keyword": "city skyline night",
+    "user_broll_id": "",
+    "expected": "no local asset exists for it: expected to be dropped (stock unavailable); NOT expected on screen"
+   }
+  ]
+ }
+}

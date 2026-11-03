@@ -6,6 +6,7 @@
 import {promises as fs} from 'node:fs';
 
 import {env} from '../../config/env.ts';
+import {carryProvenance} from '../../lib/provenance.ts';
 import {requestJson} from '../../lib/http.ts';
 import {stageLogger} from '../../lib/logger.ts';
 import type {
@@ -27,6 +28,7 @@ import {
   type Occupancy,
 } from './occupancy.ts';
 import {pipHasCanvasFill} from './slotCompositor.ts';
+import {boxCountsAsFace, boxOverlapIsIssue, emphasisNeedsMove, graphicNeedsMove, UNMEASURED_NEUTRAL_ANCHOR, visionCritiqueMayRun} from './unmeasuredSlots.ts';
 
 const log = stageLogger('layout-critique');
 
@@ -46,6 +48,12 @@ export type LayoutIssue = {
 };
 
 export type LayoutPlan = {
+  /**
+   * The hook title text, when the caller knows it. An explicitly EMPTY title means no hook is drawn, so its anchor is neither
+   * checked nor sent to the vision critique. Absent (legacy callers): the anchor is evaluated as before. Today the title is
+   * never empty, so passing it changes nothing.
+   */
+  hookTitle?: string;
   hookAnchor: VisualAnchor;
   hookDurationSec: number;
   caption: CaptionDirection;
@@ -65,15 +73,21 @@ type GeminiResponse = {
 const GEMINI_USD_PER_M_INPUT = 0.075;
 const GEMINI_USD_PER_M_OUTPUT = 0.3;
 
+/** False only when the plan states an empty hook title: no hook element exists, so there is nothing to place or critique. */
+export function hookIsDrawn(plan: Pick<LayoutPlan, 'hookTitle'>): boolean {
+  return plan.hookTitle === undefined || plan.hookTitle.trim().length > 0;
+}
+
 export function findLayoutIssues(
   occupancy: Occupancy,
   plan: LayoutPlan,
 ): LayoutIssue[] {
   const issues: LayoutIssue[] = [];
   const paddedSpeaker = inflate(occupancy.speaker, 0.03);
+  const boxIsFace = boxCountsAsFace(occupancy); // WP3I: false only for an mvp occupancy marked unmeasured; true everywhere else
 
   const hookRect = hookRectForAnchor(plan.hookAnchor);
-  if (overlapArea(hookRect, paddedSpeaker) > 0.02) {
+  if (hookIsDrawn(plan) && boxOverlapIsIssue({boxIsFace, overlapWithBox: overlapArea(hookRect, paddedSpeaker), threshold: 0.02})) {
     issues.push({
       kind: 'hook_covers_speaker',
       at: 0,
@@ -106,7 +120,7 @@ export function findLayoutIssues(
 
   plan.motionGraphics.forEach((graphic, index) => {
     const rect = slotRectForAnchor(graphic.anchor);
-    if (overlapArea(rect, paddedSpeaker) > 0.03) {
+    if (boxOverlapIsIssue({boxIsFace, overlapWithBox: overlapArea(rect, paddedSpeaker), threshold: 0.03})) {
       issues.push({
         kind: 'graphic_covers_speaker',
         at: graphic.start,
@@ -118,7 +132,7 @@ export function findLayoutIssues(
 
   plan.semanticEmphasis.forEach((item, index) => {
     const rect = slotRectForAnchor(item.anchor || 'top_right');
-    if (overlapArea(rect, paddedSpeaker) > 0.03) {
+    if (boxOverlapIsIssue({boxIsFace, overlapWithBox: overlapArea(rect, paddedSpeaker), threshold: 0.03})) {
       issues.push({
         kind: 'emphasis_covers_speaker',
         at: item.start,
@@ -154,10 +168,12 @@ export function applyGeometricPatches(
   occupancy: Occupancy,
   plan: LayoutPlan,
 ): LayoutPlan {
-  const hookAnchor = legalHookAnchor(occupancy);
-  const safeGraphic = occupancy.graphicAnchor;
-  const topAnchor: VisualAnchor =
-    occupancy.preferredSide === 'right' ? 'top_right' : 'top_left';
+  const boxIsFace = boxCountsAsFace(occupancy); // WP3I: false only for an mvp occupancy marked unmeasured; true everywhere else
+  // Unmeasured: the default box is not a face, so it does not choose the hook corner either; the plan's own anchor stays.
+  const hookAnchor = boxIsFace ? legalHookAnchor(occupancy) : plan.hookAnchor;
+  // WP3K: graphicAnchor / preferredSide come from the symmetric default box for an unmeasured face (always top_right / right), so the neutral top anchor is used instead.
+  const safeGraphic: Occupancy['graphicAnchor'] = boxIsFace ? occupancy.graphicAnchor : UNMEASURED_NEUTRAL_ANCHOR;
+  const topAnchor: VisualAnchor = !boxIsFace ? UNMEASURED_NEUTRAL_ANCHOR : occupancy.preferredSide === 'right' ? 'top_right' : 'top_left';
   const pipSlots = legalSlots(occupancy).filter(slot => slot.kind === 'pip');
 
   const mediaContainers = plan.mediaContainers.flatMap(container => {
@@ -175,7 +191,7 @@ export function applyGeometricPatches(
     if (!safer) {
       return [];
     }
-    return [{...container, pipAnchor: safer.anchor}];
+    return [carryProvenance(container, {...container, pipAnchor: safer.anchor})];
   });
 
   return {
@@ -184,17 +200,17 @@ export function applyGeometricPatches(
     mediaContainers,
     motionGraphics: plan.motionGraphics.map(graphic => {
       const rect = slotRectForAnchor(graphic.anchor);
-      if (overlapArea(rect, occupancy.speaker) <= 0.03 && graphic.anchor !== 'center') {
+      if (!graphicNeedsMove({boxIsFace, overlapWithBox: overlapArea(rect, occupancy.speaker), anchor: graphic.anchor})) {
         return graphic;
       }
-      return {...graphic, anchor: safeGraphic};
+      return carryProvenance(graphic, {...graphic, anchor: safeGraphic});
     }),
     semanticEmphasis: plan.semanticEmphasis.map(item => {
       const rect = slotRectForAnchor(item.anchor || 'top_right');
-      if (overlapArea(rect, occupancy.speaker) <= 0.03) {
+      if (!emphasisNeedsMove({boxIsFace, overlapWithBox: overlapArea(rect, occupancy.speaker)})) {
         return item;
       }
-      return {...item, anchor: toVisual(safeGraphic)};
+      return carryProvenance(item, {...item, anchor: toVisual(safeGraphic)});
     }),
     overlays: plan.overlays.map(overlay => {
       if (
@@ -286,11 +302,11 @@ export function applyVisionPatches(
     }),
     motionGraphics: plan.motionGraphics.map((graphic, index) => {
       const anchor = coerceMotionAnchor(graphicByIndex.get(index));
-      return anchor ? {...graphic, anchor} : graphic;
+      return anchor ? carryProvenance(graphic, {...graphic, anchor}) : graphic;
     }),
     semanticEmphasis: plan.semanticEmphasis.map((item, index) => {
       const anchor = coerceVisualAnchor(emphasisByIndex.get(index));
-      return anchor ? {...item, anchor} : item;
+      return anchor ? carryProvenance(item, {...item, anchor}) : item;
     }),
   };
 }
@@ -317,6 +333,10 @@ async function critiqueLayoutWithVision(input: {
   plan: LayoutPlan;
   issues: LayoutIssue[];
 }): Promise<{patches: VisionLayoutPatches; estimatedCostUsd: number} | null> {
+  // WP3J: with no measured face the default box would be sent to Gemini as "the speaker" and its patches would re-anchor graphics from it. No request at all in that case.
+  if (!visionCritiqueMayRun(input.occupancy)) {
+    return null;
+  }
   if (!env.GEMINI_API_KEY) {
     return null;
   }
@@ -330,7 +350,7 @@ async function critiqueLayoutWithVision(input: {
     const summary = {
       speaker: input.occupancy.speaker,
       caption_band: CAPTION_BAND,
-      hook_anchor: input.plan.hookAnchor,
+      ...(hookIsDrawn(input.plan) ? {hook_anchor: input.plan.hookAnchor} : {}),
       containers: input.plan.mediaContainers.map((container, index) => ({
         index,
         mode: container.mode,

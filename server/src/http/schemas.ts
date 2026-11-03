@@ -28,6 +28,21 @@ const httpUrl = z
     {message: 'videoUrl must be an http(s) URL'},
   );
 
+export const labeledAssetBindingSchema = z.object({
+  slotId: z.string().trim().min(1).max(80),
+  status: z.enum(['uploaded', 'skipped']),
+  userAssetId: z.string().trim().min(1).max(80).optional(),
+  assetUrl: httpUrl.optional(),
+  kind: z
+    .enum(['logo', 'person', 'product', 'screenshot', 'broll_clip', 'other'])
+    .optional(),
+  label: z.string().trim().min(1).max(160).optional(),
+  /** WP26: bind / skip a whole group (logo variants) in one entry. */
+  groupId: z.string().trim().min(1).max(80).optional(),
+  userAssetIds: z.array(z.string().trim().min(1).max(80)).max(8).optional(),
+  assetUrls: z.array(httpUrl).max(8).optional(),
+});
+
 export const analyzeRequestSchema = z.object({
   videoUrl: httpUrl,
   languageCode: z.enum(SUPPORTED_LANGUAGES),
@@ -44,10 +59,19 @@ export const analyzeRequestSchema = z.object({
    * Director studies them and places matching clips into the edit.
    */
   userBrollUrls: z.array(httpUrl).max(12).optional().default([]),
+  /**
+   * Slot id → upload / skip map from the labeled-asset UI (WP15).
+   * Applied onto `blueprint.assetBrief` after describe; URLs also join userBrollUrls.
+   */
+  labeledAssetBindings: z.array(labeledAssetBindingSchema).max(24).optional().default([]),
+  /** WP55: the creator's / business's brand name. Shown only by type_logo_reveal (brand data, never invented). Optional. */
+  brandName: z.string().trim().min(1).max(60).optional(),
   /** Learned caption look from the creator's profile reference video. */
   captionStyleGuide: z.record(z.string(), z.unknown()).optional(),
   /** Force speaker-over-B-roll so the cutout path can be tested. */
   forceSpeakerCutout: z.boolean().optional().default(false),
+  /** A ready transparent talking-head WebM (outputUrl of POST /v1/matting/jobs). Optional; absent = today's behavior. */
+  subjectCutoutUrl: httpUrl.optional(),
   /** Free multi-stage director (perception + story + creative + compiler). */
   directorV2: z.boolean().optional().default(false),
   /** Opt-in north-star compositor (implies Director v2). */
@@ -58,6 +82,10 @@ export const analyzeRequestSchema = z.object({
   captionTemplate: z.enum(CAPTION_TEMPLATES).optional(),
 });
 
+export const bindLabeledAssetsRequestSchema = z.object({
+  bindings: z.array(labeledAssetBindingSchema).min(1).max(24),
+});
+
 export type AnalyzeRequest = z.infer<typeof analyzeRequestSchema>;
 
 export const extractStyleRequestSchema = z.object({
@@ -65,6 +93,14 @@ export const extractStyleRequestSchema = z.object({
 });
 
 export type ExtractStyleRequest = z.infer<typeof extractStyleRequestSchema>;
+
+export const extractThumbnailThemeRequestSchema = z.object({
+  imageUrls: z.array(httpUrl).min(1).max(6),
+});
+
+export type ExtractThumbnailThemeRequest = z.infer<
+  typeof extractThumbnailThemeRequestSchema
+>;
 
 export const seedanceEditRequestSchema = z.object({
   videoUrl: httpUrl,
@@ -83,6 +119,7 @@ export const renderStyleSchema = z.object({
   zoomEnabled: z.boolean().default(true),
   trimEnabled: z.boolean().default(true),
   colorGradeLut: z.string().trim().max(120).optional().default(''),
+  generatedGraphicsEnabled: z.boolean().optional(),
 });
 
 /** Style the app gets when it sends nothing: the preview's own defaults. */

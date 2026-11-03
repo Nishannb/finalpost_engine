@@ -8,6 +8,7 @@
 
 import {Router} from 'express';
 
+import {assertPublicHttpUrl} from '../../lib/addressGuard.ts';
 import {EngineError} from '../../lib/errors.ts';
 import {startAnalysis} from '../../pipeline/analysisRunner.ts';
 import {
@@ -17,9 +18,18 @@ import {
 } from '../../store/engineStore.ts';
 import {readQuota} from '../../stages/render/renderBudget.ts';
 import {getAuth} from '../auth.ts';
-import {analyzeRequestSchema} from '../schemas.ts';
+import {
+  analyzeRequestSchema,
+  bindLabeledAssetsRequestSchema,
+} from '../schemas.ts';
 import {parseEditAllowlist, resolvePipelineEdits} from '../../lib/editToolkits.ts';
 import {env} from '../../config/env.ts';
+import {
+  applyLabeledAssetBindings,
+  computeEditReadiness,
+  buildLabeledAssetBrief,
+} from '../../stages/broll/labeledAssetBrief.ts';
+import {saveBlueprint} from '../../store/engineStore.ts';
 
 /** A creator cannot legitimately start more than a handful of edits a minute. */
 const ANALYZE_RATE_LIMIT = 8;
@@ -49,14 +59,25 @@ analyzeRoutes.post('/analyze', async (req, res) => {
     );
   }
 
+  if (parsed.data.subjectCutoutUrl) {
+    // same public-address guard the source URL gets when it is fetched: no private hosts, no file:
+    const allowHosts = env.INGEST_ALLOWED_PRIVATE_HOSTS.split(',').map(item => item.trim()).filter(Boolean);
+    await assertPublicHttpUrl(parsed.data.subjectCutoutUrl, {allowHosts}).catch(() => {
+      throw new EngineError('bad_request', 'subjectCutoutUrl must be a public http(s) URL');
+    });
+  }
+
   const job = await startAnalysis({
     userId: auth.userId,
     videoUrl: parsed.data.videoUrl,
+    subjectCutoutUrl: parsed.data.subjectCutoutUrl,
     languageCode: parsed.data.languageCode,
     useCache: parsed.data.useCache,
     colorGradeLut: parsed.data.colorGradeLut,
     styleRecipe: parsed.data.styleRecipe,
     userBrollUrls: parsed.data.userBrollUrls,
+    labeledAssetBindings: parsed.data.labeledAssetBindings,
+    brandName: parsed.data.brandName,
     captionStyleGuide: parsed.data.captionStyleGuide,
     forceSpeakerCutout: parsed.data.forceSpeakerCutout,
     directorV2: parsed.data.directorV2,
@@ -89,6 +110,46 @@ analyzeRoutes.get('/blueprints/:blueprintId', async (req, res) => {
     throw new EngineError('not_found', 'Blueprint not found or expired');
   }
   res.json({ok: true, blueprint});
+});
+
+/**
+ * Bind uploaded / skipped labeled assets onto an existing blueprint's assetBrief
+ * without a full re-analyze. Prefer re-analyze with labeledAssetBindings when the
+ * edit should place the new assets; this endpoint persists the map for resume.
+ */
+analyzeRoutes.post('/blueprints/:blueprintId/labeled-assets', async (req, res) => {
+  getAuth(res);
+  const parsed = bindLabeledAssetsRequestSchema.safeParse(req.body);
+  if (!parsed.success) {
+    throw new EngineError('bad_request', firstIssue(parsed.error.issues), {
+      issues: parsed.error.issues.map(issue => issue.message),
+    });
+  }
+  const blueprintId = String(req.params.blueprintId);
+  const blueprint = await loadBlueprint(blueprintId);
+  if (!blueprint) {
+    throw new EngineError('not_found', 'Blueprint not found or expired');
+  }
+  const baseBrief =
+    blueprint.assetBrief ??
+    buildLabeledAssetBrief({
+      words: blueprint.captionWords ?? [],
+      outputDurationSec: blueprint.outputDurationSec,
+    });
+  const urlToAssetId = new Map<string, string>();
+  for (const binding of parsed.data.bindings) {
+    if (binding.assetUrl && binding.userAssetId) {
+      urlToAssetId.set(binding.assetUrl.trim(), binding.userAssetId);
+    }
+  }
+  const assetBrief = applyLabeledAssetBindings(
+    baseBrief,
+    parsed.data.bindings,
+    urlToAssetId,
+  );
+  const next = {...blueprint, assetBrief, editReadiness: computeEditReadiness(assetBrief)};
+  await saveBlueprint(next, `bind:${blueprintId}:${Date.now()}`);
+  res.json({ok: true, blueprint: next});
 });
 
 analyzeRoutes.get('/quota', async (_req, res) => {

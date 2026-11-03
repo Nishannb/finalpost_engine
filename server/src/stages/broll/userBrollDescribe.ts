@@ -11,6 +11,7 @@ import {promises as fs} from 'node:fs';
 import path from 'node:path';
 
 import {env} from '../../config/env.ts';
+import {isGenericAssetDescription} from './userBrollContract.ts';
 import {requestJson} from '../../lib/http.ts';
 import {stageLogger} from '../../lib/logger.ts';
 import {
@@ -19,7 +20,8 @@ import {
   isLocalMediaPath,
   type Workspace,
 } from '../../lib/tempFiles.ts';
-import {extractStillJpeg, probeMedia} from '../../media/ffmpeg.ts';
+import {extractStillJpeg, probeMedia, sampleStillGrid} from '../../media/ffmpeg.ts';
+import {analyzeRgbSamples, isSolidFixtureUrl} from './solidStill.ts';
 
 const log = stageLogger('stage-c-user-broll');
 
@@ -54,6 +56,10 @@ export type UserBrollAsset = {
   height: number;
   kind: AssetKind;
   regions: AssetRegion[];
+  /** WP1: false when the description is a generic placeholder (the model could not describe it). Absent on older callers. */
+  described?: boolean;
+  /** WP29: true when the still is solid / near-solid color (pixel analysis, else the fixture-URL heuristic). Such a still is never placed full-frame. Absent for videos. */
+  solidLike?: boolean;
 };
 
 type GeminiResponse = {
@@ -137,6 +143,16 @@ async function describeOne(
     );
   }
 
+  let solidLike: boolean | undefined;
+  if (isImage) {
+    try {
+      solidLike = analyzeRgbSamples(await sampleStillGrid(frameA)).solid;
+    } catch {
+      solidLike = isSolidFixtureUrl(url) ? true : undefined; // no pixels: fall back to the filename / fixture-URL heuristic
+    }
+    if (solidLike) log.warn({id, url}, 'user still is solid / near-solid color; it will not be placed full-frame');
+  }
+
   const insight = await describeFrames(frameA, isImage ? frameA : frameB, {
     durationSec,
     isImage,
@@ -148,11 +164,13 @@ async function describeOne(
     id,
     url,
     description: insight.description || 'Creator-supplied visual',
+    described: Boolean(insight.description) && !isGenericAssetDescription(insight.description),
     durationSec,
     width,
     height,
     kind,
     regions: insight.regions,
+    ...(solidLike !== undefined ? {solidLike} : {}),
   };
 }
 

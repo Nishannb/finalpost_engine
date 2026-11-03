@@ -327,6 +327,19 @@ export async function sampleFramePalette(
   };
 }
 
+/** WP29: a size x size RGB24 downscale of a still (packed R,G,B bytes) so the planner can tell a flat-color still from a real image. */
+export async function sampleStillGrid(stillPath: string, size = 16): Promise<Buffer> {
+  const tmp = `${stillPath}.grid${size}.rgb`;
+  await run(
+    env.FFMPEG_PATH,
+    ['-hide_banner', '-loglevel', 'error', '-y', '-i', stillPath, '-frames:v', '1', '-vf', `scale=${size}:${size}:flags=area,format=rgb24`, '-f', 'rawvideo', tmp],
+    15_000,
+  );
+  const buf = await fs.readFile(tmp);
+  await fs.unlink(tmp).catch(() => undefined);
+  return buf;
+}
+
 /** 1x1 RGB sample from a still at normalized coordinates (0–1). */
 export async function sampleStillPatch(
   stillPath: string,
@@ -372,7 +385,8 @@ export async function extractSpeakerCutout(input: {
   similarity?: number;
   blend?: number;
 }): Promise<string> {
-  const key = input.keyColor.replace('#', '0x').toUpperCase();
+  // ffmpeg parses the prefix case-sensitively: it must stay lowercase `0x` (upper-casing the whole string made `0X2FBF71`, which it rejects).
+  const key = `0x${input.keyColor.replace('#', '').toUpperCase()}`;
   const similarity = input.similarity ?? 0.16;
   const blend = input.blend ?? 0.06;
   await run(
@@ -463,6 +477,24 @@ export async function applyCubeLut(input: {
     {ms: Date.now() - started, lut: input.lutPath, bytes: stat.size},
     'applied cube LUT',
   );
+}
+
+/**
+ * WP7A: copy the clip with its audio replaced by a denoised version (`filter` from stages/audio/noiseFilter.ts). The video stream is copied untouched (no re-encode, same duration and
+ * timing, so every word time and cut stays valid); the audio is re-encoded to AAC. Throws on any failure: the caller warns and keeps the original audio.
+ */
+export async function denoiseTalkingHeadAudio(input: {inputPath: string; outputPath: string; filter: string}): Promise<void> {
+  const started = Date.now();
+  await run(
+    env.FFMPEG_PATH,
+    ['-hide_banner', '-loglevel', 'error', '-y', '-i', input.inputPath, '-map', '0:v:0', '-map', '0:a:0', '-c:v', 'copy', '-af', input.filter, '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', input.outputPath],
+    10 * 60_000,
+  );
+  const stat = await fs.stat(input.outputPath).catch(() => null);
+  if (!stat || stat.size < 1) {
+    throw new EngineError('render_failed', 'Audio denoise produced an empty file');
+  }
+  log.info({ms: Date.now() - started, bytes: stat.size, filter: input.filter}, 'denoised talking-head audio');
 }
 
 /**

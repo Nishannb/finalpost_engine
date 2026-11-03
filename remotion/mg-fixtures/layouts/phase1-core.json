@@ -1,0 +1,249 @@
+{
+  "name": "phase1-core",
+  "durationSec": 13,
+  "videoUrl": "https://media.kinmel.shop/ai-video/source/2026-10-07/9fa92eb3-2146-49b2-be9d-82e97a4e9faf.mp4",
+  "blueprint": {
+    "captionWords": [
+      {
+        "text": "captions",
+        "start": 0.25,
+        "end": 0.7,
+        "sentenceIndex": 0
+      },
+      {
+        "text": "still",
+        "start": 0.75,
+        "end": 1.2,
+        "sentenceIndex": 0
+      },
+      {
+        "text": "work",
+        "start": 1.25,
+        "end": 1.7,
+        "sentenceIndex": 0
+      },
+      {
+        "text": "here",
+        "start": 1.75,
+        "end": 2.2,
+        "sentenceIndex": 0
+      },
+      {
+        "text": "captions",
+        "start": 2.25,
+        "end": 2.7,
+        "sentenceIndex": 1
+      },
+      {
+        "text": "still",
+        "start": 2.75,
+        "end": 3.2,
+        "sentenceIndex": 1
+      },
+      {
+        "text": "work",
+        "start": 3.25,
+        "end": 3.7,
+        "sentenceIndex": 1
+      },
+      {
+        "text": "here",
+        "start": 3.75,
+        "end": 4.2,
+        "sentenceIndex": 1
+      },
+      {
+        "text": "captions",
+        "start": 4.25,
+        "end": 4.7,
+        "sentenceIndex": 2
+      },
+      {
+        "text": "still",
+        "start": 4.75,
+        "end": 5.2,
+        "sentenceIndex": 2
+      },
+      {
+        "text": "work",
+        "start": 5.25,
+        "end": 5.7,
+        "sentenceIndex": 2
+      },
+      {
+        "text": "here",
+        "start": 5.75,
+        "end": 6.2,
+        "sentenceIndex": 2
+      },
+      {
+        "text": "captions",
+        "start": 6.25,
+        "end": 6.7,
+        "sentenceIndex": 3
+      },
+      {
+        "text": "still",
+        "start": 6.75,
+        "end": 7.2,
+        "sentenceIndex": 3
+      },
+      {
+        "text": "work",
+        "start": 7.25,
+        "end": 7.7,
+        "sentenceIndex": 3
+      },
+      {
+        "text": "here",
+        "start": 7.75,
+        "end": 8.2,
+        "sentenceIndex": 3
+      },
+      {
+        "text": "captions",
+        "start": 8.25,
+        "end": 8.7,
+        "sentenceIndex": 4
+      },
+      {
+        "text": "still",
+        "start": 8.75,
+        "end": 9.2,
+        "sentenceIndex": 4
+      },
+      {
+        "text": "work",
+        "start": 9.25,
+        "end": 9.7,
+        "sentenceIndex": 4
+      },
+      {
+        "text": "here",
+        "start": 9.75,
+        "end": 10.2,
+        "sentenceIndex": 4
+      },
+      {
+        "text": "captions",
+        "start": 10.25,
+        "end": 10.7,
+        "sentenceIndex": 5
+      },
+      {
+        "text": "still",
+        "start": 10.75,
+        "end": 11.2,
+        "sentenceIndex": 5
+      },
+      {
+        "text": "work",
+        "start": 11.25,
+        "end": 11.7,
+        "sentenceIndex": 5
+      },
+      {
+        "text": "here",
+        "start": 11.75,
+        "end": 12.2,
+        "sentenceIndex": 5
+      },
+      {
+        "text": "captions",
+        "start": 12.25,
+        "end": 12.7,
+        "sentenceIndex": 6
+      }
+    ]
+  },
+  "graphics": [
+    {
+      "id": "pip_odd_frames",
+      "graphic": "hello",
+      "start": 0.5666666666666667,
+      "end": 2.566666666666667,
+      "placement": {
+        "mode": "pip",
+        "box": {
+          "x": 0.52,
+          "y": 0.06,
+          "w": 0.42,
+          "h": 0.24
+        }
+      },
+      "props": {
+        "content": {
+          "headline": "HELLO FROM DYNAMIC MOTION GRAPHICS",
+          "tag": "pip"
+        }
+      }
+    },
+    {
+      "id": "full",
+      "graphic": "hello",
+      "start": 3,
+      "end": 5,
+      "placement": {
+        "mode": "full_screen"
+      },
+      "props": {
+        "content": {
+          "headline": "HELLO FROM DYNAMIC MOTION GRAPHICS",
+          "tag": "full_screen"
+        }
+      }
+    },
+    {
+      "id": "split_graphic_bottom",
+      "graphic": "hello",
+      "start": 5.5,
+      "end": 7.5,
+      "placement": {
+        "mode": "split_screen",
+        "graphicSide": "bottom"
+      },
+      "props": {
+        "content": {
+          "headline": "HELLO FROM DYNAMIC MOTION GRAPHICS",
+          "tag": "split · graphic bottom"
+        }
+      }
+    },
+    {
+      "id": "split_graphic_top",
+      "graphic": "hello",
+      "start": 8,
+      "end": 10,
+      "placement": {
+        "mode": "split_screen",
+        "graphicSide": "top"
+      },
+      "props": {
+        "content": {
+          "headline": "HELLO FROM DYNAMIC MOTION GRAPHICS",
+          "tag": "split · graphic top"
+        }
+      }
+    },
+    {
+      "id": "overlay_odd_frames",
+      "graphic": "claude_pointer",
+      "start": 10.433333333333334,
+      "end": 12.366666666666667,
+      "placement": {
+        "mode": "overlay"
+      },
+      "props": {
+        "content": {
+          "label": "Transparent overlay"
+        },
+        "focusBox": {
+          "x": 600,
+          "y": 820,
+          "w": 300,
+          "h": 420
+        }
+      }
+    }
+  ]
+}

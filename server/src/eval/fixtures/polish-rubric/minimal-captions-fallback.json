@@ -1,0 +1,20 @@
+{
+  "_note": "Synthetic fixture (not a real run): the model gave no usable look, so minimal_captions was chosen and warned; only zoom survived; no graphics; captions plan present.",
+  "profile": "polish",
+  "editLook": {"id": "minimal_captions", "fellBack": true},
+  "warnings": [
+    "director_v2:v2",
+    "matte_gate:unusable:no_mask",
+    "edit_look:minimal_captions",
+    "edit_look_fallback:minimal_captions",
+    "edit_look_dropped:2",
+    "edit_look_drop:cutaway:kind_not_in_look",
+    "edit_look_drop:cutout:kind_not_in_look"
+  ],
+  "elementKinds": ["zoom"],
+  "generatedGraphics": [],
+  "captionPresent": true,
+  "graphicsStatus": "off",
+  "speechCutsApplied": true,
+  "fingerprintKey": "edit-profile:polish-v1"
+}

@@ -6,7 +6,7 @@
  * words never sit in the React tree.
  */
 
-import React, {useMemo} from 'react';
+import React, {createContext, useContext, useMemo} from 'react';
 import {
   AbsoluteFill,
   Sequence,
@@ -18,11 +18,15 @@ import {
 
 import {CaptionTheme} from 'remotion-captions-themes';
 
-import type {CaptionTemplateId, CaptionDirection, LanguageCode, NorthStarDesign, RenderStyle} from '../blueprintSchema';
+import type {CaptionTemplateId, CaptionDirection, LanguageCode, DesignTokens, RenderStyle} from '../blueprintSchema';
 import {KineticCaptions} from '../components/KineticCaptions';
+import {ACCUMULATE_MODE} from '../lib/accumulateCaptions';
+import {CHUNK_SWAP_MODE} from '../lib/chunkSwapCaptions';
+import {captionMaxWidthFrac, captionMaxWidthPercent} from '../lib/captionRail';
 import {activeLineAt, framesBetween, groupCaptionLines, secToFrame} from '../lib/timeline';
 import {fontFamilyFor, fontWeightFor, poppinsFontFamily} from '../styles/fonts';
 import {
+  PACKAGE_THEME_DEFAULT_FONT_SIZE,
   isPackageCaptionThemeId,
   packageThemeNameFor,
 } from './packageThemes';
@@ -32,6 +36,9 @@ import type {
   DynamicCaptionTemplateId,
   WhisperTranscriptWord,
 } from './types';
+
+/** WP4I: true for blueprints with `legibility.captions`; the utility templates then keep their centered line clear of the platform button rail. */
+const CaptionRailClearContext = createContext(false);
 
 const UTILITY_TEMPLATES = new Set<DynamicCaptionTemplateId>([
   'kinetic-slam',
@@ -44,13 +51,15 @@ const UTILITY_TEMPLATES = new Set<DynamicCaptionTemplateId>([
   'editorial-emphasis',
 ]);
 
-export const DynamicCaptionRenderer: React.FC<
-  DynamicCaptionRendererProps & {
-    style?: RenderStyle;
-    direction?: CaptionDirection;
-    design?: NorthStarDesign;
-  }
-> = ({
+type DynamicCaptionRendererBodyProps = DynamicCaptionRendererProps & {
+  style?: RenderStyle;
+  direction?: CaptionDirection;
+  design?: DesignTokens;
+  /** WP4I: cap each centered utility-template line at the platform rail (blueprints with `legibility.captions` only). */
+  railClear?: boolean;
+};
+
+const DynamicCaptionRendererBody: React.FC<DynamicCaptionRendererBodyProps> = ({
   transcriptData,
   selectedTemplate,
   customizationOptions,
@@ -58,6 +67,7 @@ export const DynamicCaptionRenderer: React.FC<
   style,
   direction,
   design,
+  railClear = false,
 }) => {
   const words = useMemo(() => toCaptionWords(transcriptData), [transcriptData]);
   const packageCaptionsData = useMemo(
@@ -66,6 +76,21 @@ export const DynamicCaptionRenderer: React.FC<
   );
   if (words.length === 0) {
     return null;
+  }
+  // WP34: the accumulate caption mode owns the whole caption layer (no package theme / utility renderer draws it), whatever template the blueprint names.
+  // WP41: the Explainer chunk-swap mode owns the caption layer too (same reason).
+  if (direction?.mode === ACCUMULATE_MODE || direction?.mode === CHUNK_SWAP_MODE) {
+    return (
+      <KineticCaptions
+        railClear={railClear}
+        words={words}
+        language={language}
+        design={design}
+        fontFamily={customizationOptions?.fontFamily}
+        style={styleForTemplate(style, 'karaoke')}
+        direction={direction}
+      />
+    );
   }
   if (isPackageCaptionThemeId(selectedTemplate)) {
     const position = direction?.position ?? 'center';
@@ -79,7 +104,8 @@ export const DynamicCaptionRenderer: React.FC<
           style={{
             position: 'absolute',
             left: '50%',
-            width: '100%',
+            // WP4J: the theme library draws inside this box; with the rail flag it ends at the platform button rail, flag off it is the full width as before.
+            width: captionMaxWidthPercent(1, railClear),
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
@@ -106,7 +132,7 @@ export const DynamicCaptionRenderer: React.FC<
               direction?.highlightColor ||
               '#FFD700'
             }
-            fontSize={customizationOptions?.fontSize ?? 72}
+            fontSize={customizationOptions?.fontSize ?? PACKAGE_THEME_DEFAULT_FONT_SIZE}
           />
         </div>
       </AbsoluteFill>
@@ -196,6 +222,7 @@ export const DynamicCaptionRenderer: React.FC<
   const kineticId = selectedTemplate as CaptionTemplateId;
   return (
     <KineticCaptions
+      railClear={railClear}
       words={words}
       language={language}
       design={design}
@@ -213,6 +240,12 @@ export const DynamicCaptionRenderer: React.FC<
     />
   );
 };
+
+export const DynamicCaptionRenderer: React.FC<DynamicCaptionRendererBodyProps> = props => (
+  <CaptionRailClearContext.Provider value={props.railClear ?? false}>
+    <DynamicCaptionRendererBody {...props} />
+  </CaptionRailClearContext.Provider>
+);
 
 function styleForTemplate(
   style: RenderStyle | undefined,
@@ -443,6 +476,7 @@ function SlamWord({
 }) {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
+  const railClear = useContext(CaptionRailClearContext);
   const enter = spring({
     frame,
     fps,
@@ -460,14 +494,14 @@ function SlamWord({
           transform: `translate(${dx}px, ${dy}px) scale(${scale}) rotate(${(1 - enter) * (direction % 2 === 0 ? -8 : 8)}deg)`,
           color,
           fontFamily,
-          fontWeight: 900,
+          fontWeight: 800, // WP4V: the heaviest weight the caption fonts load (styles/fontRequests.ts)
           fontSize,
           lineHeight: 0.92,
           textTransform: 'uppercase',
           textAlign: 'center',
           letterSpacing: -fontSize * 0.04,
           textShadow: `0 ${fontSize * 0.06}px 0 #111, 0 0 ${fontSize * 0.35}px rgba(0,0,0,0.45)`,
-          maxWidth: '88%',
+          maxWidth: captionMaxWidthPercent(0.88, railClear),
         }}>
         {text}
       </div>
@@ -488,6 +522,7 @@ function MovingPillCaptions({
 }) {
   const frame = useCurrentFrame();
   const {fps, width, height} = useVideoConfig();
+  const railClear = useContext(CaptionRailClearContext);
   const timeSec = frame / fps;
   const lines = useMemo(() => groupCaptionLines(words, {maxWords: 4}), [words]);
   const line = activeLineAt(lines, timeSec);
@@ -512,7 +547,7 @@ function MovingPillCaptions({
           flexWrap: 'wrap',
           justifyContent: 'center',
           gap: fontSize * 0.28,
-          maxWidth: width * 0.86,
+          maxWidth: width * captionMaxWidthFrac(0.86, railClear),
           padding: `${fontSize * 0.28}px ${fontSize * 0.4}px`,
           borderRadius: 999,
           backgroundColor: 'rgba(8,8,12,0.42)',
@@ -608,6 +643,7 @@ function CenteredWord({
 }) {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
+  const railClear = useContext(CaptionRailClearContext);
   const enter = spring({
     frame,
     fps,
@@ -627,7 +663,7 @@ function CenteredWord({
           textTransform: uppercase ? 'uppercase' : 'none',
           textAlign: 'center',
           textShadow: `0 ${fontSize * 0.05}px ${fontSize * 0.2}px rgba(0,0,0,0.45)`,
-          maxWidth: '88%',
+          maxWidth: captionMaxWidthPercent(0.88, railClear),
         }}>
         {text}
       </div>
@@ -638,6 +674,7 @@ function CenteredWord({
 function Kinetic01Captions({words, options, language, position}: LineCaptionProps) {
   const frame = useCurrentFrame();
   const {fps, width, height} = useVideoConfig();
+  const railClear = useContext(CaptionRailClearContext);
   const timeSec = frame / fps;
   const lines = useMemo(() => groupCaptionLines(words, {maxWords: 4}), [words]);
   const line = activeLineAt(lines, timeSec);
@@ -655,7 +692,7 @@ function Kinetic01Captions({words, options, language, position}: LineCaptionProp
   return (
     <AbsoluteFill
       style={{pointerEvents: 'none', ...fillDock(position, height)}}>
-      <div style={{position: 'relative', width: width * 0.86, height: height * 0.34}}>
+      <div style={{position: 'relative', width: width * captionMaxWidthFrac(0.86, railClear), height: height * 0.34}}>
         <div
           style={{
             position: 'absolute',
@@ -664,7 +701,7 @@ function Kinetic01Captions({words, options, language, position}: LineCaptionProp
             transform: `translate(-50%, -50%) scale(${active ? 1.06 : 0.96})`,
             color: options?.secondaryColor || '#F8FAFC',
             fontFamily: family,
-            fontWeight: 900,
+            fontWeight: 800, // WP4V: the heaviest weight the caption fonts load (styles/fontRequests.ts)
             fontSize,
             textTransform: 'uppercase',
             letterSpacing: -fontSize * 0.04,
@@ -765,7 +802,7 @@ function AaritWord({
               transform: `scale(${0.4 + 0.6 * enter})`,
               color,
               fontFamily,
-              fontWeight: 900,
+              fontWeight: 800, // WP4V: the heaviest weight the caption fonts load (styles/fontRequests.ts)
               fontSize,
               textTransform: 'uppercase',
               backgroundImage: `linear-gradient(90deg, ${color}, #F8FAFC)`,
@@ -784,6 +821,7 @@ function AaritWord({
 function SoftAiCaptions({words, options, language, position}: LineCaptionProps) {
   const frame = useCurrentFrame();
   const {fps, width, height} = useVideoConfig();
+  const railClear = useContext(CaptionRailClearContext);
   const timeSec = frame / fps;
   const lines = useMemo(() => groupCaptionLines(words, {maxWords: 4}), [words]);
   const line = activeLineAt(lines, timeSec);
@@ -808,7 +846,7 @@ function SoftAiCaptions({words, options, language, position}: LineCaptionProps) 
           opacity: 0.55 + 0.45 * enter,
           display: 'flex',
           gap: fontSize * 0.28,
-          maxWidth: width * 0.86,
+          maxWidth: width * captionMaxWidthFrac(0.86, railClear),
           padding: `${fontSize * 0.34}px ${fontSize * 0.5}px`,
           borderRadius: fontSize,
           backgroundColor: options?.primaryColor
@@ -843,6 +881,7 @@ function SoftAiCaptions({words, options, language, position}: LineCaptionProps) 
 function WeightShiftCaptions({words, options, language, position}: LineCaptionProps) {
   const frame = useCurrentFrame();
   const {fps, width, height} = useVideoConfig();
+  const railClear = useContext(CaptionRailClearContext);
   const timeSec = frame / fps;
   const lines = useMemo(() => groupCaptionLines(words, {maxWords: 5}), [words]);
   const line = activeLineAt(lines, timeSec);
@@ -859,7 +898,7 @@ function WeightShiftCaptions({words, options, language, position}: LineCaptionPr
           flexWrap: 'wrap',
           justifyContent: 'center',
           gap: fontSize * 0.22,
-          maxWidth: width * 0.88,
+          maxWidth: width * captionMaxWidthFrac(0.88, railClear),
         }}>
         {line.words.map((word, index) => {
           const active = timeSec >= word.start && timeSec <= word.end;
@@ -887,6 +926,7 @@ function WeightShiftCaptions({words, options, language, position}: LineCaptionPr
 function EditorialEmphasisCaptions({words, options, language, position}: LineCaptionProps) {
   const frame = useCurrentFrame();
   const {fps, width, height} = useVideoConfig();
+  const railClear = useContext(CaptionRailClearContext);
   const timeSec = frame / fps;
   const lines = useMemo(() => groupCaptionLines(words, {maxWords: 5}), [words]);
   const line = activeLineAt(lines, timeSec);
@@ -912,7 +952,7 @@ function EditorialEmphasisCaptions({words, options, language, position}: LineCap
           flexWrap: 'wrap',
           justifyContent: 'center',
           gap: fontSize * 0.2,
-          maxWidth: width * 0.86,
+          maxWidth: width * captionMaxWidthFrac(0.86, railClear),
         }}>
         {line.words.map((word, index) => {
           const active = timeSec >= word.start && timeSec <= word.end;

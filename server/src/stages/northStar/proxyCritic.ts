@@ -1,3 +1,4 @@
+import {carryProvenanceUnlessChanged} from '../../lib/provenance.ts';
 import {stageLogger} from '../../lib/logger.ts';
 import type {
   MotionGraphic,
@@ -145,7 +146,7 @@ export async function critiqueNorthStarProxy(input: {
       motionGraphics: input.motionGraphics
         .map((item, index) => {
           const anchor = graphicAnchors.get(index);
-          return {item: anchor ? {...item, anchor} : item, index};
+          return {item: anchor ? carryProvenanceUnlessChanged(item, {...item, anchor}) : item, index};
         })
         .filter(row => !dropGraphic.has(row.index))
         .map(row => row.item),

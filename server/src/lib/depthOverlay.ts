@@ -81,6 +81,8 @@ export type DepthOverlayClip = {
   reason?: string;
   keyword?: string;
   provider?: 'pexels' | 'pixabay' | 'generated' | 'user';
+  /** WP3B (mvp profile only): the supplied creator asset id (`ub_<n>`). Recording only. */
+  userBrollId?: string;
   width?: number;
   height?: number;
   durationSec?: number;
@@ -292,14 +294,15 @@ export function speakerVisibleRanges(
   }>,
   durationSec = 9999,
 ): TimeRange[] {
+  // Visibility is only CONFIRMED where a speaker was actually detected and framed acceptably. No slices, or a slice that is an
+  // undetected default box, is UNKNOWN and yields no range: it used to be reported as visible for the whole video, which made
+  // an unverified assumption look verified (to the v2 Director and in the `speaker_visible_unverified` audit note).
   if (slices.length === 0) {
-    return [{start: 0, end: durationSec}];
+    return [];
   }
   const flags = slices.map(slice => ({
     at: slice.atSec,
-    ok:
-      slice.occupancy.source === 'fallback' ||
-      speakerFramingAllowsDepthOverlay(slice.occupancy.speaker),
+    ok: slice.occupancy.source !== 'fallback' && speakerFramingAllowsDepthOverlay(slice.occupancy.speaker),
   }));
   const ranges: TimeRange[] = [];
   let current: TimeRange | null = null;

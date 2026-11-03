@@ -6,9 +6,12 @@
  * after this so a malformed JSON reply cannot brick the rest of the pipeline.
  */
 
+import {COLOR_DIRECTION_RESPONSE_SCHEMA, OPENING_DIRECTIVE, OPENING_RESPONSE_SCHEMA} from '../openingPlan/openingPlan.ts';
 import {env} from '../../config/env.ts';
+import {observe} from '../../lib/runObserver.ts';
 import {dumpDirectorTrace} from '../../lib/directorDump.ts';
-import {EngineError} from '../../lib/errors.ts';
+import type {DirectorParseRejection} from '../../lib/cutawayOutcomes.ts';
+import {EngineError, isEngineError} from '../../lib/errors.ts';
 import {requestJson} from '../../lib/http.ts';
 import {stageLogger} from '../../lib/logger.ts';
 import type {
@@ -55,9 +58,11 @@ import {
   themeQueriesFromTranscript,
 } from './visualQuery.ts';
 import {
+  directorMotionCounts,
   fallbackMotionPlan,
   parseMotionPlanFromDirector,
 } from './motionGraphicsPlan.ts';
+import {buildProvenance, type DirectorProvenance} from './directorProvenance.ts';
 import type {
   MediaContainerMoment,
   MotionGraphic,
@@ -218,6 +223,16 @@ Return ONE JSON object:
       "canvas_title_color": "#RRGGBB"
     }
   ],
+  "frame_insets": [
+    {
+      "start": number,
+      "end": number,
+      "scale": number (0.70-0.94, final picture size),
+      "margin_color": "#RRGGBB",
+      "corner_radius": number,
+      "transition_sec": number (0.55-1.4)
+    }
+  ],
   "semantic_emphasis": [
     {
       "start": number,
@@ -269,6 +284,8 @@ export type DirectedMoment = {
   userBrollId?: string | null;
   treatment?: OverlayTreatment;
   glow?: boolean;
+  /** Split only: where the speaker sits (Director v2 `speaker_side`). Absent: the planner's alternating default. */
+  speakerSide?: 'top' | 'bottom';
   staggerIndex?: number;
   focusRegion?: FocusRegion | null;
   visualWeight?: 'accent' | 'hero';
@@ -279,6 +296,18 @@ export type DirectedMoment = {
 export type DirectedZoom = {
   timestamp: number;
   durationSec: number;
+  /** Requested punch-in scale (Director v2 `zoom_scale`); absent means the configured default. Validated when the zoom is resolved. */
+  scale?: number;
+  /** Normalized point (0–1, top-left origin) to zoom toward; validated when the zoom is resolved. */
+  focus?: {x: number; y: number};
+};
+
+/** A transition the Director asked for (Director v2). Times are output-timeline seconds. */
+export type DirectedTransition = {
+  start: number;
+  end: number;
+  /** Free-form style the Director named; the renderer has no style vocabulary, so it is recorded, not interpreted. */
+  style?: string;
 };
 
 export type DirectedDepthOverlay = {
@@ -310,6 +339,8 @@ export type DirectedInsetReveal = {
 };
 
 export type VisualDirection = {
+  /** WP55 phase 2: Director-chosen KINETIC_TYPE_STORYTELLING elements (present only when the family was offered). Placed / validated by planCraftTemplateBeats, never rendered directly. */
+  kineticType?: import('./kineticTypeStory.ts').DirectedKineticTypeInput[];
   hookTitle: string;
   hookSubtitle: string;
   hookStyle: HookStyle;
@@ -323,6 +354,10 @@ export type VisualDirection = {
   /** Best single LUT id to apply (may be empty = natural). */
   preferredLutId: string;
   zooms: DirectedZoom[];
+  /** Director v2 transitions; absent for the v1 Director, which has no transition key. */
+  transitions?: DirectedTransition[];
+  /** WP13B: black-and-white grade-flip beats on the talking head (output seconds); set by the polish pacing planner. */
+  gradeBeats?: Array<{start: number; end: number}>;
   moments: DirectedMoment[];
   depthOverlays: DirectedDepthOverlay[];
   insetReveals: DirectedInsetReveal[];
@@ -332,7 +367,31 @@ export type VisualDirection = {
   semanticEmphasis: SemanticEmphasis[];
   estimatedCostUsd: number;
   source: 'gemini' | 'fallback';
+  /** Director items the parser discarded (absent when none). Observation only. */
+  parseRejections?: DirectorParseRejection[];
+  /** Parts of this direction supplied by the deterministic fallback because the Director's own were empty or discarded (absent when none). */
+  fallbackSubstitutions?: string[];
+  /** Set when the whole direction is the deterministic fallback: why. */
+  fallbackReason?: string;
+  /** Opt-in (Phase 35): the Director's opening plan, colour direction and observations exactly as returned (validated later by stages/openingPlan). */
+  openingRaw?: {openingPlan: unknown; colorDirection: unknown; videoObservations: unknown};
+  /** Opt-in (Phase 36I, `captureProvenance`): who supplied each field, captured from the raw Director response BEFORE any fallback completed it. Absent: unchanged. */
+  directorProvenance?: DirectorProvenance;
 };
+
+/** Which parts of a Director brief the deterministic fallback replaced because the Director's own list was empty (absent key when none). */
+function fallbackSubstitutionsOf(directed: Omit<VisualDirection, 'source'>, fallback: VisualDirection): {fallbackSubstitutions?: string[]} {
+  const parts: Array<[string, unknown[] | undefined, unknown[] | undefined]> = [
+    ['zooms', directed.zooms, fallback.zooms],
+    ['moments', directed.moments, fallback.moments],
+    ['motionGraphics', directed.motionGraphics, fallback.motionGraphics],
+    ['mediaContainers', directed.mediaContainers, fallback.mediaContainers],
+    ['frameInsets', directed.frameInsets, fallback.frameInsets],
+    ['semanticEmphasis', directed.semanticEmphasis, fallback.semanticEmphasis],
+  ];
+  const used = parts.filter(([, own, substitute]) => (own?.length ?? 0) === 0 && (substitute?.length ?? 0) > 0).map(([name]) => name);
+  return used.length > 0 ? {fallbackSubstitutions: used} : {};
+}
 
 export function directorConfigured(): boolean {
   return Boolean(env.GEMINI_API_KEY);
@@ -356,6 +415,18 @@ export async function planVisualDirection(input: {
   words?: Array<{text: string; start: number; end: number}>;
   requestedEdits?: string[] | null;
   captionTemplate?: CaptionTemplateId | null;
+  /** Content-profile prompt block (see contentProfile.ts); empty/absent leaves the prompt unchanged. */
+  contentProfileBlock?: string;
+  /** Visual-context block (VISUAL_CONTEXT_V2 only); absent leaves the prompt unchanged. */
+  visualContextBlock?: string;
+  /** Output-timeline second at which the single speaker box was measured (null if cut); used only under OCCUPANCY_CONTEXT_V2. */
+  occupancyAtSec?: number | null;
+  /** Opt-in (Phase 34): the whole video as an inline `video/mp4` part, sent with the same single planning call. Absent: unchanged. */
+  videoPart?: {mimeType: string; data: string; bytes?: number};
+  /** Opt-in (Phase 35, needs videoPart): ask for the opening plan and colour direction. */
+  openingDirection?: boolean;
+  /** Opt-in (Phase 36I): record per-field provenance of the Director's answer (observation only; the plan is unchanged). */
+  captureProvenance?: boolean;
   userBrollAssets?: Array<{
     id: string;
     description: string;
@@ -372,7 +443,7 @@ export async function planVisualDirection(input: {
   });
 
   if (!directorConfigured()) {
-    return fallback;
+    return {...fallback, fallbackReason: 'director_not_configured'};
   }
 
   const preferred = env.GEMINI_MODEL || 'gemini-3.6-flash';
@@ -395,13 +466,20 @@ export async function planVisualDirection(input: {
         words: input.words,
         requestedEdits: input.requestedEdits,
         captionTemplate: input.captionTemplate,
+        contentProfileBlock: input.contentProfileBlock,
+        visualContextBlock: input.visualContextBlock,
+        occupancyAtSec: input.occupancyAtSec,
+        videoPart: input.videoPart,
+        openingDirection: input.openingDirection,
+        captureProvenance: input.captureProvenance,
       });
       if (directed.moments.length === 0 && !directed.hookTitle) {
         throw new EngineError('broll_failed', 'Director returned an empty brief');
       }
       return {
         ...directed,
-        hookTitle: oneLineHook(directed.hookTitle || fallback.hookTitle),
+        // optional: never substitute the fallback's transcript snippet for a title the Director did not give.
+        hookTitle: hookTitleIsOptional() ? directed.hookTitle : oneLineHook(directed.hookTitle || fallback.hookTitle),
         hookSubtitle: '',
         hookStyle: directed.hookStyle || fallback.hookStyle,
         topic: directed.topic || fallback.topic,
@@ -414,6 +492,7 @@ export async function planVisualDirection(input: {
             : fallback.suggestedLutIds,
         preferredLutId: directed.preferredLutId || fallback.preferredLutId,
         zooms: directed.zooms.length > 0 ? directed.zooms : fallback.zooms,
+        ...fallbackSubstitutionsOf(directed, fallback),
         moments:
           directed.moments.length > 0 ? directed.moments : fallback.moments,
         depthOverlays: directed.depthOverlays ?? [],
@@ -441,7 +520,8 @@ export async function planVisualDirection(input: {
   }
 
   log.warn({error: lastError}, 'all gemini models failed; using keyword fallback');
-  return fallback;
+  const lastCode = isEngineError(lastError) ? lastError.code : lastError instanceof Error ? lastError.name : 'unknown';
+  return {...fallback, fallbackReason: `all_director_models_failed:${lastCode}:${lastError instanceof Error ? lastError.message.slice(0, 160) : String(lastError ?? '').slice(0, 160)}`};
 }
 
 /** @deprecated Prefer planVisualDirection — kept for older call sites. */
@@ -468,9 +548,20 @@ async function callGemini(input: {
   occupancy?: Occupancy;
   speakerCutout?: SpeakerCutout;
   captionStyleGuide?: CaptionStyleGuide | null;
+  /** Opt-in whole-video input (see planVisualDirection). */
+  videoPart?: {mimeType: string; data: string; bytes?: number};
+  /** Opt-in (Phase 35, needs videoPart): ask for the opening plan and colour direction. */
+  openingDirection?: boolean;
+  /** Opt-in (Phase 36I): see planVisualDirection. */
+  captureProvenance?: boolean;
   words?: Array<{text: string; start: number; end: number}>;
   requestedEdits?: string[] | null;
   captionTemplate?: CaptionTemplateId | null;
+  contentProfileBlock?: string;
+  /** Visual-context block (VISUAL_CONTEXT_V2 only); absent leaves the prompt unchanged. */
+  visualContextBlock?: string;
+  /** Output-timeline second at which the single speaker box was measured (null if cut); used only under OCCUPANCY_CONTEXT_V2. */
+  occupancyAtSec?: number | null;
   userBrollAssets?: Array<{
     id: string;
     description: string;
@@ -508,8 +599,9 @@ async function callGemini(input: {
         `\nDocuments → layout=card treatment=focus with focus_region matching spoken words.\n` +
         `Tall clips/images → treatment=scroll. Photos → treatment=card with glow.\n`
       : '';
+  observe(() => ({type: 'director_occupancy_input', path: 'v1', occupancy: input.occupancy ?? null, occupancyAtSec: input.occupancyAtSec ?? null, occupancyContextV2: env.OCCUPANCY_CONTEXT_V2}));
   const occupancyBlock = input.occupancy
-    ? `${describeOccupancyForDirector(input.occupancy)}\n` +
+    ? `${describeOccupancyForDirector(input.occupancy, env.OCCUPANCY_CONTEXT_V2 ? {atSec: input.occupancyAtSec ?? null} : undefined)}\n` +
       (input.speakerCutout ? `${describeCutoutForDirector(input.speakerCutout)}\n\n` : '\n')
     : input.speakerCutout
       ? `${describeCutoutForDirector(input.speakerCutout)}\n\n`
@@ -538,12 +630,18 @@ async function callGemini(input: {
     `Place every graphic in a LEGAL_SLOT from FRAME_OCCUPANCY. Never cover the speaker or the caption band.\n` +
     `All search_keyword, queries, and visual_world MUST be 2–4 English words naming a visible Pexels scene.\n` +
     `Match the overall TOPIC — never a single random noun. Include video cutaways for list items only if they help the viewer see the point.\n` +
+    (input.videoPart
+      ? `The attached video is the COMPLETE clip with its audio. Watch it from start to end before planning: ground every edit in what is actually shown and said at that moment (gestures, expressions, objects, on-screen text, scene changes), not only in the transcript. Also return video_observations: 6 to 10 concrete things you saw, each with the time_sec at which it happens, spread across the whole clip.\n`
+      : '') +
+    (input.videoPart && input.openingDirection ? `${OPENING_DIRECTIVE}\n` : '') +
     `Pick a hook_style that fits THIS video. Use motion primitives only when they serve this transcript.\n` +
     `Add motion_graphics when a claim should stay on screen long enough to read. media_containers only if the leftover canvas will hold real assets or a title.\n` +
     `Design caption.template + caption.animation for THIS video. Default to clean/minimal/subtitle/karaoke. Never default to a shiny spoken-word border.\n` +
     requiredEdits +
+    (input.contentProfileBlock ?? '') +
     captionLock +
     occupancyBlock +
+    (input.visualContextBlock ? `${input.visualContextBlock}\n\n` : '') +
     captionGuideBlock +
     userBrollBlock +
     (timedWords
@@ -557,7 +655,7 @@ async function callGemini(input: {
     method: 'POST',
     label: 'Gemini visual director',
     failureCode: 'broll_failed',
-    timeoutMs: 45_000,
+    timeoutMs: input.videoPart ? 180_000 : 45_000,
     retries: 1,
     headers: {
       'Content-Type': 'application/json',
@@ -565,13 +663,17 @@ async function callGemini(input: {
     },
     body: JSON.stringify({
       systemInstruction: {parts: [{text: SYSTEM_INSTRUCTION}]},
-      contents: [{role: 'user', parts: [{text: prompt}]}],
+      contents: [{role: 'user', parts: [...(input.videoPart ? [{inlineData: {mimeType: input.videoPart.mimeType, data: input.videoPart.data}}] : []), {text: prompt}]}],
       generationConfig: {
         temperature: 0.45,
         responseMimeType: 'application/json',
         responseSchema: {
           type: 'OBJECT',
           properties: {
+            ...(input.videoPart
+              ? {video_observations: {type: 'ARRAY', items: {type: 'OBJECT', properties: {time_sec: {type: 'NUMBER'}, observation: {type: 'STRING'}}}}}
+              : {}),
+            ...(input.videoPart && input.openingDirection ? {opening_plan: OPENING_RESPONSE_SCHEMA, color_direction: COLOR_DIRECTION_RESPONSE_SCHEMA} : {}),
             topic: {type: 'STRING'},
             visual_world: {type: 'ARRAY', items: {type: 'STRING'}},
             hook_title: {type: 'STRING'},
@@ -599,6 +701,8 @@ async function callGemini(input: {
                 properties: {
                   timestamp: {type: 'NUMBER'},
                   duration: {type: 'NUMBER'},
+                  focus_x: {type: 'NUMBER'},
+                  focus_y: {type: 'NUMBER'},
                 },
               },
             },
@@ -676,6 +780,21 @@ async function callGemini(input: {
                 required: ['start', 'end'],
               },
             },
+            frame_insets: {
+              type: 'ARRAY',
+              items: {
+                type: 'OBJECT',
+                properties: {
+                  start: {type: 'NUMBER'},
+                  end: {type: 'NUMBER'},
+                  scale: {type: 'NUMBER'},
+                  margin_color: {type: 'STRING'},
+                  corner_radius: {type: 'NUMBER'},
+                  transition_sec: {type: 'NUMBER'},
+                },
+                required: ['start', 'end'],
+              },
+            },
             semantic_emphasis: {
               type: 'ARRAY',
               items: {
@@ -745,7 +864,8 @@ async function callGemini(input: {
               },
             },
           },
-          required: ['hook_title', 'moments', 'topic', 'caption'],
+          // optional policy: the model may omit hook_title (the prompt text is unchanged and still asks for one).
+          required: hookTitleIsOptional() ? ['moments', 'topic', 'caption'] : ['hook_title', 'moments', 'topic', 'caption'],
         },
       },
     }),
@@ -766,6 +886,7 @@ async function callGemini(input: {
     requestedEdits: input.requestedEdits ?? null,
     captionTemplate: input.captionTemplate ?? null,
     sourceDurationSec: input.sourceDurationSec,
+    ...(input.videoPart ? {videoInput: {mimeType: input.videoPart.mimeType, bytes: input.videoPart.bytes ?? null, base64Chars: input.videoPart.data.length}} : {}),
     systemInstruction: SYSTEM_INSTRUCTION,
     userPrompt: prompt,
     rawResponse: text,
@@ -780,6 +901,7 @@ async function callGemini(input: {
       insetReveals: parsed.insetReveals,
       motionGraphics: parsed.motionGraphics,
       mediaContainers: parsed.mediaContainers,
+      frameInsets: parsed.frameInsets,
       semanticEmphasis: parsed.semanticEmphasis,
       visualQueries: parsed.visualQueries,
       preferredLutId: parsed.preferredLutId,
@@ -819,9 +941,39 @@ async function callGemini(input: {
     'visual direction planned',
   );
 
+  let openingRaw: VisualDirection['openingRaw'];
+  if (input.videoPart && input.openingDirection) {
+    try {
+      const raw = JSON.parse(text) as Record<string, unknown>;
+      openingRaw = {openingPlan: raw.opening_plan ?? null, colorDirection: raw.color_direction ?? null, videoObservations: raw.video_observations ?? null};
+    } catch {
+      openingRaw = {openingPlan: null, colorDirection: null, videoObservations: null};
+    }
+    dumpDirectorTrace('01b-opening-direction', {...openingRaw, usage: body.usageMetadata ?? {}});
+  }
+
+  // Phase 36I: provenance from the RAW answer and the parsers' Director-only counts. Off unless asked; never changes `parsed`.
+  let directorProvenance: DirectorProvenance | undefined;
+  if (input.captureProvenance) {
+    let rawRecord: unknown = null;
+    try {
+      rawRecord = extractJson(text);
+    } catch {
+      rawRecord = null;
+    }
+    const motion = rawRecord && typeof rawRecord === 'object' && !Array.isArray(rawRecord) ? directorMotionCounts(rawRecord as Record<string, unknown>, input.sourceDurationSec) : {motionGraphics: 0, semanticEmphasis: 0, mediaContainers: 0, frameInsets: 0};
+    directorProvenance = buildProvenance({
+      raw: rawRecord,
+      directorCounts: {zooms: parsed.zooms.length, moments: parsed.moments.length, ...motion},
+      completedCounts: {zooms: parsed.zooms.length, moments: parsed.moments.length, motionGraphics: parsed.motionGraphics.length, semanticEmphasis: parsed.semanticEmphasis.length, mediaContainers: parsed.mediaContainers.length, frameInsets: parsed.frameInsets.length},
+    });
+  }
+
   return {
     ...parsed,
     estimatedCostUsd,
+    ...(openingRaw ? {openingRaw} : {}),
+    ...(directorProvenance ? {directorProvenance} : {}),
   };
 }
 
@@ -841,13 +993,15 @@ export function parseVisualDirectorJson(
       ? record.moments
       : [];
 
-  const hookTitle = oneLineHook(
-    String(record.hook_title ?? record.hookTitle ?? ''),
-  );
+  const rawHook = String(record.hook_title ?? record.hookTitle ?? '');
+  // placeholder (default): an empty title becomes "WATCH THIS". optional: it stays '' and no hook element exists.
+  const hookTitle = hookTitleIsOptional() ? cleanHookTitle(rawHook) : oneLineHook(rawHook);
 
   const moments: DirectedMoment[] = [];
-  for (const row of rows) {
+  const parseRejections: DirectorParseRejection[] = [];
+  for (const [rowIndex, row] of rows.entries()) {
     if (!row || typeof row !== 'object') {
+      parseRejections.push({kind: 'moment', index: rowIndex, timestamp: null, label: '', code: 'moment_row_not_an_object', detail: 'a moments entry was not an object'});
       continue;
     }
     const item = row as Record<string, unknown>;
@@ -858,9 +1012,11 @@ export function parseVisualDirectorJson(
       .trim()
       .slice(0, 60);
     if (!keyword || !Number.isFinite(timestamp)) {
+      parseRejections.push({kind: 'moment', index: rowIndex, timestamp: Number.isFinite(timestamp) ? timestamp : null, label: keyword, code: 'moment_missing_keyword_or_timestamp', detail: 'a moment needs a search keyword and a numeric timestamp'});
       continue;
     }
     if (timestamp < 0 || timestamp > durationSec) {
+      parseRejections.push({kind: 'moment', index: rowIndex, timestamp, label: keyword, code: 'moment_timestamp_outside_video', detail: `timestamp ${timestamp}s is outside 0..${durationSec}s`});
       continue;
     }
     const layoutRaw = coerceLayout(item.layout, item.media ?? item.mediaKind);
@@ -876,6 +1032,7 @@ export function parseVisualDirectorJson(
       (layout === 'cutaway' || layout === 'split') &&
       (!scene || scene.split(/\s+/).length < 2)
     ) {
+      parseRejections.push({kind: 'moment', index: rowIndex, timestamp, label: keyword, code: 'cutaway_search_keyword_under_2_words', detail: `a cutaway/split needs a search scene of at least 2 words; got "${scene}"`});
       continue;
     }
     const media = coerceMedia(item.media ?? item.mediaKind, layout);
@@ -955,7 +1112,7 @@ export function parseVisualDirectorJson(
     caption: parseCaptionDirection(record.caption ?? record.captionDirection, transcript),
     suggestedLutIds,
     preferredLutId,
-    zooms: parseDirectedZooms(record.zooms, durationSec),
+    zooms: parseDirectedZooms(record.zooms, durationSec, parseRejections),
     moments: enforceRequiredLayouts(
       moments,
       durationSec,
@@ -965,6 +1122,7 @@ export function parseVisualDirectorJson(
     depthOverlays: parseDirectedDepthOverlays(record, durationSec),
     insetReveals: parseDirectedInsetReveals(record, durationSec),
     ...parseMotionPlanFromDirector(record, durationSec, transcript),
+    ...(parseRejections.length > 0 ? {parseRejections} : {}),
   };
 }
 
@@ -1005,7 +1163,9 @@ export function fallbackVisualDirection(input: {
   sourceDurationSec: number;
   momentCount: number;
 }): VisualDirection {
-  const hookTitle = oneLineHook(hookFromTranscript(input.transcript));
+  const hookSnippet = oneLineHook(hookFromTranscript(input.transcript));
+  // optional: the Director-less fallback also gets no title (no transcript-derived hook); topic/style still use the snippet.
+  const hookTitle = hookTitleIsOptional() ? '' : hookSnippet;
   const visualQueries = themeQueriesFromTranscript(input.transcript, 5);
   const stock =
     visualQueries.length > 0
@@ -1052,8 +1212,8 @@ export function fallbackVisualDirection(input: {
   return {
     hookTitle,
     hookSubtitle: '',
-    hookStyle: coerceHookStyle(undefined, input.transcript, hookTitle),
-    topic: hookTitle,
+    hookStyle: coerceHookStyle(undefined, input.transcript, hookSnippet),
+    topic: hookSnippet,
     visualQueries: stock,
     caption: defaultCaptionDirection(input.transcript),
     suggestedLutIds: defaultSuggestedLuts(input.transcript, lutCatalogIds()),
@@ -1215,9 +1375,18 @@ function coerceAnchor(
   return corners[index % corners.length]!;
 }
 
+/** A hook title cleaned to <=6 words / <=42 chars, or '' when nothing usable remains (never a placeholder). */
+export function cleanHookTitle(value: string): string {
+  return sanitizeTitle(value, 42).split(/\s+/).filter(Boolean).slice(0, 6).join(' ');
+}
+
 export function oneLineHook(value: string): string {
-  const cleaned = sanitizeTitle(value, 42);
-  return cleaned.split(/\s+/).filter(Boolean).slice(0, 6).join(' ') || 'WATCH THIS';
+  return cleanHookTitle(value) || 'WATCH THIS';
+}
+
+/** True when a missing hook title means "no hook element" (HOOK_TITLE_POLICY=optional). */
+export function hookTitleIsOptional(): boolean {
+  return env.HOOK_TITLE_POLICY === 'optional';
 }
 
 export function factualOverlayText(raw: string, transcript: string): string {
@@ -1455,30 +1624,57 @@ export function coerceHookStyle(
   return HOOK_STYLES[hash % HOOK_STYLES.length]!;
 }
 
-function parseDirectedZooms(raw: unknown, durationSec: number): DirectedZoom[] {
+/** The focus as the Director wrote it (`focus_x`/`focus_y` or `focus: {x, y}`); range checks happen at resolution. */
+function rawFocus(item: Record<string, unknown>): {x: number; y: number} | undefined {
+  const nested = item.focus && typeof item.focus === 'object' ? (item.focus as Record<string, unknown>) : null;
+  const x = item.focus_x ?? item.focusX ?? nested?.x;
+  const y = item.focus_y ?? item.focusY ?? nested?.y;
+  if (x === undefined && y === undefined) {
+    return undefined;
+  }
+  return {x: Number(x), y: Number(y)};
+}
+
+function parseDirectedZooms(raw: unknown, durationSec: number, rejections?: DirectorParseRejection[]): DirectedZoom[] {
   if (!Array.isArray(raw)) {
     return [];
   }
   const out: DirectedZoom[] = [];
-  for (const row of raw) {
+  for (const [index, row] of raw.entries()) {
     if (!row || typeof row !== 'object') {
+      rejections?.push({kind: 'zoom', index, timestamp: null, label: 'zoom', code: 'zoom_row_not_an_object', detail: 'a zooms entry was not an object'});
       continue;
     }
     const item = row as Record<string, unknown>;
     const timestamp = Number(item.timestamp ?? item.time ?? item.start);
     const durationSecRaw = Number(item.duration ?? item.durationSec ?? 1.6);
-    if (!Number.isFinite(timestamp) || timestamp < 3.5 || timestamp > durationSec - 0.8) {
+    const at = Number.isFinite(timestamp) ? timestamp : null;
+    if (!Number.isFinite(timestamp)) {
+      rejections?.push({kind: 'zoom', index, timestamp: at, label: 'zoom', code: 'zoom_missing_timestamp', detail: 'a zoom needs a numeric timestamp'});
+      continue;
+    }
+    if (timestamp < 3.5 || timestamp > durationSec - 0.8) {
+      rejections?.push({kind: 'zoom', index, timestamp, label: 'zoom', code: timestamp < 3.5 ? 'zoom_before_3.5s' : 'zoom_within_0.8s_of_end', detail: timestamp < 3.5 ? `zoom at ${timestamp}s is inside the first 3.5s` : `zoom at ${timestamp}s is within 0.8s of the ${durationSec}s end`});
       continue;
     }
     const previous = out.at(-1);
     if (previous && timestamp < previous.timestamp + 8) {
+      rejections?.push({kind: 'zoom', index, timestamp, label: 'zoom', code: 'zoom_less_than_8s_after_previous_kept_zoom', detail: `zoom at ${timestamp}s is ${Math.round((timestamp - previous.timestamp) * 100) / 100}s after the kept zoom at ${previous.timestamp}s (minimum 8s)`});
       continue;
     }
+    const focus = rawFocus(item);
     out.push({
       timestamp,
       durationSec: Math.min(2.2, Math.max(1.2, Number.isFinite(durationSecRaw) ? durationSecRaw : 1.6)),
+      ...(focus ? {focus} : {}),
     });
     if (out.length >= 4) {
+      if (index < raw.length - 1) {
+        for (let rest = index + 1; rest < raw.length; rest += 1) {
+          const extra = raw[rest] as Record<string, unknown> | null;
+          rejections?.push({kind: 'zoom', index: rest, timestamp: extra && typeof extra === 'object' && Number.isFinite(Number(extra.timestamp ?? extra.time ?? extra.start)) ? Number(extra.timestamp ?? extra.time ?? extra.start) : null, label: 'zoom', code: 'zoom_more_than_4', detail: 'at most 4 zooms are kept'});
+        }
+      }
       break;
     }
   }

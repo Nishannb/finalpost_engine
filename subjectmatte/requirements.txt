@@ -1,0 +1,5 @@
+# MediaPipe selfie-segmentation is RETIRED as a production matte (replaced by Robust Video Matting).
+# The old tool (subject_matte.py) and its `mediapipe` dependency were removed; a copy is kept outside the repo by the engineer who retired them.
+# Nothing in the Node engine installs or calls anything from this file any more.
+#
+# RVM dependencies live in requirements-rvm.txt (install into subjectmatte/.venv-rvm).

@@ -1,6 +1,7 @@
 /**
  * Related stills cycling in one slot — overlay card or split half.
- * One image stays as a Ken Burns still; two or more crossfade.
+ * One image stays as a Ken Burns still; two or more crossfade (each slide keeps its slow Ken Burns zoom).
+ * This is the only transition: `slideTransition` is 'crossfade' by contract.
  */
 
 import React from 'react';

@@ -24,6 +24,7 @@ import {EngineError} from '../../lib/errors.ts';
 import {requestJson} from '../../lib/http.ts';
 import {stageLogger} from '../../lib/logger.ts';
 import type {LanguageCode, WordToken} from '../../types/blueprint.ts';
+import {observe} from '../../lib/runObserver.ts';
 
 const GROQ_TRANSCRIPTION_URL =
   'https://api.groq.com/openai/v1/audio/transcriptions';
@@ -118,6 +119,7 @@ export async function transcribeAudio(input: {
   const fileHash = await fileSha256(input.audioPath);
   const cacheId = transcriptCacheId(fileHash, env.GROQ_MODEL, String(input.languageCode));
   const cached = readCachedTranscription(cacheDir, cacheId);
+  observe(() => ({type: 'transcription_cache', hit: Boolean(cached), audioSha256: fileHash, model: env.GROQ_MODEL}));
   if (cached) {
     log.info({hash: fileHash.slice(0, 12), model: env.GROQ_MODEL}, 'transcription cache hit');
     return cached;

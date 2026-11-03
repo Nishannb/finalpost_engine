@@ -1,0 +1,252 @@
+{
+  "led_nomatte_pitch": {
+    "beats": [
+      [
+        "clip_46_type_impact_number",
+        3.17,
+        4.77,
+        "{\"values\":[\"200\"],\"suffix\":\"%\",\"countUp\":true,\"ground\":\"#F7F6F2\",\"ink\":\"#171717\",\"secondary\":\"#85837E\",\"accent\":\"#3D4A5C\",\"anchor\":\"headroom\"}"
+      ],
+      [
+        "clip_54_type_illustrated_emphasis",
+        7.49,
+        9.09,
+        "{\"word\":\"here\",\"mark\":\"arrow\",\"subjectBox\":{\"x\":0.25,\"y\":0.3,\"w\":0.5,\"h\":0.45},\"ground\":\"#F7F6F2\",\"ink\":\"#171717\",\"secondary\":\"#85837E\",\"accent\":\"#3D4A5C\",\"anchor\":\"headroom\"}"
+      ],
+      [
+        "clip_46_type_impact_number",
+        12.21,
+        13.81,
+        "{\"values\":[\"50\"],\"label\":\"leads\",\"labelPosition\":\"below\",\"ground\":\"#F7F6F2\",\"ink\":\"#171717\",\"secondary\":\"#85837E\",\"accent\":\"#3D4A5C\",\"anchor\":\"headroom\"}"
+      ],
+      [
+        "clip_45_type_environmental_hero",
+        16.53,
+        18.13,
+        "{\"text\":\"everything\",\"subjectBox\":{\"x\":0.25,\"y\":0.3,\"w\":0.5,\"h\":0.45},\"occlusionFallback\":\"headroom\",\"ground\":\"#F7F6F2\",\"ink\":\"#171717\",\"secondary\":\"#85837E\",\"accent\":\"#3D4A5C\",\"anchor\":\"headroom\"}"
+      ],
+      [
+        "clip_45_type_environmental_hero",
+        22.21,
+        23.93,
+        "{\"text\":\"free\",\"lead\":\"for a\",\"subjectBox\":{\"x\":0.25,\"y\":0.3,\"w\":0.5,\"h\":0.45},\"occlusionFallback\":\"headroom\",\"ground\":\"#F7F6F2\",\"ink\":\"#171717\",\"secondary\":\"#85837E\",\"accent\":\"#3D4A5C\",\"anchor\":\"headroom\"}"
+      ]
+    ],
+    "warnings": [
+      "craft_templates:product:gated:not_product_profile",
+      "kinetic_led:budget:11",
+      "kinetic_type:clip_46_type_impact_number:spoken statistic (200%)",
+      "kinetic_type:clip_46_type_impact_number:spoken statistic (50)",
+      "kinetic_type:clip_45_type_environmental_hero:strong claim (\"everything\") (no matte: headroom layout)",
+      "kinetic_type:environmental:no_matte_fallback",
+      "kinetic_type:clip_45_type_environmental_hero:strong claim (\"free\") (no matte: headroom layout)",
+      "kinetic_type:environmental:no_matte_fallback",
+      "kinetic_type:clip_54_type_illustrated_emphasis:\"here\" -> drawn arrow on \"here\"",
+      "kinetic_led:variety:skipped",
+      "kinetic_led:variety:skipped",
+      "kinetic_led:variety:skipped",
+      "kinetic_led:variety:skipped",
+      "kinetic_led:variety:skipped",
+      "kinetic_led:variety:skipped",
+      "kinetic_led:variety:skipped",
+      "craft_templates:beats:5",
+      "craft_templates:clip_46_type_impact_number",
+      "craft_templates:clip_54_type_illustrated_emphasis",
+      "craft_templates:clip_46_type_impact_number",
+      "craft_templates:clip_45_type_environmental_hero",
+      "craft_templates:clip_45_type_environmental_hero"
+    ]
+  },
+  "led_nomatte_short": {
+    "beats": [
+      [
+        "clip_47_type_staggered_phrase",
+        0.85,
+        2.89,
+        "{\"text\":\"Walk beside the river\",\"emphasisIndex\":1,\"ground\":\"#F7F6F2\",\"ink\":\"#171717\",\"secondary\":\"#85837E\",\"accent\":\"#3D4A5C\",\"anchor\":\"headroom\"}"
+      ],
+      [
+        "clip_47_type_staggered_phrase",
+        5.33,
+        7.37,
+        "{\"text\":\"Pick your favourite window\",\"emphasisIndex\":2,\"ground\":\"#F7F6F2\",\"ink\":\"#171717\",\"secondary\":\"#85837E\",\"accent\":\"#3D4A5C\",\"anchor\":\"headroom\"}"
+      ],
+      [
+        "clip_45_type_environmental_hero",
+        10.45,
+        12.05,
+        "{\"text\":\"better\",\"subjectBox\":{\"x\":0.25,\"y\":0.3,\"w\":0.5,\"h\":0.45},\"occlusionFallback\":\"headroom\",\"ground\":\"#F7F6F2\",\"ink\":\"#171717\",\"secondary\":\"#85837E\",\"accent\":\"#3D4A5C\",\"anchor\":\"headroom\"}"
+      ],
+      [
+        "clip_47_type_staggered_phrase",
+        14.29,
+        16.33,
+        "{\"text\":\"Neighbours wave across gardens\",\"emphasisIndex\":0,\"ground\":\"#F7F6F2\",\"ink\":\"#171717\",\"secondary\":\"#85837E\",\"accent\":\"#3D4A5C\",\"anchor\":\"headroom\"}"
+      ],
+      [
+        "clip_49_type_kinetic_word_pop",
+        18.77,
+        20.37,
+        "{\"word\":\"Mornings\",\"anchor\":\"headroom\",\"subjectBox\":{\"x\":0.25,\"y\":0.3,\"w\":0.5,\"h\":0.45},\"ground\":\"#F7F6F2\",\"ink\":\"#171717\",\"secondary\":\"#85837E\",\"accent\":\"#3D4A5C\"}"
+      ],
+      [
+        "clip_49_type_kinetic_word_pop",
+        23.25,
+        24.85,
+        "{\"word\":\"Sunlight\",\"anchor\":\"headroom\",\"subjectBox\":{\"x\":0.25,\"y\":0.3,\"w\":0.5,\"h\":0.45},\"ground\":\"#F7F6F2\",\"ink\":\"#171717\",\"secondary\":\"#85837E\",\"accent\":\"#3D4A5C\"}"
+      ],
+      [
+        "clip_49_type_kinetic_word_pop",
+        27.73,
+        29.33,
+        "{\"word\":\"Children\",\"anchor\":\"headroom\",\"subjectBox\":{\"x\":0.25,\"y\":0.3,\"w\":0.5,\"h\":0.45},\"ground\":\"#F7F6F2\",\"ink\":\"#171717\",\"secondary\":\"#85837E\",\"accent\":\"#3D4A5C\"}"
+      ],
+      [
+        "clip_35_type_word_reveal",
+        36.69,
+        39.09,
+        "{\"text\":\"Evenings smell of rosemary\"}"
+      ]
+    ],
+    "warnings": [
+      "craft_templates:product:gated:not_product_profile",
+      "kinetic_led:budget:15",
+      "kinetic_type:clip_45_type_environmental_hero:strong claim (\"better\") (no matte: headroom layout)",
+      "kinetic_type:environmental:no_matte_fallback",
+      "kinetic_type:clip_47_type_staggered_phrase:short memorable statement -> directional word stagger on the speech rhythm",
+      "kinetic_type:clip_47_type_staggered_phrase:short memorable statement -> directional word stagger on the speech rhythm",
+      "kinetic_type:clip_47_type_staggered_phrase:short memorable statement -> directional word stagger on the speech rhythm",
+      "kinetic_led:variety:skipped",
+      "kinetic_led:variety:skipped",
+      "kinetic_led:variety:skipped",
+      "kinetic_led:variety:skipped",
+      "kinetic_led:variety:skipped",
+      "kinetic_led:variety:skipped",
+      "kinetic_led:variety:skipped",
+      "kinetic_led:variety:skipped",
+      "kinetic_type:clip_49_type_kinetic_word_pop:important word (\"Mornings\") emphasised beside the presenter",
+      "kinetic_type:clip_49_type_kinetic_word_pop:important word (\"Sunlight\") emphasised beside the presenter",
+      "kinetic_type:clip_49_type_kinetic_word_pop:important word (\"Children\") emphasised beside the presenter",
+      "kinetic_led:variety:skipped",
+      "kinetic_led:variety:skipped",
+      "kinetic_led:variety:skipped",
+      "kinetic_led:variety:skipped",
+      "kinetic_led:variety:skipped",
+      "craft_templates:beats:8",
+      "craft_templates:clip_47_type_staggered_phrase",
+      "craft_templates:clip_47_type_staggered_phrase",
+      "craft_templates:clip_45_type_environmental_hero",
+      "craft_templates:clip_47_type_staggered_phrase",
+      "craft_templates:clip_49_type_kinetic_word_pop",
+      "craft_templates:clip_49_type_kinetic_word_pop",
+      "craft_templates:clip_49_type_kinetic_word_pop",
+      "craft_templates:clip_35_type_word_reveal"
+    ]
+  },
+  "sparse_nomatte_pitch": {
+    "beats": [
+      [
+        "clip_46_type_impact_number",
+        3.17,
+        5.77,
+        "{\"values\":[\"200\"],\"suffix\":\"%\",\"countUp\":true}"
+      ],
+      [
+        "clip_45_type_environmental_hero",
+        9.89,
+        12.49,
+        "{\"text\":\"Simple\",\"subjectBox\":{\"x\":0.25,\"y\":0.3,\"w\":0.5,\"h\":0.45},\"occlusionFallback\":\"headroom\"}"
+      ],
+      [
+        "clip_47_type_staggered_phrase",
+        17.25,
+        19.85,
+        "{\"text\":\"That is why growth compounds\",\"emphasisIndex\":3}"
+      ]
+    ],
+    "warnings": [
+      "craft_templates:product:gated:not_product_profile",
+      "kinetic_type:clip_46_type_impact_number:spoken statistic (200%)",
+      "kinetic_type:clip_45_type_environmental_hero:strong claim (\"Simple\") (no matte: headroom layout)",
+      "kinetic_type:environmental:no_matte_fallback",
+      "kinetic_type:clip_47_type_staggered_phrase:short memorable statement -> directional word stagger on the speech rhythm",
+      "craft_templates:beats:3",
+      "craft_templates:clip_46_type_impact_number",
+      "craft_templates:clip_45_type_environmental_hero",
+      "craft_templates:clip_47_type_staggered_phrase"
+    ]
+  },
+  "sparse_matte_pitch": {
+    "beats": [
+      [
+        "clip_45_type_environmental_hero",
+        1.17,
+        3.77,
+        "{\"text\":\"growth\",\"subjectBox\":{\"x\":0.25,\"y\":0.3,\"w\":0.5,\"h\":0.45},\"reveal\":\"sweep\"}"
+      ],
+      [
+        "clip_46_type_impact_number",
+        12.21,
+        14.81,
+        "{\"values\":[\"50\"],\"label\":\"leads\",\"labelPosition\":\"below\"}"
+      ],
+      [
+        "clip_47_type_staggered_phrase",
+        19.25,
+        21.85,
+        "{\"text\":\"Attention drives the whole story\",\"emphasisIndex\":0}"
+      ]
+    ],
+    "warnings": [
+      "craft_templates:product:gated:not_product_profile",
+      "kinetic_type:clip_45_type_environmental_hero:strong claim (\"growth\") with a person matte",
+      "kinetic_type:environmental:matte",
+      "kinetic_type:clip_46_type_impact_number:spoken statistic (50)",
+      "kinetic_type:clip_47_type_staggered_phrase:short memorable statement -> directional word stagger on the speech rhythm",
+      "craft_templates:beats:3",
+      "craft_templates:clip_45_type_environmental_hero",
+      "craft_templates:clip_46_type_impact_number",
+      "craft_templates:clip_47_type_staggered_phrase"
+    ]
+  },
+  "sparse_matte_short": {
+    "beats": [
+      [
+        "clip_47_type_staggered_phrase",
+        0.85,
+        3.45,
+        "{\"text\":\"Walk beside the river\",\"emphasisIndex\":1}"
+      ],
+      [
+        "clip_45_type_environmental_hero",
+        10.45,
+        13.05,
+        "{\"text\":\"better\",\"subjectBox\":{\"x\":0.25,\"y\":0.3,\"w\":0.5,\"h\":0.45},\"reveal\":\"sweep\"}"
+      ],
+      [
+        "clip_49_type_kinetic_word_pop",
+        18.77,
+        19.97,
+        "{\"word\":\"Mornings\",\"anchor\":\"right\",\"subjectBox\":{\"x\":0.25,\"y\":0.3,\"w\":0.5,\"h\":0.45}}"
+      ],
+      [
+        "clip_35_type_word_reveal",
+        27.73,
+        30.13,
+        "{\"text\":\"Children chase the bicycle\"}"
+      ]
+    ],
+    "warnings": [
+      "craft_templates:product:gated:not_product_profile",
+      "kinetic_type:clip_45_type_environmental_hero:strong claim (\"better\") with a person matte",
+      "kinetic_type:environmental:matte",
+      "kinetic_type:clip_47_type_staggered_phrase:short memorable statement -> directional word stagger on the speech rhythm",
+      "kinetic_type:clip_49_type_kinetic_word_pop:important word (\"Mornings\") emphasised beside the presenter",
+      "craft_templates:beats:4",
+      "craft_templates:clip_47_type_staggered_phrase",
+      "craft_templates:clip_45_type_environmental_hero",
+      "craft_templates:clip_49_type_kinetic_word_pop",
+      "craft_templates:clip_35_type_word_reveal"
+    ]
+  }
+}

@@ -1,0 +1,71 @@
+{
+ "note": "Open findings from Phase 12 (prompts unchanged in Phase 13). Regenerate with EVAL_UPDATE_GOLDEN=1 only after a reviewed prompt change.",
+ "findings": [
+  {
+   "file": "server/src/stages/broll/geminiDirector.ts",
+   "line": 102,
+   "id": "failed_edit_without_effects",
+   "text": "Motion designer: layout and assets should MOVE at a medium pace so the edit is never a still stamp. Motion is encouraged; speed is not. A st"
+  },
+  {
+   "file": "server/src/stages/broll/geminiDirector.ts",
+   "line": 249,
+   "id": "must_place_toolkit",
+   "text": "- If REQUIRED_EDIT_STYLES is present, you MUST place each listed toolkit at least once. You still choose the spoken moment. Do not skip a re"
+  },
+  {
+   "file": "server/src/stages/broll/geminiDirector.ts",
+   "line": 250,
+   "id": "always_on",
+   "text": "- hook_title, zoom, and counter are always on even if they are not listed. Place 2–4 zooms and a count-up on the first spoken number (20s, 4"
+  },
+  {
+   "file": "server/src/stages/broll/geminiDirector.ts",
+   "line": 250,
+   "id": "fixed_count_of_effects",
+   "text": "- hook_title, zoom, and counter are always on even if they are not listed. Place 2–4 zooms and a count-up on the first spoken number (20s, 4"
+  },
+  {
+   "file": "server/src/stages/broll/geminiDirector.ts",
+   "line": 255,
+   "id": "use_often",
+   "text": "- motion_graphics: use often on claims, lists, numbers, and the CTA. Vary entrance+shape. Keep type animated. Never center."
+  },
+  {
+   "file": "server/src/stages/broll/geminiDirector.ts",
+   "line": 266,
+   "id": "zoom_count_range",
+   "text": "- zooms: 2–4, never first 3.5s, never during cutaway/split/pip/cutout."
+  },
+  {
+   "file": "server/src/stages/broll/geminiDirector.ts",
+   "line": 563,
+   "id": "propose_up_to_n_moments",
+   "text": "`Propose up to ${Math.max(input.momentCount, listBeatsFromTranscript(input.transcript).length + 3)} moments.\\n` +"
+  },
+  {
+   "file": "server/src/lib/editToolkits.ts",
+   "line": 49,
+   "id": "always_on",
+   "text": "'Burned captions. Always on. Pass --captions=<template> to pick the kinetic look.',"
+  },
+  {
+   "file": "prompts/stage2_creative_director.v1.md",
+   "line": 68,
+   "id": "failed_edit_without_effects",
+   "text": "- Lean on kinetic_text, counters, emphasis, lockups, and split/cutaway B-roll. A talking-head with captions only is a failed edit. Put motio"
+  },
+  {
+   "file": "prompts/stage2_creative_director.v1.md",
+   "line": 68,
+   "id": "lean_on_effects",
+   "text": "- Lean on kinetic_text, counters, emphasis, lockups, and split/cutaway B-roll. A talking-head with captions only is a failed edit. Put motio"
+  },
+  {
+   "file": "prompts/stage2_creative_director.v1.md",
+   "line": 73,
+   "id": "never_leave_static",
+   "text": "- Never let a static talking head sit unchanged for long stretches unless the beat demands it; also never let graphics fight the captions fo"
+  }
+ ]
+}

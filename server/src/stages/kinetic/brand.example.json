@@ -1,0 +1,10 @@
+{
+  "fonts": {"hero": "bebas", "support": "inter", "caption": "playfair", "serifItalic": "playfairItalic"},
+  "palette": {
+    "ink": "#111111",
+    "paper": "#FFFFFF",
+    "accent": "#FFD400",
+    "accent2": "#FF5A36",
+    "gradients": {"sunset": ["#FF5A36", "#FFD400"], "ocean": ["#00C6FF", "#7F00FF"]}
+  }
+}

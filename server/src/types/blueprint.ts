@@ -92,6 +92,12 @@ export type ZoomTrigger = {
   start: number;
   end: number;
   scale: number;
+  /**
+   * Optional point to zoom toward, normalized to the frame: x 0 = left edge, 1 = right edge; y 0 = top, 1 = bottom.
+   * Absent: the legacy punch-in about 50% / 32%. The renderer keeps this point on screen and recentres it as far as
+   * the frame edges allow.
+   */
+  focus?: {x: number; y: number};
   /** Sentence the zoom belongs to, for debugging blueprints. */
   sentenceIndex: number;
 };
@@ -104,6 +110,8 @@ export type BRollClip = {
   assetUrl: string;
   provider: 'pexels' | 'pixabay' | 'user';
   providerId: number;
+  /** WP3B (mvp profile only): the supplied creator asset id (`ub_<n>`) this placement shows. Recording only. */
+  userBrollId?: string;
   width: number;
   height: number;
   /** Attribution — stock licence requires crediting the author when shown. */
@@ -354,8 +362,30 @@ export type CaptionDirection = {
   template: CaptionTemplateId;
   /** Relative type size vs the template (~0.7–1.4). */
   fontScale?: number;
+  /** WP32: most words a caption line shows at once (default 3). Polish bare type uses 2: fewer, bigger words, chest-band energy. */
+  maxWords?: number;
   animation?: CaptionAnimation;
   uppercase?: boolean;
+  /** WP13C: type treatment (polish looks): stroke colour / width (em), no coloured glow, and the active word as plain fill or as ink on a marker bar. Absent = the template's own. */
+  strokeColor?: string;
+  strokeWidthEm?: number;
+  glow?: boolean;
+  activeStyle?: 'fill' | 'marker';
+  activeInk?: string;
+  /** WP34: `word_by_word_accumulate` = the Metromedia accumulate caption grammar (see remotion/src/lib/accumulateCaptions.ts). Absent = the template's own captions. */
+  mode?: 'word_by_word_accumulate' | 'chunk_swap';
+  /** WP34: output-time cut seconds (VO cut grammar); the accumulate line hard-clears on the first cut after it starts. */
+  cutTimes?: number[];
+  /** WP34: font size as a percent of the composition height (grammar 7). */
+  sizePctFrameH?: number;
+  /** WP34: vertical centre of the line, fraction of the composition height (grammar 0.42-0.50). */
+  centerYFrac?: number;
+  /** WP38: classic talking-head polish only: accumulate line centre while a face is on screen (0.55-0.60). Absent = `centerYFrac`. */
+  faceSafeYFrac?: number;
+  /** WP34: the only words besides figures drawn in caps (the CTA keyword). */
+  capsWords?: string[];
+  /** WP41: Explainer (Skill B) `chunk_swap` captions: caption centre y (fraction of the frame height) per layout span (B seam 0.50, A / C / D 0.75). */
+  yTrack?: Array<{start: number; end: number; yFrac: number}>;
 };
 
 export type TransitionClip = {
@@ -371,6 +401,11 @@ export type TransitionClip = {
   height: number;
   credit: string;
   creditUrl: string;
+  /**
+   * Draw this asset-less transition as the generated light sweep. Absent/false (legacy blueprints): TransitionTrack
+   * skips clips that have no assetUrl, exactly as before.
+   */
+  renderGenerated?: boolean;
 };
 
 /**
@@ -419,11 +454,79 @@ export const MOTION_ANCHORS = [
 ] as const;
 export type MotionAnchor = (typeof MOTION_ANCHORS)[number];
 
+/**
+ * Where a design value came from (Phase 28, Step 1a). Metadata only: nothing reads it to change a decision yet.
+ *  - director: the Director model explicitly supplied a valid value for this field (an explicit #000000 is `director`).
+ *  - profile:  derived from a content profile (the classifier's theme), not chosen by the Director.
+ *  - default:  a parser / compiler / planner constant filled in because the field was absent or unusable.
+ *  - fallback: produced by a deterministic fallback path that replaced a missing or empty Director output.
+ * An ABSENT entry means "unknown" (for example after a stage that rebuilt the object without carrying the metadata) and must never
+ * be read as `director`.
+ */
+export const PROVENANCE_STATES = ['director', 'profile', 'default', 'fallback'] as const;
+export type Provenance = (typeof PROVENANCE_STATES)[number];
+/** Field name -> origin of that field's value. */
+export type ProvenanceMap = Partial<Record<string, Provenance>>;
+/**
+ * Carried on the object under a NON-ENUMERABLE symbol key: it never serialises (blueprints, goldens, dumps and Remotion props are
+ * unchanged), is invisible to `toEqual`, and is dropped by object spread, so every stage that rebuilds an object must carry it
+ * explicitly (see lib/provenance.ts). `Symbol.for` makes the key identical across modules.
+ */
+export const PROVENANCE: unique symbol = Symbol.for('finalpost.provenance');
+
+/**
+ * WP3B (mvp profile only): facts the offline rubric scorer could not otherwise read. Recording only; no renderer or planner decision reads it.
+ *  - plannerMinGapSec: the spacing the editorial gate enforced between one cutaway's end and the next one's start in THIS run (`cutawayMinGapSec(listMode)`).
+ *  - hookTitlePolicy: HOOK_TITLE_POLICY as it was when the plan was made.
+ */
+export type ScorerEvidence = {
+  version: 1;
+  plannerMinGapSec: number;
+  plannerMinGapAppliesTo: 'cutaway_clips';
+  hookTitlePolicy: 'placeholder' | 'optional';
+};
+
+/** WP2B: where the hook title is drawn, as numbers the renderer applies as-is (fractions of the canvas width/height). */
+export type HookFit = {
+  sizeFrac: number;
+  widthFrac: number;
+  topFrac: number;
+  heightFrac: number;
+  lines: number;
+  inkColor: string;
+  accentColor: string;
+  plateColor: string;
+  /** False when no band above the head region could hold even one floor-size line; the hook is then drawn at the safe top and the case is reported. */
+  clearBand: boolean;
+  shortened: boolean;
+};
+
+/** WP2B: optional legibility instructions written only by the `mvp` product profile. Absent = the renderer behaves exactly as before. */
+export type LegibilitySpec = {
+  version: 1;
+  hook?: HookFit;
+  captions: {
+    avoidSplitFace: true;
+    /** Per-line box for templates that honour a box colour (rgba, translucent). */
+    splitBoxColor: string;
+    splitTextColor: string;
+    /** Highlight / active-word colour, raised to >= 4.5:1 against the WORST-CASE plate (the translucent plate over white footage). */
+    splitHighlightColor: string;
+    /** Opaque hex of the plate: the band drawn behind every template in the media half, and the pill of the grape package theme. */
+    splitPlateColor: string;
+    /** WP3U: frames the split caption placement is held before a B-roll split starts and after it ends, at the blueprint fps. Absent = the old instant switch. */
+    splitHoldFrames?: number;
+    /** WP8G: opt-in only. The full-width caption band on talking-head footage (WP4D) is off unless this is exactly true. No writer sets it; a split layout's own plate is unaffected. */
+    backingPlate?: boolean;
+  };
+};
+
 /** Stylish typography + adaptive graphic shape (graphic-backed type). */
 export type MotionGraphic = {
   start: number;
   end: number;
   text: string;
+  [PROVENANCE]?: ProvenanceMap;
   role: MotionRole;
   shape: MotionShape;
   accentColor: string;
@@ -476,7 +579,10 @@ export type MediaContainerMoment = {
   start: number;
   end: number;
   mode: MediaContainerMode;
+  [PROVENANCE]?: ProvenanceMap;
   canvasColor: string;
+  /** WP12C: 'blur_self' = a blurred, dimmed copy of the picture behind the sharp window; default 'solid'. */
+  canvasStyle?: 'solid' | 'blur_self';
   cornerRadius: number;
   /** Final media scale inside the frame (0.55–0.92). */
   scale: number;
@@ -495,6 +601,7 @@ export type MediaContainerMoment = {
 export type FrameInset = {
   start: number;
   end: number;
+  [PROVENANCE]?: ProvenanceMap;
   /** Final picture scale (0.70–0.94). Director chooses how far to retract. */
   scale: number;
   marginColor: string;
@@ -517,10 +624,42 @@ export const EMPHASIS_WEIGHTS = ['primary', 'secondary'] as const;
 export type EmphasisWeight = (typeof EMPHASIS_WEIGHTS)[number];
 
 /** Speech-synced semantic visual weight for a short phrase/number. */
+/** Frame-relative box (0–1); Remotion turns it into pixels. */
+export type NormalizedBox = {x: number; y: number; w: number; h: number};
+
+/**
+ * How a generated motion graphic participates in the frame. Never pixels:
+ * the split ratio and box rounding belong to Remotion.
+ */
+export type GeneratedGraphicPlacement =
+  | {mode: 'full_screen'}
+  /** Top/bottom only; the talking head takes the other half. */
+  | {mode: 'split_screen'; graphicSide: 'top' | 'bottom'}
+  /** Transparent layer over the picture; whole frame when box is omitted. */
+  | {mode: 'overlay'; box?: NormalizedBox}
+  | {mode: 'pip'; box: NormalizedBox};
+
+/**
+ * Generated motion graphic: a compiled Remotion component (CommonJS module,
+ * content-addressed in R2) drawn live in the timeline. Separate from B-roll.
+ */
+export type GeneratedGraphic = {
+  id: string;
+  start: number;
+  end: number;
+  placement: GeneratedGraphicPlacement;
+  module: {url: string; sha256: string};
+  /** Passed to the graphic as-is (content, theme, safeArea, assets, …). */
+  props?: Record<string, unknown>;
+  /** The Director's request, kept for traceability. Not read by the renderer. */
+  brief?: {kind?: string; purpose?: string; visualIntent?: string};
+};
+
 export type SemanticEmphasis = {
   start: number;
   end: number;
   text: string;
+  [PROVENANCE]?: ProvenanceMap;
   weight: EmphasisWeight;
   treatment: EmphasisTreatment;
   accentColor: string;
@@ -538,8 +677,10 @@ export type VisualMediaKind = (typeof VISUAL_MEDIA_KINDS)[number];
 
 export type OverlaySlide = {
   assetUrl: string;
-  provider: 'pexels' | 'pixabay' | 'generated' | 'user';
+  provider: 'pexels' | 'pixabay' | 'generated' | 'user' | 'klipy';
   providerId: number;
+  /** WP3B (mvp profile only): the supplied creator asset id (`ub_<n>`). Recording only. */
+  userBrollId?: string;
   width: number;
   height: number;
   credit: string;
@@ -563,8 +704,12 @@ export type VisualOverlay = {
   keyword: string;
   overlayText: string;
   assetUrl: string;
-  provider: 'pexels' | 'pixabay' | 'generated' | 'user';
+  provider: 'pexels' | 'pixabay' | 'generated' | 'user' | 'klipy';
   providerId: number;
+  /** WP3B (mvp profile only): the supplied creator asset id (`ub_<n>`). Recording only. */
+  userBrollId?: string;
+  /** WP19: image_story motion recipe for the card entrance (logo_slam, sticker_pop, still_push_in, card_tilt_in). */
+  recipeId?: string;
   width: number;
   height: number;
   credit: string;
@@ -588,7 +733,8 @@ export type VisualOverlay = {
   visualWeight?: VisualWeight;
   /** Related stills for the slideshow edit tool (overlay card or split half). */
   slides?: OverlaySlide[];
-  slideTransition?: 'crossfade' | 'ken_burns';
+  /** The only slideshow transition the renderer implements (crossfade with a per-slide Ken Burns zoom). */
+  slideTransition?: 'crossfade';
   /** Source clip length for split video: play this only after enter finishes. */
   assetDurationSec?: number;
   id?: string;
@@ -649,7 +795,30 @@ export type BlueprintCta = {
 
 export type AudioDesign = {
   musicMood?: string;
+  /** WP27: HTTPS (or Remotion-resolvable) URL of a licensed bed; omit = silent bed track. */
+  musicUrl?: string;
+  musicGain?: number;
+  duckedGain?: number;
   ducking?: boolean;
+  /** Which resolver arm supplied musicUrl. Absent on blueprints written before generated beds. */
+  musicSource?: 'licensed' | 'generated';
+  musicBpm?: number;
+  /** Speech-gated integrated loudness of the creator audio (LUFS). Absent on older blueprints. */
+  voLufs?: number;
+  /** Generated-bed envelope. Absent → MusicBedTrack keeps the legacy 0.18/0.04 gate. */
+  duck?: {
+    preset: 'talking' | 'default' | 'legacy_brief';
+    speechDb: number;
+    pauseDb: number;
+    openDb: number;
+    attackSec: number;
+    holdSec: number;
+    releaseSec: number;
+    phrases: Array<{start: number; end: number}>;
+    durationSec: number;
+    voLufs?: number;
+    bedLufs?: number;
+  };
   sfx: Array<{atWordId: string; kind: string; intent: string}>;
   /** Output-time hits resolved for the renderer (north-star). */
   hits?: Array<{
@@ -677,11 +846,13 @@ export const NORTH_STAR_MOTION_PRESETS = [
 export type NorthStarMotionPreset = (typeof NORTH_STAR_MOTION_PRESETS)[number];
 
 /**
- * One coherent design system for the whole north-star edit. Normal edits omit
- * this object and therefore keep the existing renderer exactly as-is.
+ * One coherent design system for the whole edit (`blueprint.northStarDesign`). Despite the name it is shared infrastructure, not a
+ * North Star feature: the North Star pass builds it, and the content-profile path (`designFromProfile`) builds it too. It is absent when
+ * neither ran, and the renderer then keeps its own defaults. Prefer the neutral alias `DesignTokens` in code that only reads it.
  */
 export type NorthStarDesign = {
   enabled: true;
+  [PROVENANCE]?: ProvenanceMap;
   contentType:
     | 'educational_tips'
     | 'story'
@@ -701,6 +872,13 @@ export type NorthStarDesign = {
   cornerRadius: number;
   density: 'restrained' | 'balanced' | 'expressive';
 };
+
+/**
+ * Neutral name for `NorthStarDesign` (Phase 30, Step 2). A pure type alias: same type, same JSON key (`northStarDesign`), no runtime
+ * effect. Shared readers use this name; the North Star pass keeps `NorthStarDesign`. Renaming the key, adding a second field, and retiring
+ * the old name are separate decisions (they change persisted blueprints).
+ */
+export type DesignTokens = NorthStarDesign;
 
 export type CustomSceneLayer = {
   id: string;
@@ -779,8 +957,22 @@ export type BlueprintStats = {
   /** Estimated USD spent producing this blueprint (ASR + LLM). */
   estimatedCostUsd: number;
   warnings: string[];
+  /** One explicit outcome per planned cutaway, from the edit ledger (pipeline evidence; not proof of rendered frames). */
+  editOutcomes?: import('../lib/cutawayOutcomes.ts').EditOutcomeReport;
   perStageCostUsd?: Record<string, number>;
   perStageLatencyMs?: Record<string, number>;
+  /** Present when generated motion graphics ran. */
+  generatedGraphicCount?: number;
+  /** Per-provider USD, present when generated motion graphics ran. */
+  costBreakdownUsd?: {
+    transcription: number;
+    /** Every Gemini call: Director/B-roll, layout critique, motion-graphics direction. */
+    gemini: number;
+    /** Of which the motion-graphics direction call. */
+    geminiMotionDirector: number;
+    /** Claude motion-graphics worker (all attempts). */
+    claude: number;
+  };
 };
 
 export type TimelineBlueprint = {
@@ -832,6 +1024,65 @@ export type TimelineBlueprint = {
   frameInsets: FrameInset[];
   /** Speech-synced semantic emphasis beats. */
   semanticEmphasis: SemanticEmphasis[];
+  generatedGraphics?: GeneratedGraphic[];
+  /** WP13B: black-and-white grade-flip beats on the talking head (a pacing reset). */
+  gradeBeats?: Array<{startSec: number; endSec: number}>;
+  /** WP35: Metromedia impact FX (overexpose flashes, saturation glow pops, money punch-ins, black-and-white spans). Polish only (POLISH_IMPACT_FX). */
+  impactFx?: {
+    flashes: Array<{startSec: number; frames: number; reason: 'hook_word' | 'major_reveal'}>;
+    satPops: Array<{startSec: number; frames: number}>;
+    punchIns: Array<{startSec: number; endSec: number; rampFrames: number; scale: number}>;
+    bwSpans: Array<{startSec: number; endSec: number}>;
+  };
+  /** WP42: Skill B (Explainer) layout track (hard-cut spans that tile the runtime). Written only when polish + POLISH_EXPLAINER_SKILL resolves to the explainer skill; absent = the classic picture. */
+  explainerLayoutTrack?: Array<{start: number; end: number; layout: 'explainer_a' | 'explainer_b' | 'explainer_c' | 'explainer_d'}>;
+  /** WP42: Skill B claim beats: the article plate on layout B + the lime wipe on `phrase` (phraseStart / phraseEnd are speech times). `context` = the spoken line shown on the plate. */
+  explainerClaimBeats?: Array<{start: number; end: number; phrase: string; phraseStart: number; phraseEnd: number; kind?: string; context?: string}>;
+  /**
+   * WP44: content-aware edit palette (accent + ground). Skill reference colours are preferred defaults, not locks.
+   * Skill B preferred = edu lime on paper; Skill D preferred = signal red on near-black. Picker: stages/broll/editPalette.ts.
+   */
+  editPalette?: {
+    id: string;
+    accent: string;
+    ground: string;
+    groundDot: string;
+    groundStyle: 'paper_dot' | 'ink_black' | 'soft_gray' | 'none';
+    text: string;
+    inkOnAccent: string;
+    reason: string;
+  };
+  /** WP44: Skill D (newsroom MG) layout track — plan + warnings in WP44; full ShortVideo mount is follow-up. */
+  newsroomLayoutTrack?: Array<{start: number; end: number; layout: 'newsroom_gfx' | 'newsroom_card' | 'newsroom_host' | 'newsroom_expert'}>;
+  /** WP11A: ranges the caption layer is muted for (a text-carrying graphic owns the words). */
+  captionMuteRanges?: Array<{startSec: number; endSec: number}>;
+  /** Text between the footage and the speaker's alpha matte. Present only when a real matte exists. */
+  behindSubjectTexts?: import('../stages/textTreatment/textTreatment.ts').BehindSubjectEntry[];
+  /** WP55 phase 2: person-only alpha video (same timebase as `videoUrl`, played through the keep segments) drawn ABOVE kinetic environmental type during `spans` (output seconds). Range-limited: transparent elsewhere. */
+  subjectForeground?: {videoUrl: string; spans: Array<{start: number; end: number}>};
+  /** Kinetic typography RenderSpec (stages/kinetic); absent = no kinetic track. Composition frames == source frames (no trim). */
+  kinetic?: import('../stages/kinetic/schema.ts').RenderSpec;
+  /** SUBJECT STAGE (style `subject_stage`): stages BEHIND the person (S1 plate, S2 card, S3 ghost scroll, S4 neutral + accents) and S5 IN FRONT of her. Output seconds. Absent = nothing is drawn. Mirrors remotion `subjectStageSchema`. */
+  subjectStage?: {
+    version: 1;
+    styleId: 'subject_stage';
+    matteUrl: string;
+    bg: {blurPx: number; dimPct: number};
+    spans: Array<{
+      start: number;
+      end: number;
+      stage: 'S1' | 'S2' | 'S3' | 'S4' | 'S5';
+      asset?: {url?: string; kind: 'image' | 'video' | 'native'; nativeKind?: 'plate' | 'quote_card' | 'result_page'; text?: string; lines?: string[]};
+      opacity?: number;
+      motion: {kind: 'none' | 'slow_push' | 'auto_scroll' | 'slide_up_front'; pctPerSec?: number; scalePct?: number};
+      placement?: {xPct: number; yPct: number; wPct: number; hPct?: number};
+      enter: 'hard_cut' | 'flash_cut' | 'slide_up_front';
+      wash?: 'warm' | 'none';
+    }>;
+    accents: Array<{start: number; end: number; kind: 'pop_in' | 'drop_in_tilt' | 'text_stack'; lines?: string[]; lineStarts?: number[]; slot: number}>;
+  };
+  /** Art-directed opening (replaces the standard hook title). Opt-in; see stages/openingPlan. */
+  openingTreatment?: import('../stages/openingPlan/openingPlan.ts').OpeningTreatmentSpec;
   /** Person-key so the creator can stand over B-roll. */
   speakerCutout?: {
     available: boolean;
@@ -842,6 +1093,12 @@ export type TimelineBlueprint = {
     speaker?: {x: number; y: number; w: number; h: number};
   };
   captionDirection: CaptionDirection;
+  /** WP2B: legibility instructions (mvp profile only). */
+  legibility?: LegibilitySpec;
+  /** WP3B: evidence for the offline scorer (mvp profile only). */
+  evidence?: ScorerEvidence;
+  /** WP3F (mvp profile only): `hasAudio` of the ingest probe of the source. Recording only; the render checks use it to require audio in the output. */
+  sourceHasAudio?: boolean;
   /** Optional .cube LUT id from ai-video-engine/luts (basename without extension). */
   colorGradeLut: string;
   /** AI-ranked LUT names from the catalog (max 10). Neutral is not included. */
@@ -852,9 +1109,19 @@ export type TimelineBlueprint = {
   cta?: BlueprintCta;
   audioDesign?: AudioDesign;
   /** Present only for the opt-in --north-star pipeline. */
+  /** Legacy key for the shared design object; still written during the compatibility window (dual-write). */
   northStarDesign?: NorthStarDesign;
+  /** Preferred key for the shared design object (Phase 31). Written together with `northStarDesign` while both are supported; wins when both are valid. */
+  designTokens?: DesignTokens;
   editThesis?: string;
   customScenes?: CustomScene[];
+  /**
+   * WP15: after speech cleanup, labeled slots the app should ask the creator to upload
+   * (logo / person / product / screenshot). Renderer ignores this; the client binds uploads by `id`.
+   */
+  assetBrief?: import('../stages/broll/labeledAssetBrief.ts').LabeledAssetBrief;
+  /** WP26: `awaiting_assets` while a required labeled slot is still needed (the app shows the checklist and re-submits with bindings before rendering); `ready` otherwise. Present whenever `assetBrief` is. */
+  editReadiness?: import('../stages/broll/labeledAssetBrief.ts').EditReadiness;
   directorReport?: DirectorRunReport;
   assembler?: import('../lib/assembler/types.ts').AssemblerReport;
   stats: BlueprintStats;
@@ -873,6 +1140,8 @@ export type RenderStyle = {
   trimEnabled: boolean;
   /** Overrides blueprint LUT when set; empty string means no grade. */
   colorGradeLut: string;
+  /** false renders no generated motion graphics. Absent = enabled. */
+  generatedGraphicsEnabled?: boolean;
 };
 
 /** Exact shape passed to the Remotion composition as input props. */
@@ -900,6 +1169,10 @@ export type AnalysisJob = {
   createdAt: string;
   updatedAt: string;
   cached: boolean;
+  /** WP3X: the product edit profile this job ran under. Server-owned (set from server configuration; no request field can set it). */
+  editProfile?: 'legacy' | 'mvp' | 'cuts' | 'polish';
+  /** WP3X: whether generated graphics ran: `off` (flag off), `on` (the motion stage was allowed to run) or `skipped_budget` (requested, then disabled for a missing/refused Claude budget). Absent until the pipeline has decided, and for a cached blueprint. Server-owned. */
+  graphics?: 'off' | 'on' | 'skipped_budget' | 'library_only';
   blueprint?: TimelineBlueprint;
   errorCode?: string;
   errorMessage?: string;
@@ -928,6 +1201,8 @@ export type RenderJob = {
   errorCode?: string;
   errorMessage?: string;
   estimatedCostUsd?: number;
+  /** WP3F: non-fatal notes about the render check (for example `render_audio_unchecked`). Absent when there are none. */
+  warnings?: string[];
 };
 
 export type CaptionsEditStatus =
@@ -947,6 +1222,8 @@ export type CaptionsEditJob = {
   sourcePublicUrl: string;
   languageCode: LanguageCode;
   captionTemplate: CaptionTemplateId;
+  /** CaptionKit preset id. Captions-only burns this instead of Remotion. */
+  captionPreset?: string;
   captionStyleGuide?: Record<string, unknown> | null;
   /**
    * `captions` = burn captions only (no A-roll cuts).

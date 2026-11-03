@@ -1,0 +1,40 @@
+{
+  "keep": [
+    {
+      "start": 13.1,
+      "end": 18.74,
+      "reason": "Best complete take for the opening hook."
+    },
+    {
+      "start": 39.8,
+      "end": 49.42,
+      "reason": "Most detailed and final take on Figma raising funds by solving one core problem."
+    },
+    {
+      "start": 50.9,
+      "end": 51.98,
+      "reason": "Emphatic single-word takeaway."
+    },
+    {
+      "start": 58.2,
+      "end": 62.44,
+      "reason": "Best take introducing the pitch deck."
+    },
+    {
+      "start": 70.8,
+      "end": 80.48,
+      "reason": "Final take explaining the flaw of traditional design tools."
+    },
+    {
+      "start": 81.46,
+      "end": 83.42,
+      "reason": "Completes the sentence regarding bottlenecks in productivity."
+    },
+    {
+      "start": 87.56,
+      "end": 91.92,
+      "reason": "Closing transition summarizing the problem and moving to the solution."
+    }
+  ],
+  "notes": "Retained the best complete takes while removing retakes, false starts, and duplicate repetitions."
+}

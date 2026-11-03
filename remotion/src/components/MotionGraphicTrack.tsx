@@ -16,7 +16,7 @@ import {
 import type {
   LanguageCode,
   MotionGraphic,
-  NorthStarDesign,
+  DesignTokens,
 } from '../blueprintSchema';
 import {framesBetween, secToFrame} from '../lib/timeline';
 import {fontFamilyFor, fontWeightFor} from '../styles/fonts';
@@ -24,7 +24,7 @@ import {fontFamilyFor, fontWeightFor} from '../styles/fonts';
 type MotionGraphicTrackProps = {
   graphics: MotionGraphic[];
   language: LanguageCode;
-  design?: NorthStarDesign;
+  design?: DesignTokens;
 };
 
 export const MotionGraphicTrack: React.FC<MotionGraphicTrackProps> = ({
@@ -54,7 +54,7 @@ export const MotionGraphicTrack: React.FC<MotionGraphicTrackProps> = ({
 const MotionGraphicView: React.FC<{
   graphic: MotionGraphic;
   language: LanguageCode;
-  design?: NorthStarDesign;
+  design?: DesignTokens;
 }> = ({graphic, language, design}) => {
   const frame = useCurrentFrame();
   const {fps, width, height, durationInFrames} = useVideoConfig();
@@ -224,7 +224,7 @@ function HighlightType({
   language: LanguageCode;
   fontSize: number;
   progress: number;
-  design?: NorthStarDesign;
+  design?: DesignTokens;
 }) {
   const text = graphic.text;
   const count = Math.max(0, Math.round(text.length * progress));
@@ -269,7 +269,7 @@ function textStyle(
   graphic: MotionGraphic,
   language: LanguageCode,
   fontSize: number,
-  design?: NorthStarDesign,
+  design?: DesignTokens,
 ): React.CSSProperties {
   return {
     color: graphic.textColor || '#FFFFFF',

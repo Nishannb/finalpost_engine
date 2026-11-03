@@ -1,0 +1,1982 @@
+{
+ "kind": "experimental_capability_baseline",
+ "generatedBy": "server/src/eval/baselineCli.ts",
+ "codeState": {
+  "head": "82d302a8db85221647b7ad1d7bedc7f9d160d5dc",
+  "branch": "main",
+  "dirtyTrackedFiles": 37,
+  "untrackedSourceFiles": 31,
+  "treeSha256": "60d22d1163d21f85976a8f72b1f32c78b2ddfaa801cba8c0990d1927753cc07c",
+  "trackedDiffSha256": "09e05f1eceba8d0eec96faccd3e32fb3278f69b497c9594ceff7342bcd48962e",
+  "note": "The working tree has uncommitted work; HEAD alone does not identify the approved state. treeSha256 does."
+ },
+ "flags": {
+  "GENERATED_TRANSITIONS_ENABLED": false,
+  "DIRECTOR_V2": false,
+  "NORTH_STAR": false,
+  "MOTION_GRAPHICS_ENABLED": false,
+  "CONTENT_PROFILE_ENABLED": true,
+  "PIPELINE_MODE": "lean",
+  "ZOOM_SCALE": 1.25,
+  "VISUAL_CONTEXT_V2": false
+ },
+ "classes": {
+  "saved_response_replay_fixture": "a real Director response saved earlier and replayed offline",
+  "synthetic_fixture": "inputs written by hand/test code; no real model output",
+  "hand_built_blueprint_render": "a blueprint written by hand and rendered locally; renderer-only evidence",
+  "earlier_pipeline_output": "an output of an earlier phase's real pipeline run; reference only",
+  "saved_response_replay_render": "a saved response replayed through code and rendered locally",
+  "design_document": "prose",
+  "test_source": "test code"
+ },
+ "countsByClass": {
+  "saved_response_replay_render": 20,
+  "hand_built_blueprint_render": 133,
+  "design_document": 6,
+  "saved_response_replay_fixture": 9,
+  "earlier_pipeline_output": 11,
+  "synthetic_fixture": 1,
+  "test_source": 5
+ },
+ "unclassifiedFiles": [
+  "remotion/out/phase10b-validation/README.md",
+  "remotion/out/phase10b-validation/render_all.sh"
+ ],
+ "artifacts": [
+  {
+   "path": "remotion/out/phase9-validation/hi-fulledits-profile-v2/ledger.json",
+   "sha256": "ea89ddb75ecff31e52ceaea0b9b06a27f8cd453ea67e12d7ed82aa667522b4b0",
+   "bytes": 13872,
+   "cls": "saved_response_replay_render",
+   "stages": [
+    "planBRoll",
+    "finalizeEdits",
+    "analyzeVideo_assembly",
+    "blueprint_schema"
+   ],
+   "limits": "Per the Phase 9 report these replayed saved Director responses through Phase 8 code; the replay script is not in the repo. Not independently reproducible here."
+  },
+  {
+   "path": "remotion/out/phase9-validation/hi-fulledits-profile-v2/props.json",
+   "sha256": "0244a7e49623aa4c8d567be058a23fbdadc3a4acd7346842e3b0d80929d01144",
+   "bytes": 33445,
+   "cls": "saved_response_replay_render",
+   "stages": [
+    "planBRoll",
+    "finalizeEdits",
+    "analyzeVideo_assembly",
+    "blueprint_schema"
+   ],
+   "limits": "Per the Phase 9 report these replayed saved Director responses through Phase 8 code; the replay script is not in the repo. Not independently reproducible here."
+  },
+  {
+   "path": "remotion/out/phase9-validation/hi-fulledits-profile-v2/swatch.rgb",
+   "sha256": "666e4b8c41af10d7fbd0ca1422c142a07cb44c339d78a17aa50078327f73d637",
+   "bytes": 3,
+   "cls": "saved_response_replay_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Frames/samples extracted from the Phase 9 local render for visual checks."
+  },
+  {
+   "path": "remotion/out/phase9-validation/hi-fulledits-profile/ledger.json",
+   "sha256": "ea89ddb75ecff31e52ceaea0b9b06a27f8cd453ea67e12d7ed82aa667522b4b0",
+   "bytes": 13872,
+   "cls": "saved_response_replay_render",
+   "stages": [
+    "planBRoll",
+    "finalizeEdits",
+    "analyzeVideo_assembly",
+    "blueprint_schema"
+   ],
+   "limits": "Per the Phase 9 report these replayed saved Director responses through Phase 8 code; the replay script is not in the repo. Not independently reproducible here."
+  },
+  {
+   "path": "remotion/out/phase9-validation/hi-fulledits-profile/props.json",
+   "sha256": "0244a7e49623aa4c8d567be058a23fbdadc3a4acd7346842e3b0d80929d01144",
+   "bytes": 33445,
+   "cls": "saved_response_replay_render",
+   "stages": [
+    "planBRoll",
+    "finalizeEdits",
+    "analyzeVideo_assembly",
+    "blueprint_schema"
+   ],
+   "limits": "Per the Phase 9 report these replayed saved Director responses through Phase 8 code; the replay script is not in the repo. Not independently reproducible here."
+  },
+  {
+   "path": "remotion/out/phase9-validation/hi-fulledits-profile/swatch.rgb",
+   "sha256": "666e4b8c41af10d7fbd0ca1422c142a07cb44c339d78a17aa50078327f73d637",
+   "bytes": 3,
+   "cls": "saved_response_replay_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Frames/samples extracted from the Phase 9 local render for visual checks."
+  },
+  {
+   "path": "remotion/out/phase9-validation/hi-profile-v2/check/f_13.6.png",
+   "sha256": "847888c4aec490f3358126630eccfb21df85e39e43aaf10365ff6716bb643f67",
+   "bytes": 238598,
+   "cls": "saved_response_replay_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Frames/samples extracted from the Phase 9 local render for visual checks."
+  },
+  {
+   "path": "remotion/out/phase9-validation/hi-profile-v2/check/f_14.2.png",
+   "sha256": "bffdefc190a6d18df73746b7454bd2616e357b54782e8c817ca77e0032ab1fe5",
+   "bytes": 244364,
+   "cls": "saved_response_replay_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Frames/samples extracted from the Phase 9 local render for visual checks."
+  },
+  {
+   "path": "remotion/out/phase9-validation/hi-profile-v2/check/f_15.4.png",
+   "sha256": "80ee76e20aab2049a5d00de6105dae391b153a05501d407073bcbf7ad397813a",
+   "bytes": 242500,
+   "cls": "saved_response_replay_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Frames/samples extracted from the Phase 9 local render for visual checks."
+  },
+  {
+   "path": "remotion/out/phase9-validation/hi-profile-v2/check/f_16.3.png",
+   "sha256": "3b5050541aa36a3e2c2ce37c6abbe27b91d4d4ec0b6435babc0aeed2b0ea2ea8",
+   "bytes": 236780,
+   "cls": "saved_response_replay_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Frames/samples extracted from the Phase 9 local render for visual checks."
+  },
+  {
+   "path": "remotion/out/phase9-validation/hi-profile-v2/check/f_31.0.png",
+   "sha256": "9a74132b25ba6b4d9a6da3da667d6221225e222fe12960d6f016ca13003ecee1",
+   "bytes": 240296,
+   "cls": "saved_response_replay_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Frames/samples extracted from the Phase 9 local render for visual checks."
+  },
+  {
+   "path": "remotion/out/phase9-validation/hi-profile-v2/check/f_33.2.png",
+   "sha256": "8a7275092063e3ce275090a5b9dae8187d069ce708059ac51add108e64298ead",
+   "bytes": 242079,
+   "cls": "saved_response_replay_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Frames/samples extracted from the Phase 9 local render for visual checks."
+  },
+  {
+   "path": "remotion/out/phase9-validation/hi-profile-v2/check/sheet.png",
+   "sha256": "1ea7dd4730f712419dd444dd226e15b39c2ae5c415ca1114f851890d3593a0c5",
+   "bytes": 1414779,
+   "cls": "saved_response_replay_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Frames/samples extracted from the Phase 9 local render for visual checks."
+  },
+  {
+   "path": "remotion/out/phase9-validation/hi-profile-v2/final.mp4",
+   "sha256": "0f637dabc715323d14f0aab9546dbcf7df6833dccd559b883d58785b634c47cb",
+   "bytes": 32322978,
+   "cls": "saved_response_replay_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Local Remotion render of the replayed plan on the real Hi clip."
+  },
+  {
+   "path": "remotion/out/phase9-validation/hi-profile-v2/ledger.json",
+   "sha256": "5b542b81fdc5f414f31ddf4804438e3093db4db0aa5c11e2e33a0180e3af87e2",
+   "bytes": 8202,
+   "cls": "saved_response_replay_render",
+   "stages": [
+    "planBRoll",
+    "finalizeEdits",
+    "analyzeVideo_assembly",
+    "blueprint_schema"
+   ],
+   "limits": "Per the Phase 9 report these replayed saved Director responses through Phase 8 code; the replay script is not in the repo. Not independently reproducible here."
+  },
+  {
+   "path": "remotion/out/phase9-validation/hi-profile-v2/props.json",
+   "sha256": "e5e93797e571967a9def430ca78e7b6da2e04e69862a1d48aaba6e8af53c1d22",
+   "bytes": 31773,
+   "cls": "saved_response_replay_render",
+   "stages": [
+    "planBRoll",
+    "finalizeEdits",
+    "analyzeVideo_assembly",
+    "blueprint_schema"
+   ],
+   "limits": "Per the Phase 9 report these replayed saved Director responses through Phase 8 code; the replay script is not in the repo. Not independently reproducible here."
+  },
+  {
+   "path": "remotion/out/phase9-validation/hi-profile-v2/swatch.rgb",
+   "sha256": "666e4b8c41af10d7fbd0ca1422c142a07cb44c339d78a17aa50078327f73d637",
+   "bytes": 3,
+   "cls": "saved_response_replay_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Frames/samples extracted from the Phase 9 local render for visual checks."
+  },
+  {
+   "path": "remotion/out/phase9-validation/hi-profile/ledger.json",
+   "sha256": "5b542b81fdc5f414f31ddf4804438e3093db4db0aa5c11e2e33a0180e3af87e2",
+   "bytes": 8202,
+   "cls": "saved_response_replay_render",
+   "stages": [
+    "planBRoll",
+    "finalizeEdits",
+    "analyzeVideo_assembly",
+    "blueprint_schema"
+   ],
+   "limits": "Per the Phase 9 report these replayed saved Director responses through Phase 8 code; the replay script is not in the repo. Not independently reproducible here."
+  },
+  {
+   "path": "remotion/out/phase9-validation/hi-profile/props.json",
+   "sha256": "a07a741f8dc6927622436cbe1585927cc9fa3b15b00372de26e995d28ac7532b",
+   "bytes": 31773,
+   "cls": "saved_response_replay_render",
+   "stages": [
+    "planBRoll",
+    "finalizeEdits",
+    "analyzeVideo_assembly",
+    "blueprint_schema"
+   ],
+   "limits": "Per the Phase 9 report these replayed saved Director responses through Phase 8 code; the replay script is not in the repo. Not independently reproducible here."
+  },
+  {
+   "path": "remotion/out/phase9-validation/hi-profile/swatch.rgb",
+   "sha256": "666e4b8c41af10d7fbd0ca1422c142a07cb44c339d78a17aa50078327f73d637",
+   "bytes": 3,
+   "cls": "saved_response_replay_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Frames/samples extracted from the Phase 9 local render for visual checks."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/cmp_all.png",
+   "sha256": "176f16a5f16063f1ff0ce8430c0f59b82bd46f3505ef335d196c123e1afe10e7",
+   "bytes": 1721020,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/cmp_collision.png",
+   "sha256": "16c11ffa921ad7be02ea68a4fc5321bc1da1053f847639e213ee8a4d39c1d9e8",
+   "bytes": 594249,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/cmp_empha2.png",
+   "sha256": "7ae2207902742177590b3b15dabeaabfd3c2beacec22bd5c12fd1cf11d366087",
+   "bytes": 569513,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/cmp_frameinset.png",
+   "sha256": "1060373273368a8d36ae6bcfff18ba29a7af56832e0cfecf12428fbe8e650a6a",
+   "bytes": 306174,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/cmp_kin.png",
+   "sha256": "0c0c0a12dda43f1234ec7410f69f9076d1992a29c6f347600f589feaaa64c170",
+   "bytes": 557738,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/crop_collision.png",
+   "sha256": "0daa855e51c4996ee1c24e580182be0c41471781b5b9501280f62c7d61b9ebb9",
+   "bytes": 434758,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/fixed_full_empha2.png",
+   "sha256": "96b6336841655b122b0ec53dc18dd0d25ebb8a33055a3d7a413035b9014653fb",
+   "bytes": 611377,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/fixed_full_kin.png",
+   "sha256": "2cb47c0621e4b2fcde8f3c1dede240342c73ba642d4358dcf9be749bafb7cb10",
+   "bytes": 624299,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/fixed_hi_collision.png",
+   "sha256": "9f89cec8f372ded2641afc24a515ed02d31d86e6976f30eb83fbf8924299a296",
+   "bytes": 607067,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/fixed_hi_hook.png",
+   "sha256": "ab9880beb7764225b32a17d7ba4d56dea47c3fdb774b87bfc6b79c3237ed5c7e",
+   "bytes": 615818,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/frameinset_old_black.png",
+   "sha256": "91b0181ea4a9abfabfc39dcb65e67b20be63e20d2979485b36a5f4cf262bf5bb",
+   "bytes": 487763,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/frameinset_themed.png",
+   "sha256": "a4e4ee932c8bd76e36d6aafbd3f8da298ad6994eee8212025e7551de481324b7",
+   "bytes": 493173,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/full_new_empha2.png",
+   "sha256": "96b6336841655b122b0ec53dc18dd0d25ebb8a33055a3d7a413035b9014653fb",
+   "bytes": 611377,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/full_new_kin.png",
+   "sha256": "2cb47c0621e4b2fcde8f3c1dede240342c73ba642d4358dcf9be749bafb7cb10",
+   "bytes": 624299,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/full_new_split1.png",
+   "sha256": "89a01a28364d2de5fa1fc033ed77a1bf9685a2ab9d7c43abfb1dc5ce231ed80a",
+   "bytes": 359732,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/full_new_split2.png",
+   "sha256": "d3337896e130cdf2d7316c458c4b5cbaf855873648ce6ecca8f06540a5acf95c",
+   "bytes": 331040,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/full_old_empha2.png",
+   "sha256": "cae9a514e73e5fd4549afb9d6fad94904f9a4b808027f59e974a3d510cd10fc4",
+   "bytes": 605627,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/full_old_kin.png",
+   "sha256": "4c70343660b8ea809aa14d33be9ef30d587da6b670ab1fc07628fd79fb194295",
+   "bytes": 625188,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/full_old_split1.png",
+   "sha256": "ff0886de666c634d298d0deb3dda8e090526372e6dde18f4a1e4238077e9ed82",
+   "bytes": 364568,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/full_old_split2.png",
+   "sha256": "d8d7f67e670b069fb2f9474c11c5fa5234e430a0af900a36b83f00fe8f45f640",
+   "bytes": 330305,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/geo_full_base_14.png",
+   "sha256": "b5dec1a7b3a212cb99fda36bbad042b1120678b2f5c753fd1eef6009a0e1648f",
+   "bytes": 592232,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/geo_full_base_25.png",
+   "sha256": "65da2ac8db560dbcb5db16bf164943abfeea76561366b6aaba5a25d552178b61",
+   "bytes": 600626,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/geo_full_base_39.png",
+   "sha256": "174f7e5178a476ba58c0b1d58f46ece39bc22937d439170cc2f6312bd3ba488f",
+   "bytes": 616989,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/geo_full_emph_tl.png",
+   "sha256": "cae9a514e73e5fd4549afb9d6fad94904f9a4b808027f59e974a3d510cd10fc4",
+   "bytes": 605627,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/geo_full_emph_tr.png",
+   "sha256": "558f0b3d301f8d0183fcf39e02e3528816ef6c47b211f49fa5001b5078faf8de",
+   "bytes": 600824,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/geo_full_kin_pill.png",
+   "sha256": "4c70343660b8ea809aa14d33be9ef30d587da6b670ab1fc07628fd79fb194295",
+   "bytes": 625188,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/geo_hi_base_14.png",
+   "sha256": "14b6acf37d9819f1e430da81c0bbd4a03454b405d3ac0a5a4335c28fe7f2c0aa",
+   "bytes": 592943,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/geo_hi_base_hook.png",
+   "sha256": "92610dc617cd2665718fdc2eec39f3618c2bb57c7391ffc56f5cade0971ef7af",
+   "bytes": 606354,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/geo_hi_emph.png",
+   "sha256": "fe44a575dbac897cbcb20f41f8190db5bbe4f2d16ecb656f6f182cc4e85cc836",
+   "bytes": 597372,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/geo_hi_hook.png",
+   "sha256": "faa85e6903880460f104f2ecbbb33b1a08bf8d2e7cb47287c775a97ad0274e9a",
+   "bytes": 613951,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/geo_hi_kin.png",
+   "sha256": "1ee590d84a0e6dbbd93cd81f011e8b335783edc2f94a19a9ad50519ee8b1250d",
+   "bytes": 604536,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/hi_new_card.png",
+   "sha256": "952349d276553648663801453f0ac6525cf40f7df39800838088b180ec96cde7",
+   "bytes": 587946,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/hi_new_collision.png",
+   "sha256": "3fec3db4fc223222220397210371389186636cf409d2ef33a71bf7f810d6ade2",
+   "bytes": 606381,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/hi_new_cutaway.png",
+   "sha256": "0bab68110b8bf62d6f585e0f4f4050d18b832e9ebe5bb48223872159269b4c24",
+   "bytes": 279855,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/hi_new_hook.png",
+   "sha256": "ab9880beb7764225b32a17d7ba4d56dea47c3fdb774b87bfc6b79c3237ed5c7e",
+   "bytes": 615818,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/hi_old_card.png",
+   "sha256": "7dc78fd0df90d0d0848deab310b607b54d312fa91ae7832b60e6102945e07315",
+   "bytes": 587123,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/hi_old_collision.png",
+   "sha256": "02dad301f9df44e3aba0a8bc33fd6ff0ecf393028b8a1139bd2b9b5207216bf7",
+   "bytes": 605353,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/hi_old_cutaway.png",
+   "sha256": "4cb586540c1cedb21f349d75dd334bc7fe54dd5be4af99257d1a754abd6e0b44",
+   "bytes": 278668,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/hi_old_hook.png",
+   "sha256": "faa85e6903880460f104f2ecbbb33b1a08bf8d2e7cb47287c775a97ad0274e9a",
+   "bytes": 613951,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/row_new_full.png",
+   "sha256": "b36392fbeda070653504ab0d7b0bfb7decac5b9ad369f551a4060632f0773154",
+   "bytes": 1544693,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/row_new_hi.png",
+   "sha256": "f8d2b828e403befe2a1efe9323eaa15fced2ea78cc017c76845d11fba49126c5",
+   "bytes": 1648005,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/row_old_full.png",
+   "sha256": "0a18363f2fc121480ff5e08d394cd3ddf6f47d9564399c54cc47f5db540c79b3",
+   "bytes": 1543101,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/row_old_hi.png",
+   "sha256": "2ea14b748989f83cf36e3baa2078ab916ffa4fcc68430d65184cddfd613edf81",
+   "bytes": 1643699,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/sheet_full.png",
+   "sha256": "88c17d1f1a47c2a601abd208bd542c03ca72403bc6422b5996f159e8e56cf63f",
+   "bytes": 3087979,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase9-validation/stills/sheet_hi.png",
+   "sha256": "4b348ace3769aaacd3e456068001b5348ace1b39eae0849e8b2e7f0ede92b32a",
+   "bytes": 3291728,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Stills used for geometry/legibility calibration; they show the renderer, not planner decisions."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/props/k_bubble.json",
+   "sha256": "76332209f6dfbcf8b5c5bdc1c33a5295bc3558a9ab10b4f4aae6f266a1015031",
+   "bytes": 7469,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "blueprint_schema"
+   ],
+   "limits": "Hand-written blueprints over a synthetic ffmpeg clip. No planner, no Director."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/props/k_card.json",
+   "sha256": "4bfada65bec4bd2be6732ecde04029e556f1e88c25a507ff3a20bcd5ebcc18c0",
+   "bytes": 7455,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "blueprint_schema"
+   ],
+   "limits": "Hand-written blueprints over a synthetic ffmpeg clip. No planner, no Director."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/props/k_cutout_crop_fallback.json",
+   "sha256": "9f8516e106eb745280bc4a6b066cfb0c11c6995241870ca239e0d00a4ea407f3",
+   "bytes": 7455,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "blueprint_schema"
+   ],
+   "limits": "Hand-written blueprints over a synthetic ffmpeg clip. No planner, no Director."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/props/k_cutout_no_mask.json",
+   "sha256": "9f8516e106eb745280bc4a6b066cfb0c11c6995241870ca239e0d00a4ea407f3",
+   "bytes": 7455,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "blueprint_schema"
+   ],
+   "limits": "Hand-written blueprints over a synthetic ffmpeg clip. No planner, no Director."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/props/k_emphasis.json",
+   "sha256": "4521827637d8cc77fb787a56f535c4f69ac6ae456a5c2b000d42e145f6f0e75b",
+   "bytes": 7356,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "blueprint_schema"
+   ],
+   "limits": "Hand-written blueprints over a synthetic ffmpeg clip. No planner, no Director."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/props/k_frame_inset.json",
+   "sha256": "c13388615f8812ca68d41b56feab8372d5d2cc4908d48b8d9edd89e00a3b534c",
+   "bytes": 7298,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "blueprint_schema"
+   ],
+   "limits": "Hand-written blueprints over a synthetic ffmpeg clip. No planner, no Director."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/props/k_kinetic.json",
+   "sha256": "58bb8517b5b97c74c10862c0db33f09ffc4b20afbe38ef43585865d0fbd85a5b",
+   "bytes": 7431,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "blueprint_schema"
+   ],
+   "limits": "Hand-written blueprints over a synthetic ffmpeg clip. No planner, no Director."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/props/k_lockup.json",
+   "sha256": "7038776442b3dfa00b652fb43ad9af67f88cbdac22f33e510586d3f12ba06249",
+   "bytes": 7468,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "blueprint_schema"
+   ],
+   "limits": "Hand-written blueprints over a synthetic ffmpeg clip. No planner, no Director."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/props/k_media_container.json",
+   "sha256": "d2f660246dfc4f6b02d8a460f7f5433628e96825ef0732434e9f7b4e4ea3a4a2",
+   "bytes": 7380,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "blueprint_schema"
+   ],
+   "limits": "Hand-written blueprints over a synthetic ffmpeg clip. No planner, no Director."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/props/k_split.json",
+   "sha256": "d103f8dd143372f8d1c949a2ac9ce82b70c592f183ee1f70b67d6689bda303e2",
+   "bytes": 7476,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "blueprint_schema"
+   ],
+   "limits": "Hand-written blueprints over a synthetic ffmpeg clip. No planner, no Director."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/props/s0_baseline.json",
+   "sha256": "847277eac16e8ed37109beb5e932b5ec84204d3aa762f349f33d0f87d07fe241",
+   "bytes": 7194,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "blueprint_schema"
+   ],
+   "limits": "Hand-written blueprints over a synthetic ffmpeg clip. No planner, no Director."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/props/s1_zoom_legacy.json",
+   "sha256": "ba514a926c4acd1dac77ec7dc5fc1345496097a989b4a69117385b7d6f68af1c",
+   "bytes": 7250,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "blueprint_schema"
+   ],
+   "limits": "Hand-written blueprints over a synthetic ffmpeg clip. No planner, no Director."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/props/s2_zoom_focus_bottom_right.json",
+   "sha256": "232c1e62dc6fe4aff27cd5047350583da2ed4e0e4ace1a3ff13455a9675cd423",
+   "bytes": 7282,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "blueprint_schema"
+   ],
+   "limits": "Hand-written blueprints over a synthetic ffmpeg clip. No planner, no Director."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/props/s3_zoom_focus_top_left.json",
+   "sha256": "1b342d70a55650ad7a4f8ac4eae6fba5dfe1688b1625e9a4e7ffdea817838fb2",
+   "bytes": 7281,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "blueprint_schema"
+   ],
+   "limits": "Hand-written blueprints over a synthetic ffmpeg clip. No planner, no Director."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/props/t0_transition_flag_off.json",
+   "sha256": "c3b57360d98aa8a4f99f035edbbddcd8ee2053e0c492aaeb7596511a6db9a4f8",
+   "bytes": 7383,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "blueprint_schema"
+   ],
+   "limits": "Hand-written blueprints over a synthetic ffmpeg clip. No planner, no Director."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/props/t1_transition_flag_on.json",
+   "sha256": "37af12304916c98c73fb2855879543f566455e484e69b2b7d4db258315d4cdb7",
+   "bytes": 7626,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "blueprint_schema"
+   ],
+   "limits": "Hand-written blueprints over a synthetic ffmpeg clip. No planner, no Director."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/public/bars.mp4",
+   "sha256": "46f732618938f0b97bcf9c8bb43e4e4fe5e98bc2a68e367b0a6d55ce9a6e0630",
+   "bytes": 33606,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "blueprint_schema"
+   ],
+   "limits": "Hand-written blueprints over a synthetic ffmpeg clip. No planner, no Director."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/public/card.png",
+   "sha256": "6585b036a6bbb4875ec94610ef31a57e38f3b2268325bb2656412deac79b2910",
+   "bytes": 2960,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "blueprint_schema"
+   ],
+   "limits": "Hand-written blueprints over a synthetic ffmpeg clip. No planner, no Director."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/public/testsrc.mp4",
+   "sha256": "563afce94f3b1cf4ab358ae9f6487d47d547060efe3ba5643fe69e3e03aa0fae",
+   "bytes": 9947963,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "blueprint_schema"
+   ],
+   "limits": "Hand-written blueprints over a synthetic ffmpeg clip. No planner, no Director."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/stills/k_bubble.png",
+   "sha256": "7c537d3d07596093338aa9893850878b5f9426c0b7c984ecbf60e25ca655401f",
+   "bytes": 392913,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/stills/k_card.png",
+   "sha256": "039c2c1abd01afb9f1c5444200ee821c03ddfbb965ae697342caeb4b420c5e86",
+   "bytes": 387000,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/stills/k_cutout_BEFORE_fix.png",
+   "sha256": "e49f4b61b94b661081407bb8a7b99e4b8b07cd36b30da93a3e0a5aacd6dbf796",
+   "bytes": 45001,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/stills/k_cutout_crop_fallback.png",
+   "sha256": "6dd676aecb5bb7fb04d65508d3bae4681d7b35ad99c311700fa24316ce6bc9dd",
+   "bytes": 490345,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/stills/k_cutout_early_frame.png",
+   "sha256": "35904ee18c63532c9ab8e20f9708332d8c7f2a9e8b6eecbee135af0f9f6ad847",
+   "bytes": 503808,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/stills/k_cutout_no_mask.png",
+   "sha256": "e49f4b61b94b661081407bb8a7b99e4b8b07cd36b30da93a3e0a5aacd6dbf796",
+   "bytes": 45001,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/stills/k_emphasis.png",
+   "sha256": "8612aaf95f0a850a7d7f5d6c8d2e58235666c633407f1fc4611678fde60e7f15",
+   "bytes": 429090,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/stills/k_frame_inset.png",
+   "sha256": "b71e724a4dd174682f5a8144619f52fc1766b0e999617a9b0561c253a3581d8f",
+   "bytes": 302950,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/stills/k_kinetic.png",
+   "sha256": "c77bb2d1baedac6d096b19c1d0eb44fe6fbe3d73d942459dfe5cd5897295ad96",
+   "bytes": 409469,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/stills/k_lockup.png",
+   "sha256": "a8aef6bbcedc99a462654053c2ab31895e25038a7f8b11813dba7a3e5dfc15e2",
+   "bytes": 401595,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/stills/k_media_container.png",
+   "sha256": "3a593ba4bc76e4696fa71f6828e9e2cd45ef0c4e5721bc9cd364de3ad7815f9c",
+   "bytes": 191057,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/stills/k_split.png",
+   "sha256": "53e22d70718814ced8264a71d7bd88b2aa65cd1f869def4d5ee5c661d68526ba",
+   "bytes": 121766,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/stills/review_layouts.png",
+   "sha256": "d03dff6b206a3f6c9a7d197b652e7956a0b71d1257bd1ac1fcd6cd4d7ceedaaf",
+   "bytes": 175550,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/stills/review_text_crops.png",
+   "sha256": "25b6930cfa8c3e07d5a1ba24a77258b73f6aa81032226dbaf2d61090dba4ca36",
+   "bytes": 115035,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/stills/s0_baseline.png",
+   "sha256": "f8d44e739e6e0f7f6b74c8bdc7e0bf73563beec38d7b8e55dc61010ca00fa284",
+   "bytes": 383822,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/stills/s1_zoom_legacy.png",
+   "sha256": "2c676489a757e2c338c8526891f44a5bdae810d9c9fd7847290ca39252529d46",
+   "bytes": 333497,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/stills/s2_zoom_focus_bottom_right.png",
+   "sha256": "4259ce372feef869d3ab7d3b1858277e18b90e9539f78ed1d0f404d673b40f1d",
+   "bytes": 686904,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/stills/s3_zoom_focus_top_left.png",
+   "sha256": "c420c2f9de31cc448d6527ae502567ec4069cb2c9664cdaabba098b3f69d9131",
+   "bytes": 74555,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/stills/sheet_cutout.png",
+   "sha256": "a2b4b40444e7b6ca78af867cf3e370a9a780be5d8a379b2a3736c781ab55e847",
+   "bytes": 85841,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/stills/sheet_kinds_a.png",
+   "sha256": "186dbccdf7af1c075fa1d6219e508f5c22d213eafe725ebf59215cebd0d65648",
+   "bytes": 65809,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/stills/sheet_kinds_b.png",
+   "sha256": "89e9b09f9b874f35ecb203a7b9d197a4981bb6f264eba5a3ff5afde8d6d29f16",
+   "bytes": 43381,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/stills/sheet_transition.png",
+   "sha256": "60099201c39ee382a228cc9e6d417147220ad98a70b4267d0ee63e5370f8eb9e",
+   "bytes": 101564,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/stills/sheet_zoom.png",
+   "sha256": "469009e656fd807fe3143126de4eb9e83bbdcdbc94a7d29d96aff96668a84bc2",
+   "bytes": 120387,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/stills/t0_transition_flag_off.png",
+   "sha256": "e698d65c78d6a8adb099a8468bd75e584d32a93c057f0a27365e7426c7489409",
+   "bytes": 387713,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/stills/t1_transition_flag_on.png",
+   "sha256": "fc48f8dab77ac1564fa3b7f635dfce8eb58e6c61433cde2147b68bda19b02b5a",
+   "bytes": 1546387,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase10b-validation/stills/t_baseline_183.png",
+   "sha256": "e698d65c78d6a8adb099a8468bd75e584d32a93c057f0a27365e7426c7489409",
+   "bytes": 387713,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase11-validation/README.md",
+   "sha256": "6651da456d549f4ea2b28d1b5548aabbf9cfe6466b2200a1e80d151bc8319962",
+   "bytes": 1048,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Scripts/notes/derived frame belonging to the synthetic-fixture renders."
+  },
+  {
+   "path": "remotion/out/phase11-validation/VISUAL_DIRECTOR_PROPOSAL.md",
+   "sha256": "d8b4ce16c718bcc056a77895cfee382344c583290886ea4c278646a9d90a330e",
+   "bytes": 4436,
+   "cls": "design_document",
+   "stages": [
+    "none"
+   ],
+   "limits": "Prose; not an execution artifact."
+  },
+  {
+   "path": "remotion/out/phase11-validation/matte_frame0.png",
+   "sha256": "d9383d34dff4919b3058da4ca7453834863108bd2a6251a45b8caf9cad15988b",
+   "bytes": 24622,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Scripts/notes/derived frame belonging to the synthetic-fixture renders."
+  },
+  {
+   "path": "remotion/out/phase11-validation/props/counter.json",
+   "sha256": "1fe735f3c48f4fc08f4f0b95ac2b27f3cc68cbac33cb12caa79dee60cab0a720",
+   "bytes": 7383,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "blueprint_schema"
+   ],
+   "limits": "Hand-written blueprints over synthetic clips/slides/matte. No planner, no Director."
+  },
+  {
+   "path": "remotion/out/phase11-validation/props/counter_small.json",
+   "sha256": "654ef34f0b160c5f521b2708d310b82b6eef4077cd6919a82c49551b87f93472",
+   "bytes": 7378,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "blueprint_schema"
+   ],
+   "limits": "Hand-written blueprints over synthetic clips/slides/matte. No planner, no Director."
+  },
+  {
+   "path": "remotion/out/phase11-validation/props/depth_overlay_no_matte.json",
+   "sha256": "f7c84f1472ff93f1d054875c852a366455f39324138f50470150fa1048e45058",
+   "bytes": 7640,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "blueprint_schema"
+   ],
+   "limits": "Hand-written blueprints over synthetic clips/slides/matte. No planner, no Director."
+  },
+  {
+   "path": "remotion/out/phase11-validation/props/depth_overlay_with_matte.json",
+   "sha256": "de7283eb7cb519323413c3a24a63b3955bb9c628982e374b28ad75bb1f22ad55",
+   "bytes": 7676,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "blueprint_schema"
+   ],
+   "limits": "Hand-written blueprints over synthetic clips/slides/matte. No planner, no Director."
+  },
+  {
+   "path": "remotion/out/phase11-validation/props/slideshow_crossfade.json",
+   "sha256": "fc8aff8baeb72dd0bd138159301c14257883d2b86971b9bc0261c455fdcc0b31",
+   "bytes": 7961,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "blueprint_schema"
+   ],
+   "limits": "Hand-written blueprints over synthetic clips/slides/matte. No planner, no Director."
+  },
+  {
+   "path": "remotion/out/phase11-validation/props/slideshow_kenburns.json",
+   "sha256": "0940e4e2813dfa9f58347aac6c9f62f2f2c8ba6c5120086cf6d7f5ea188992ed",
+   "bytes": 7961,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "blueprint_schema"
+   ],
+   "limits": "Hand-written blueprints over synthetic clips/slides/matte. No planner, no Director."
+  },
+  {
+   "path": "remotion/out/phase11-validation/public/bars.mp4",
+   "sha256": "46f732618938f0b97bcf9c8bb43e4e4fe5e98bc2a68e367b0a6d55ce9a6e0630",
+   "bytes": 33606,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "blueprint_schema"
+   ],
+   "limits": "Hand-written blueprints over synthetic clips/slides/matte. No planner, no Director."
+  },
+  {
+   "path": "remotion/out/phase11-validation/public/matte.webm",
+   "sha256": "6e34581d41d58df8b46ab5c86f1f6b2bdbb7b6a01097d4b120c43ea067b11275",
+   "bytes": 57353,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "blueprint_schema"
+   ],
+   "limits": "Hand-written blueprints over synthetic clips/slides/matte. No planner, no Director."
+  },
+  {
+   "path": "remotion/out/phase11-validation/public/s1.png",
+   "sha256": "0ead2ff36e644f220ad3ad3bce7973da5b3e63e71e9b0fefa6a7b5f8fb7caff0",
+   "bytes": 16238,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "blueprint_schema"
+   ],
+   "limits": "Hand-written blueprints over synthetic clips/slides/matte. No planner, no Director."
+  },
+  {
+   "path": "remotion/out/phase11-validation/public/s2.png",
+   "sha256": "8641d168da5691631f3f3dde069b5779c9e57b5e624cf69bf7bb02015653674a",
+   "bytes": 21405,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "blueprint_schema"
+   ],
+   "limits": "Hand-written blueprints over synthetic clips/slides/matte. No planner, no Director."
+  },
+  {
+   "path": "remotion/out/phase11-validation/public/s3.png",
+   "sha256": "3a5065b20ad6f19cc22644579af51a6351e48e97bb2ae802ee5da42b77b47593",
+   "bytes": 22294,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "blueprint_schema"
+   ],
+   "limits": "Hand-written blueprints over synthetic clips/slides/matte. No planner, no Director."
+  },
+  {
+   "path": "remotion/out/phase11-validation/public/testsrc.mp4",
+   "sha256": "563afce94f3b1cf4ab358ae9f6487d47d547060efe3ba5643fe69e3e03aa0fae",
+   "bytes": 9947963,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "blueprint_schema"
+   ],
+   "limits": "Hand-written blueprints over synthetic clips/slides/matte. No planner, no Director."
+  },
+  {
+   "path": "remotion/out/phase11-validation/render_all.sh",
+   "sha256": "2c89ffddb362e7ef79cde8de6343ea53f880cb0bc59b647dd370ecafac395b3a",
+   "bytes": 713,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Scripts/notes/derived frame belonging to the synthetic-fixture renders."
+  },
+  {
+   "path": "remotion/out/phase11-validation/stills/before_counter_fix/counter_f150.png",
+   "sha256": "e5f5cf5607383ffa113ff26374dfc0bbe3dcbc55d7d539d79a26ee4eaf1e6373",
+   "bytes": 424404,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Pre-fix renders kept as evidence of the defect."
+  },
+  {
+   "path": "remotion/out/phase11-validation/stills/before_depth_fix/depth_overlay_no_matte_f270.png",
+   "sha256": "3b0ad8a6e7bb26a454a4acd3fd01d1a19559e4ed173a9160991406f0946a6082",
+   "bytes": 358935,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Pre-fix renders kept as evidence of the defect."
+  },
+  {
+   "path": "remotion/out/phase11-validation/stills/before_depth_fix/depth_overlay_with_matte_f135.png",
+   "sha256": "3daa4b66451ba61393558e556a33e484a7a308e92af1e76ec0ad4b397d729319",
+   "bytes": 67021,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Pre-fix renders kept as evidence of the defect."
+  },
+  {
+   "path": "remotion/out/phase11-validation/stills/before_depth_fix/depth_overlay_with_matte_f270.png",
+   "sha256": "d691edd7a2d632d6b7178d7e5b698c148f45c7a31fdeae4cc51a621d11ab7727",
+   "bytes": 70686,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Pre-fix renders kept as evidence of the defect."
+  },
+  {
+   "path": "remotion/out/phase11-validation/stills/before_depth_fix/sheet_depth.png",
+   "sha256": "5b3c27232fb4169f5cb08d3e6d885d41ffa5149f765f5fa9743f13b1a6b0a54b",
+   "bytes": 53637,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Pre-fix renders kept as evidence of the defect."
+  },
+  {
+   "path": "remotion/out/phase11-validation/stills/before_slideshow_fix/sheet_slideshow.png",
+   "sha256": "ef6ed0059699a61e82f11bfca755a90443231ae2c28a636cc841053d57a38305",
+   "bytes": 73845,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Pre-fix renders kept as evidence of the defect."
+  },
+  {
+   "path": "remotion/out/phase11-validation/stills/before_slideshow_fix/slideshow_crossfade_f140.png",
+   "sha256": "5419188056d1adfb91c644babc58570bc1d6b21a20d60068fdbcc6d37f282ca6",
+   "bytes": 225803,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Pre-fix renders kept as evidence of the defect."
+  },
+  {
+   "path": "remotion/out/phase11-validation/stills/before_slideshow_fix/slideshow_crossfade_f180.png",
+   "sha256": "dcc0251a76fed0769392aba0e6677f896d85c1518007e7d4fe56986d329b73af",
+   "bytes": 147041,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Pre-fix renders kept as evidence of the defect."
+  },
+  {
+   "path": "remotion/out/phase11-validation/stills/before_slideshow_fix/slideshow_crossfade_f240.png",
+   "sha256": "ef14c64acce08990c551b9045ec71aa956c4cbaead80d3cc06fac6237d194e71",
+   "bytes": 134184,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Pre-fix renders kept as evidence of the defect."
+  },
+  {
+   "path": "remotion/out/phase11-validation/stills/before_slideshow_fix/slideshow_kenburns_f150.png",
+   "sha256": "1025ddd6599d9fedc579242cce3f89487f85b55ba95570f3e8083cfec1b3c9e3",
+   "bytes": 163279,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Pre-fix renders kept as evidence of the defect."
+  },
+  {
+   "path": "remotion/out/phase11-validation/stills/before_slideshow_fix/slideshow_kenburns_f240.png",
+   "sha256": "ef14c64acce08990c551b9045ec71aa956c4cbaead80d3cc06fac6237d194e71",
+   "bytes": 134184,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Pre-fix renders kept as evidence of the defect."
+  },
+  {
+   "path": "remotion/out/phase11-validation/stills/counter_f128.png",
+   "sha256": "154ea9efc74b8298686a0ca43c4abe3e56ed691d14fe576993060dcb3cd073d1",
+   "bytes": 426435,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase11-validation/stills/counter_f150.png",
+   "sha256": "47de256dd1ba76eb27d0fd8fc1a9031469a8b2515eadaf53c5f499d63b23d06c",
+   "bytes": 426767,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase11-validation/stills/counter_f270.png",
+   "sha256": "3b0ad8a6e7bb26a454a4acd3fd01d1a19559e4ed173a9160991406f0946a6082",
+   "bytes": 358935,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase11-validation/stills/counter_small_f200.png",
+   "sha256": "e5e4612064e9895e3e537a44e91b71feef63195ce52d2cb6c4782f60253a843a",
+   "bytes": 425244,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase11-validation/stills/depth_overlay_no_matte_f270.png",
+   "sha256": "3b0ad8a6e7bb26a454a4acd3fd01d1a19559e4ed173a9160991406f0946a6082",
+   "bytes": 358935,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase11-validation/stills/depth_overlay_with_matte_f135.png",
+   "sha256": "46d4a3db8089307dbed3ac270413339fb906779ae1fd0a3f80905409b4bf41f8",
+   "bytes": 297985,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase11-validation/stills/depth_overlay_with_matte_f270.png",
+   "sha256": "a96f9422324ab82e034c730562df538f4ac96220a2162158a72e3a90ed4965a0",
+   "bytes": 278722,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase11-validation/stills/review_counter_after.png",
+   "sha256": "31d6be3ad5fddd688a4e36d4f9eb69be7486ba2bb5db0817a052ac6675249ab1",
+   "bytes": 72502,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase11-validation/stills/review_counter_crops.png",
+   "sha256": "460515b4cabf31ca55170a8717d0b3d259cfe2fe7b39ed6695cb2e3a282d1224",
+   "bytes": 61058,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase11-validation/stills/sheet_counter.png",
+   "sha256": "67c5590d9bdee94229819f63498b9a13b06e076cce8be96209f175f24231e0de",
+   "bytes": 132790,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase11-validation/stills/sheet_depth.png",
+   "sha256": "2e44c7d2d39a83c5d8e476bfcf64c746b43b5fcc8b0635864ab8cfc91fc85104",
+   "bytes": 91270,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase11-validation/stills/sheet_slideshow.png",
+   "sha256": "ed6d9f94e6bb0004c839735a6f926b8c35baa760bfef286b2352bb2ab7a76845",
+   "bytes": 71147,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase11-validation/stills/slideshow_crossfade_f135.png",
+   "sha256": "67449765d737dd8db230bfcbdd6caa31b2518b3322b8f9df039b58698b419bc0",
+   "bytes": 285871,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase11-validation/stills/slideshow_crossfade_f195.png",
+   "sha256": "b0eea8bc72fba7e5af318bb004c43e47ad1ee139963715538f141643b98eceb0",
+   "bytes": 172024,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase11-validation/stills/slideshow_crossfade_f255.png",
+   "sha256": "7b934092f97a12563f203698101d81af1342ba9a51db3631d7b0e2c10b19c1a3",
+   "bytes": 163111,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase11-validation/stills/slideshow_kenburns_f135.png",
+   "sha256": "67449765d737dd8db230bfcbdd6caa31b2518b3322b8f9df039b58698b419bc0",
+   "bytes": 285871,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase11-validation/stills/slideshow_kenburns_f255.png",
+   "sha256": "7b934092f97a12563f203698101d81af1342ba9a51db3631d7b0e2c10b19c1a3",
+   "bytes": 163111,
+   "cls": "hand_built_blueprint_render",
+   "stages": [
+    "remotion_render"
+   ],
+   "limits": "Renderer-only evidence on synthetic frames."
+  },
+  {
+   "path": "remotion/out/phase12-design/01_VISUAL_PIPELINE_MAP.md",
+   "sha256": "db8e41f632eff9b7f12df5a672faaf1e2e5d21de41703209170f24ae671acf81",
+   "bytes": 6151,
+   "cls": "design_document",
+   "stages": [
+    "none"
+   ],
+   "limits": "Prose; not an execution artifact."
+  },
+  {
+   "path": "remotion/out/phase12-design/02_PROMPT_CONTRADICTIONS_AND_POLICY.md",
+   "sha256": "e0cad28dcb685860301cf985a55cd3a24eeecf6017fda0da9abb0b828c521963",
+   "bytes": 11861,
+   "cls": "design_document",
+   "stages": [
+    "none"
+   ],
+   "limits": "Prose; not an execution artifact."
+  },
+  {
+   "path": "remotion/out/phase12-design/03_VISUAL_CONTEXT_CONTRACT.md",
+   "sha256": "12014019b1f2f569234077607a6e38e67f09b9e2308a3c5d31b788caa2d04f69",
+   "bytes": 7778,
+   "cls": "design_document",
+   "stages": [
+    "none"
+   ],
+   "limits": "Prose; not an execution artifact."
+  },
+  {
+   "path": "remotion/out/phase12-design/04_OFFLINE_EVALUATION_PLAN.md",
+   "sha256": "946f20e9e33ad519e653523dd86161641794368b373731f6bbddc04ba79b932f",
+   "bytes": 7188,
+   "cls": "design_document",
+   "stages": [
+    "none"
+   ],
+   "limits": "Prose; not an execution artifact."
+  },
+  {
+   "path": "remotion/out/phase12-design/05_IMPLEMENTATION_FILES_RISKS.md",
+   "sha256": "338f26d36bc3c74e16659dbac8bf8b6de85efd83b09ac73e8dbeb28a41fb7534",
+   "bytes": 4001,
+   "cls": "design_document",
+   "stages": [
+    "none"
+   ],
+   "limits": "Prose; not an execution artifact."
+  },
+  {
+   "path": "server/src/eval/fixtures/v1-hi-relationship-89d9a6364d.json",
+   "sha256": "fb875935660fcaba2fca9e8b3ab35ee81614e046f58ae1670e5894a8517ceaf6",
+   "bytes": 26658,
+   "cls": "saved_response_replay_fixture",
+   "stages": [
+    "v1_director",
+    "planBRoll",
+    "resolveDirectedZooms",
+    "finalizeEdits",
+    "blueprint_schema"
+   ],
+   "limits": "Real v1 responses; stock and Director call stubbed; no assembly, no render."
+  },
+  {
+   "path": "server/src/eval/fixtures/v1-hi-relationship-dd7e055645.json",
+   "sha256": "7baf439d15ade0203355108c4db84637425489eb859490b76e1b4e63d1c1ad47",
+   "bytes": 27645,
+   "cls": "saved_response_replay_fixture",
+   "stages": [
+    "v1_director",
+    "planBRoll",
+    "resolveDirectedZooms",
+    "finalizeEdits",
+    "blueprint_schema"
+   ],
+   "limits": "Real v1 responses; stock and Director call stubbed; no assembly, no render."
+  },
+  {
+   "path": "server/src/eval/fixtures/v1-three-things-5ef5d9cd6d.json",
+   "sha256": "0c8b0a9c644013b83a5e3fcc7987f0416c5aeb6fba81e6998997fdddc037a0de",
+   "bytes": 32784,
+   "cls": "saved_response_replay_fixture",
+   "stages": [
+    "v1_director",
+    "planBRoll",
+    "resolveDirectedZooms",
+    "finalizeEdits",
+    "blueprint_schema"
+   ],
+   "limits": "Real v1 responses; stock and Director call stubbed; no assembly, no render."
+  },
+  {
+   "path": "server/src/eval/fixtures/v1-three-things-64a69d9cf4.json",
+   "sha256": "18b3582c8d35f0f4797f5e7d19ac3f640b8eab301c02a840b901aa9a7dc06c0d",
+   "bytes": 33255,
+   "cls": "saved_response_replay_fixture",
+   "stages": [
+    "v1_director",
+    "planBRoll",
+    "resolveDirectedZooms",
+    "finalizeEdits",
+    "blueprint_schema"
+   ],
+   "limits": "Real v1 responses; stock and Director call stubbed; no assembly, no render."
+  },
+  {
+   "path": "server/src/eval/fixtures/v1-three-things-a967af3e27.json",
+   "sha256": "db9cf35ad5dca50da7d9b462dfb480ca9740b3652eac2eb11f7c4c90d8a088f6",
+   "bytes": 34226,
+   "cls": "saved_response_replay_fixture",
+   "stages": [
+    "v1_director",
+    "planBRoll",
+    "resolveDirectedZooms",
+    "finalizeEdits",
+    "blueprint_schema"
+   ],
+   "limits": "Real v1 responses; stock and Director call stubbed; no assembly, no render."
+  },
+  {
+   "path": "server/src/eval/fixtures/v1-three-things-b80f52fa4a.json",
+   "sha256": "caff8a134427f972a65ca3c3b436824da9f9e321d94ab0246a97e1104896aca4",
+   "bytes": 30584,
+   "cls": "saved_response_replay_fixture",
+   "stages": [
+    "v1_director",
+    "planBRoll",
+    "resolveDirectedZooms",
+    "finalizeEdits",
+    "blueprint_schema"
+   ],
+   "limits": "Real v1 responses; stock and Director call stubbed; no assembly, no render."
+  },
+  {
+   "path": "server/src/eval/fixtures/v1-three-things-bd4ac630ce.json",
+   "sha256": "964bf9e6950b1ba9b700346925d28e070e4c19aca23514447900eb0ab28364c6",
+   "bytes": 86595,
+   "cls": "saved_response_replay_fixture",
+   "stages": [
+    "v1_director",
+    "planBRoll",
+    "resolveDirectedZooms",
+    "finalizeEdits",
+    "blueprint_schema"
+   ],
+   "limits": "Real v1 responses; stock and Director call stubbed; no assembly, no render."
+  },
+  {
+   "path": "server/src/eval/fixtures/v1-three-things-f76b279540.json",
+   "sha256": "9f45278fe4e67cc7b99256286820e954090fa91e0633e84dfaeaac0b94b2129f",
+   "bytes": 33513,
+   "cls": "saved_response_replay_fixture",
+   "stages": [
+    "v1_director",
+    "planBRoll",
+    "resolveDirectedZooms",
+    "finalizeEdits",
+    "blueprint_schema"
+   ],
+   "limits": "Real v1 responses; stock and Director call stubbed; no assembly, no render."
+  },
+  {
+   "path": "server/src/stages/broll/__fixtures__/hi-director-replay.json",
+   "sha256": "ee8f6d0d876a08aff71789e9ff1cc8907be4eb8b082ed833fc0d98f02500a1f9",
+   "bytes": 8778,
+   "cls": "saved_response_replay_fixture",
+   "stages": [
+    "v1_director",
+    "planBRoll",
+    "finalizeEdits"
+   ],
+   "limits": "One saved Hi response with caption words; used by planBRoll.ledger.test.ts."
+  },
+  {
+   "path": "remotion/out/phase6-sonnet/all-placements/blueprint.json",
+   "sha256": "a742c4dbf17f18b10d917b0a5d5dad7b782ed045c934b235559cda072723936f",
+   "bytes": 36117,
+   "cls": "earlier_pipeline_output",
+   "stages": [
+    "transcription",
+    "v1_director",
+    "planBRoll",
+    "analyzeVideo_assembly",
+    "motion_graphics"
+   ],
+   "limits": "Produced by the code of its own phase. Planner behaviour has changed deliberately since, so it is reference only, never a golden."
+  },
+  {
+   "path": "remotion/out/phase6-sonnet/all-placements/director/01-gemini-director.json",
+   "sha256": "c313be7e9d9d3fc2c436da2d554a71cb0aa34b89e53d34a49a24f7f5651733ba",
+   "bytes": 29852,
+   "cls": "earlier_pipeline_output",
+   "stages": [
+    "transcription",
+    "v1_director"
+   ],
+   "limits": "Real Gemini response saved by an earlier phase (the raw material for the replay corpus)."
+  },
+  {
+   "path": "remotion/out/phase6-sonnet/full-edits/blueprint.json",
+   "sha256": "bbdd8729225baca05fabb1ae51e0fed0b7cad3d3fb878d24749063693a742bf4",
+   "bytes": 29205,
+   "cls": "earlier_pipeline_output",
+   "stages": [
+    "transcription",
+    "v1_director",
+    "planBRoll",
+    "analyzeVideo_assembly",
+    "motion_graphics"
+   ],
+   "limits": "Produced by the code of its own phase. Planner behaviour has changed deliberately since, so it is reference only, never a golden."
+  },
+  {
+   "path": "remotion/out/phase6-sonnet/full-edits/director/01-gemini-director.json",
+   "sha256": "dfe654290b2d446e8eb0e1a87c96afc947b64fd80e6bbac3e26bc41f620f355f",
+   "bytes": 26852,
+   "cls": "earlier_pipeline_output",
+   "stages": [
+    "transcription",
+    "v1_director"
+   ],
+   "limits": "Real Gemini response saved by an earlier phase (the raw material for the replay corpus)."
+  },
+  {
+   "path": "remotion/out/phase6-sonnet/gemini-live-broll-fallback/blueprint.json",
+   "sha256": "9ca57336c4261cfc68a7bc294b6de13ea00c93ae1664a471786078e4eeaf976a",
+   "bytes": 34375,
+   "cls": "earlier_pipeline_output",
+   "stages": [
+    "transcription",
+    "v1_director",
+    "planBRoll",
+    "analyzeVideo_assembly",
+    "motion_graphics"
+   ],
+   "limits": "Produced by the code of its own phase. Planner behaviour has changed deliberately since, so it is reference only, never a golden."
+  },
+  {
+   "path": "remotion/out/phase6-sonnet/gemini-live/blueprint.json",
+   "sha256": "d619dc66312b3f6529585da9ac0513ce7f409aa4c54d09f274cb4d2e2f758dc6",
+   "bytes": 35453,
+   "cls": "earlier_pipeline_output",
+   "stages": [
+    "transcription",
+    "v1_director",
+    "planBRoll",
+    "analyzeVideo_assembly",
+    "motion_graphics"
+   ],
+   "limits": "Produced by the code of its own phase. Planner behaviour has changed deliberately since, so it is reference only, never a golden."
+  },
+  {
+   "path": "remotion/out/phase6-sonnet/gemini-live/director/01-gemini-director.json",
+   "sha256": "6121430197a757bd86503a968e9fb72a215a05c1a647990273fad37ab2e33db9",
+   "bytes": 26570,
+   "cls": "earlier_pipeline_output",
+   "stages": [
+    "transcription",
+    "v1_director"
+   ],
+   "limits": "Real Gemini response saved by an earlier phase (the raw material for the replay corpus)."
+  },
+  {
+   "path": "remotion/out/phase6-sonnet/gemini-run2-replay/blueprint.json",
+   "sha256": "125d8d3ce15897957d8023a00575a7e70610f783526534ba8eaf125b20b8da1a",
+   "bytes": 34612,
+   "cls": "earlier_pipeline_output",
+   "stages": [
+    "transcription",
+    "v1_director",
+    "planBRoll",
+    "analyzeVideo_assembly",
+    "motion_graphics"
+   ],
+   "limits": "Produced by the code of its own phase. Planner behaviour has changed deliberately since, so it is reference only, never a golden."
+  },
+  {
+   "path": "remotion/out/phase6-sonnet/gemini-run2-replay/director/01-gemini-director.json",
+   "sha256": "934cb7c6509eae93c0b9446c09912b75a07e52d596acc282124a53bb91d36ab9",
+   "bytes": 30452,
+   "cls": "earlier_pipeline_output",
+   "stages": [
+    "transcription",
+    "v1_director"
+   ],
+   "limits": "Real Gemini response saved by an earlier phase (the raw material for the replay corpus)."
+  },
+  {
+   "path": "remotion/out/phase7-content-profile/hi/blueprint.json",
+   "sha256": "b80168c0fe27cec7e2d0ac9e5756f25f6d9ad3024ecfd3417151a6642ed5972f",
+   "bytes": 28276,
+   "cls": "earlier_pipeline_output",
+   "stages": [
+    "transcription",
+    "v1_director",
+    "planBRoll",
+    "analyzeVideo_assembly",
+    "motion_graphics"
+   ],
+   "limits": "Produced by the code of its own phase. Planner behaviour has changed deliberately since, so it is reference only, never a golden."
+  },
+  {
+   "path": "remotion/out/phase7-content-profile/hi/director/01-gemini-director.json",
+   "sha256": "2c443241faffc6ace001d3926612e6fe1ab7f528e32ae9c8cf48921305f7459c",
+   "bytes": 27011,
+   "cls": "earlier_pipeline_output",
+   "stages": [
+    "transcription",
+    "v1_director"
+   ],
+   "limits": "Real Gemini response saved by an earlier phase (the raw material for the replay corpus)."
+  },
+  {
+   "path": "server/src/stages/broll/deterministicReplay.test.ts",
+   "sha256": "71c2af5140e34570fb28f5769a967d52411a4655cb01b7db1123145318baafdc",
+   "cls": "synthetic_fixture",
+   "stages": [
+    "assembler_v2",
+    "compiler_v2",
+    "planBRoll",
+    "blueprint_schema"
+   ],
+   "limits": "Synthetic v2 plans; no real v2 response exists in the repo."
+  },
+  {
+   "path": "server/src/stages/broll/planBRoll.ledger.test.ts",
+   "sha256": "6269b1721aea63c1365b29e16d840f383fc3a02e1c715d8920f477c7413c8c3e",
+   "cls": "test_source",
+   "stages": [
+    "none"
+   ],
+   "limits": "Unit/contract tests; see the test file for the stage it exercises."
+  },
+  {
+   "path": "server/src/stages/broll/editExecutionContracts.test.ts",
+   "sha256": "3bf1a9ccc5b2de4048ce16398544c73971ec59628391edc10fae5c741e5525ea",
+   "cls": "test_source",
+   "stages": [
+    "none"
+   ],
+   "limits": "Unit/contract tests; see the test file for the stage it exercises."
+  },
+  {
+   "path": "server/src/stages/broll/transitionRender.test.ts",
+   "sha256": "8d3f2974c6654538a8b3e98fb0d02bc1b678b8fb73afc552ed4ce61f9dd5e96e",
+   "cls": "test_source",
+   "stages": [
+    "none"
+   ],
+   "limits": "Unit/contract tests; see the test file for the stage it exercises."
+  },
+  {
+   "path": "server/src/stages/filters/autoZoom.test.ts",
+   "sha256": "43dfd66836d0c53c9002722619cd2a2008eb32dc2127c9a446aa4f8837f12e41",
+   "cls": "test_source",
+   "stages": [
+    "none"
+   ],
+   "limits": "Unit/contract tests; see the test file for the stage it exercises."
+  },
+  {
+   "path": "server/src/eval/harness.test.ts",
+   "sha256": "4205060f873951a4b03d8123a9fe739c8abf7a59735876c27e9e5ab507cea649",
+   "cls": "test_source",
+   "stages": [
+    "none"
+   ],
+   "limits": "Unit/contract tests; see the test file for the stage it exercises."
+  }
+ ],
+ "note": "Existing evidence is hashed in place and never modified or moved."
+}

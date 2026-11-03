@@ -19,10 +19,14 @@ import {fileURLToPath} from 'node:url';
 import {env} from '../../config/env.ts';
 import {EngineError, isEngineError} from '../../lib/errors.ts';
 import {stageLogger} from '../../lib/logger.ts';
-import {applyCubeLut} from '../../media/ffmpeg.ts';
+import {audioExpectationFor} from '../../lib/lambdaOutputCheck.ts';
+import {assertRenderOutputValid} from '../../lib/renderIntegrity.ts';
+import {applyCubeLut, probeMedia} from '../../media/ffmpeg.ts';
+import {inspectOutput} from '../../pipeline/experimentVerdict.ts';
 import {uploadRenderedVideo} from '../../storage/r2.ts';
 import type {RenderStyle, TimelineBlueprint} from '../../types/blueprint.ts';
 import {resolveLutPath} from '../color/luts.ts';
+import {logMixCheck} from '../music/mixCheck.ts';
 import {prefetchBlueprintMedia} from './prefetchAssets.ts';
 
 const log = stageLogger('stage-e-local');
@@ -55,6 +59,11 @@ export async function renderLocally(input: {
   style: RenderStyle;
   renderJobId: string;
   onProgress?: (progress: number) => void;
+  /**
+   * Phase 36E: the stale-scratch sweep deletes `remotion/public/prefetch` (shared by every render) and Remotion scratch in the OS temp directory. Default true
+   * (unchanged). An isolated run passes false so it can never delete scratch owned by another run.
+   */
+  sweepStaleScratch?: boolean;
 }): Promise<{outputUrl: string}> {
   if (!localRenderAvailable()) {
     throw new EngineError('not_configured', 'Remotion project is missing');
@@ -72,7 +81,9 @@ export async function renderLocally(input: {
     input.renderJobId,
   );
 
-  await sweepStaleRemotionTemp();
+  if (input.sweepStaleScratch !== false) {
+    await sweepStaleRemotionTemp();
+  }
   await assertDiskHeadroom(remotionRoot);
   const blueprint = await prefetchBlueprintMedia(
     input.blueprint,
@@ -107,7 +118,43 @@ export async function renderLocally(input: {
       log.info({lutId, lutPath}, 'color grade applied');
     }
 
+    // WP2: never deliver an invalid MP4. Dimensions, duration, audio and a full decode are checked on the exact file about to be uploaded; a failure throws a typed
+    // render_failed naming the check (outside the R2 fallback below, so a bad file is never served from the engine either).
+    let expectAudio: boolean | undefined;
     try {
+      // The prefetched copy of the talking-head video is what Remotion rendered from; unknown (probe failure) leaves the audio check off rather than guessing.
+      expectAudio = (await probeMedia(path.join(remotionRoot, 'public', blueprint.videoUrl.replace(/^\//, '')))).hasAudio;
+    } catch {
+      // WP3F: the prefetched copy could not be probed; fall back to the ingest probe saved on the blueprint (undefined when none was saved: the check then does not apply audio).
+      expectAudio = audioExpectationFor(input.blueprint.sourceHasAudio).expectAudio;
+    }
+    assertRenderOutputValid(await inspectOutput(uploadPath), {
+      width: blueprint.width,
+      height: blueprint.height,
+      durationSec: input.style.trimEnabled ? blueprint.outputDurationSec : blueprint.sourceDurationSec,
+      expectAudio,
+    });
+    logMixCheck(log, blueprint);
+
+    try {
+      // Dev/QA: keep the burn on disk and skip R2 when LOCAL_RENDER_SKIP_R2=1.
+      if (process.env.LOCAL_RENDER_SKIP_R2 === '1') {
+        const localUrl = await persistLocalServedRender(
+          uploadPath,
+          input.renderJobId,
+        );
+        log.info(
+          {
+            renderJobId: input.renderJobId,
+            ms: Date.now() - started,
+            url: localUrl,
+            path: localServedRenderPath(input.renderJobId),
+          },
+          'local remotion render kept on disk (LOCAL_RENDER_SKIP_R2)',
+        );
+        await fs.unlink(propsPath).catch(() => undefined);
+        return {outputUrl: localUrl};
+      }
       const uploaded = await uploadRenderedVideo(uploadPath, input.renderJobId);
       log.info(
         {

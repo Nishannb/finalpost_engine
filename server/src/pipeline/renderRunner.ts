@@ -7,8 +7,14 @@
 
 import {randomUUID} from 'node:crypto';
 
+import {env} from '../config/env.ts';
 import {EngineError, isEngineError, toEngineError} from '../lib/errors.ts';
+import {audioExpectationFor, createInFlight, describeVerificationFailure, verifyLambdaOutput} from '../lib/lambdaOutputCheck.ts';
+import {createWorkspace, downloadToFile} from '../lib/tempFiles.ts';
+import {designDiagnosticsFor} from '../lib/designTokens.ts';
 import {stageLogger} from '../lib/logger.ts';
+import {logMixCheck} from '../stages/music/mixCheck.ts';
+import {inspectOutput} from './experimentVerdict.ts';
 import {
   loadBlueprint,
   loadRenderJob,
@@ -28,6 +34,11 @@ import {
 import type {RenderJob, RenderStyle} from '../types/blueprint.ts';
 
 const log = stageLogger('render-runner');
+
+/** WP3E: ceiling and timeout for downloading a finished Lambda render to check it (a download safety limit, not an integrity threshold). */
+const LAMBDA_VERIFY_MAX_BYTES = 512 * 1024 * 1024;
+const LAMBDA_VERIFY_TIMEOUT_MS = 5 * 60_000;
+const lambdaVerifications = createInFlight();
 
 export function renderAvailable(): boolean {
   return lambdaConfigured() || localRenderAvailable();
@@ -97,6 +108,11 @@ async function runRender(job: RenderJob): Promise<void> {
     return;
   }
 
+  // Migration diagnostics: a design conflict or an ignored invalid design is logged here (the renderer cannot reach the server log). Never blocks.
+  for (const diagnostic of designDiagnosticsFor(blueprint)) {
+    log.warn({code: diagnostic.code, blueprintId: blueprint.blueprintId}, diagnostic.message);
+  }
+
   job.status = 'rendering';
   job.progress = 0.05;
   job.updatedAt = new Date().toISOString();
@@ -161,11 +177,47 @@ export async function refreshRenderJob(job: RenderJob): Promise<RenderJob> {
     job.errorCode = 'render_failed';
     job.errorMessage = progress.errorMessage;
   } else if (progress.done && progress.outputUrl) {
-    job.status = 'done';
-    job.progress = 1;
-    job.outputUrl = progress.outputUrl;
     if (progress.costUsd !== undefined) {
-      job.estimatedCostUsd = progress.costUsd;
+      job.estimatedCostUsd = progress.costUsd; // the render was paid for whatever the verdict
+    }
+    // WP3E: a finished Lambda render is NOT yet a successful one. The file is downloaded (address guard applied), inspected with the same judge as the local render, and the
+    // URL becomes the job's output only if it passes. One poll verifies; concurrent polls report "still rendering" and save nothing.
+    if (!lambdaVerifications.tryStart(job.renderJobId)) {
+      job.progress = Math.min(job.progress, 0.99);
+      return job;
+    }
+    try {
+      const blueprint = await loadBlueprint(job.blueprintId);
+      if (!blueprint) {
+        throw new EngineError('render_failed', 'The render finished but could not be verified: its blueprint is no longer available.');
+      }
+      const workspace = await createWorkspace('lambda-verify');
+      // WP3F: audio is required only when the ingest probe saved on the blueprint says the source had audio; no saved probe = unchecked + a warning, never a guess.
+      const audio = audioExpectationFor(blueprint.sourceHasAudio);
+      const verifiedUrl = await verifyLambdaOutput(
+        {outputUrl: progress.outputUrl, expected: {width: blueprint.width, height: blueprint.height, durationSec: job.outputDurationSec, expectAudio: audio.expectAudio}},
+        {
+          download: (url, destination) => downloadToFile(url, destination, {maxBytes: LAMBDA_VERIFY_MAX_BYTES, timeoutMs: LAMBDA_VERIFY_TIMEOUT_MS}),
+          inspect: inspectOutput,
+          workspace,
+          allowHosts: env.INGEST_ALLOWED_PRIVATE_HOSTS.split(',').map(item => item.trim()).filter(Boolean),
+        },
+      );
+      job.status = 'done';
+      job.progress = 1;
+      job.outputUrl = verifiedUrl;
+      logMixCheck(log, blueprint);
+      if (audio.warnings.length > 0) {
+        job.warnings = [...new Set([...(job.warnings ?? []), ...audio.warnings])];
+      }
+    } catch (error) {
+      const failure = describeVerificationFailure(error);
+      log.error({renderJobId: job.renderJobId, code: failure.code, error}, 'lambda render output failed verification');
+      job.status = 'failed';
+      job.errorCode = failure.code;
+      job.errorMessage = failure.message;
+    } finally {
+      lambdaVerifications.end(job.renderJobId);
     }
   }
   await saveRenderJob(job);

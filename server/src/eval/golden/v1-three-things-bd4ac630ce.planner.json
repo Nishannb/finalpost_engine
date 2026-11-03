@@ -1,0 +1,218 @@
+{
+ "caseId": "v1-three-things-bd4ac630ce",
+ "clips": [
+  {
+   "assetUrl": "https://stock.invalid/22593011.mp4",
+   "end": 15.5,
+   "keyword": "romantic couple sunset",
+   "start": 7.5
+  }
+ ],
+ "decisions": [
+  {
+   "action": "keep",
+   "id": "caption@0#1405df"
+  },
+  {
+   "action": "keep",
+   "id": "cutaway@13080#6a986e"
+  },
+  {
+   "action": "keep",
+   "id": "hook_title@0#54b328"
+  }
+ ],
+ "depthOverlays": [],
+ "directedZooms": [],
+ "frameInsets": [],
+ "hook": {
+  "duration": 3,
+  "start": 0,
+  "style": "rail",
+  "text": "Never Do These Three Things"
+ },
+ "insetReveals": [],
+ "ledger": [
+  {
+   "events": [
+    {
+     "decision": "proposed",
+     "stage": "plan_assembly"
+    },
+    {
+     "decision": "accepted",
+     "stage": "conflict_validator"
+    },
+    {
+     "decision": "rendered",
+     "stage": "renderer",
+     "track": "KineticCaptions",
+     "visibility": "visible"
+    }
+   ],
+   "final": {
+    "end": 41.708,
+    "start": 0
+   },
+   "id": "caption@0#1405df",
+   "proposed": {
+    "end": 0,
+    "start": 0
+   },
+   "type": "caption"
+  },
+  {
+   "events": [
+    {
+     "decision": "proposed",
+     "stage": "visual_director"
+    },
+    {
+     "decision": "accepted",
+     "stage": "moment_planner"
+    },
+    {
+     "decision": "accepted",
+     "stage": "editorial_gate"
+    },
+    {
+     "decision": "accepted",
+     "stage": "conflict_validator"
+    },
+    {
+     "decision": "rendered",
+     "stage": "renderer",
+     "track": "BRollTrack",
+     "visibility": "visible"
+    }
+   ],
+   "final": {
+    "end": 15.5,
+    "start": 7.5
+   },
+   "id": "cutaway@13080#6a986e",
+   "proposed": {
+    "end": 13.08,
+    "start": 13.08
+   },
+   "type": "cutaway"
+  },
+  {
+   "events": [
+    {
+     "decision": "proposed",
+     "stage": "visual_director"
+    },
+    {
+     "decision": "accepted",
+     "stage": "plan_assembly"
+    },
+    {
+     "decision": "accepted",
+     "stage": "conflict_validator"
+    },
+    {
+     "decision": "rendered",
+     "stage": "renderer",
+     "track": "HookTitle",
+     "visibility": "visible"
+    }
+   ],
+   "final": {
+    "end": 3,
+    "start": 0
+   },
+   "id": "hook_title@0#54b328",
+   "proposed": {
+    "end": 3,
+    "start": 0
+   },
+   "type": "hook_title"
+  },
+  {
+   "events": [
+    {
+     "decision": "proposed",
+     "stage": "visual_director"
+    },
+    {
+     "decision": "rejected",
+     "reason": "not_in_edit_allowlist",
+     "stage": "visual_director"
+    }
+   ],
+   "final": null,
+   "id": "kinetic_text@21688#06f438",
+   "proposed": {
+    "end": 24.038,
+    "start": 21.688
+   },
+   "type": "kinetic_text"
+  },
+  {
+   "events": [
+    {
+     "decision": "proposed",
+     "stage": "visual_director"
+    },
+    {
+     "decision": "rejected",
+     "reason": "not_in_edit_allowlist",
+     "stage": "visual_director"
+    }
+   ],
+   "final": null,
+   "id": "kinetic_text@4200#3aa846",
+   "proposed": {
+    "end": 6.55,
+    "start": 4.2
+   },
+   "type": "kinetic_text"
+  },
+  {
+   "events": [
+    {
+     "decision": "proposed",
+     "stage": "plan_assembly"
+    },
+    {
+     "decision": "accepted",
+     "stage": "editorial_gate"
+    },
+    {
+     "decision": "rendered",
+     "reason": "transition_has_no_asset_so_TransitionTrack_skips_it",
+     "stage": "renderer",
+     "track": "TransitionTrack",
+     "visibility": "noop"
+    }
+   ],
+   "final": {
+    "end": 7.88,
+    "start": 7.5
+   },
+   "id": "transition@7500#bb3f60",
+   "proposed": {
+    "end": 7.88,
+    "start": 7.5
+   },
+   "type": "transition"
+  }
+ ],
+ "mediaContainers": [],
+ "motionGraphics": [],
+ "overlays": [],
+ "semanticEmphasis": [],
+ "transitions": [
+  {
+   "at": 7.5,
+   "duration": 0.38,
+   "keyword": "light leak overlay"
+  }
+ ],
+ "warnings": [
+  "override:flag_over_director captions basic -> karaoke",
+  "requested_not_placed:zoom"
+ ],
+ "zoomTriggers": []
+}

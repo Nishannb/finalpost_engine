@@ -9,6 +9,7 @@
 import React from 'react';
 import {
   AbsoluteFill,
+  Img,
   Loop,
   OffthreadVideo,
   Sequence,
@@ -18,7 +19,7 @@ import {
 } from 'remotion';
 
 import type {BRollClip} from '../blueprintSchema';
-import {resolveMediaSrc} from '../lib/mediaSrc';
+import {isStillMediaSrc, resolveMediaSrc} from '../lib/mediaSrc';
 import {framesBetween, secToFrame} from '../lib/timeline';
 
 const FADE_SEC = 0.25;
@@ -64,26 +65,27 @@ const BRollClipView: React.FC<{clip: BRollClip; showCredit: boolean}> = ({
     [0, 1, 1, 0],
     {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'},
   );
+  const src = resolveMediaSrc(clip.assetUrl);
+  const still = isStillMediaSrc(clip.assetUrl);
+  const mediaStyle: React.CSSProperties = {width: '100%', height: '100%', objectFit: 'cover'};
+  const media = still ? (
+    <Img src={src} style={mediaStyle} />
+  ) : (
+    <OffthreadVideo src={src} muted style={mediaStyle} />
+  );
   const sourceFrames = Math.max(
     1,
     Math.round(Math.max(clip.durationSec ?? durationInFrames / fps, 0.4) * fps),
   );
-  const video = (
-    <OffthreadVideo
-      src={resolveMediaSrc(clip.assetUrl)}
-      muted
-      style={{width: '100%', height: '100%', objectFit: 'cover'}}
-    />
-  );
 
   return (
     <AbsoluteFill style={{opacity}}>
-      {sourceFrames < durationInFrames ? (
+      {!still && sourceFrames < durationInFrames ? (
         <Loop durationInFrames={sourceFrames} layout="none">
-          {video}
+          {media}
         </Loop>
       ) : (
-        video
+        media
       )}
       {showCredit ? (
         <div

@@ -44,9 +44,12 @@ export type SentenceRef = {
 };
 
 export type StoryboardFrame = {
+  /** Output-timeline seconds (what the edit uses). */
   atSec: number;
   path: string;
   note?: string;
+  /** Seconds in the decoded file; set only by the visual-context path (otherwise `atSec` was used for both). */
+  sourceSec?: number;
 };
 
 export type OccupancySlice = {
@@ -65,6 +68,14 @@ export type PerceptionPack = {
   sentences: SentenceRef[];
   storyboard: StoryboardFrame[];
   occupancySlices: OccupancySlice[];
+  /** The measurements behind `occupancySlices` (which is a dense nearest-neighbour copy): when and whether detected. Both paths. */
+  occupancyMeasurements?: Array<{atSec: number; source: 'vision' | 'fallback'}>;
+  /** The measured slices themselves (the independent observations), both paths. `occupancySlices` is a dense copy of these. */
+  occupancyMeasured?: OccupancySlice[];
+  /** Present only when VISUAL_CONTEXT_V2 is on. */
+  visualContext?: import('./visualContext.ts').VisualContext;
+  /** The speaker boxes that were actually measured (VISUAL_CONTEXT_V2 only). `occupancySlices` is a dense copy of these. */
+  measuredOccupancy?: OccupancySlice[];
   audio: AudioFacts;
   transcript: string;
   outputDurationSec: number;
@@ -160,6 +171,9 @@ export type ElementParams = {
   countTo?: number;
   countSuffix?: string;
   zoomScale?: number;
+  /** Zoom focus as the Director wrote it (normalized 0–1); validated when the zoom is resolved. */
+  focusX?: number;
+  focusY?: number;
   containerMode?: string;
   canvasColor?: string;
   marginColor?: string;
@@ -180,6 +194,10 @@ export type ElementParams = {
   backgroundType?: string;
   backgroundValue?: string;
   graphicTemplateId?: string;
+  /** WP55 phase 2: kinetic_text only. The KINETIC_TYPE_STORYTELLING template the Director chose for this phrase (KINETIC_TYPE_NAMES); honoured only when the family was offered. */
+  typeTemplate?: string;
+  /** WP55 phase 2: drawn accent for type_illustrated_emphasis (KINETIC_TYPE_MARKS). */
+  typeMark?: string;
   graphicText?: string;
   enterOffset?: number;
   exitOffset?: number;
@@ -220,6 +238,8 @@ export type EditThesis = {
 };
 
 export type CreativePlan = {
+  /** WP8B: the Edit Look decision (only when looks were on for this run, i.e. the polish profile). */
+  editLook?: import('./editLooks.ts').EditLookDecision;
   editThesis: string;
   editThesisParts: EditThesis;
   hookTitle: string;

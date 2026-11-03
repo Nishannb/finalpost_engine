@@ -8,6 +8,9 @@ import {promises as fs} from 'node:fs';
 
 import {env} from '../../config/env.ts';
 import {requestJson} from '../../lib/http.ts';
+import {observe} from '../../lib/runObserver.ts';
+import {activeOccupancyReplay} from './occupancyReplay.ts';
+import {usableSlotsWithUnmeasuredFace} from './unmeasuredSlots.ts';
 import {stageLogger} from '../../lib/logger.ts';
 import {extractStillJpeg} from '../../media/ffmpeg.ts';
 import type {MotionAnchor, VisualAnchor} from '../../types/blueprint.ts';
@@ -27,6 +30,8 @@ export type Occupancy = {
   graphicAnchor: MotionAnchor;
   overlayAnchor: VisualAnchor;
   source: 'vision' | 'fallback';
+  /** WP3H (mvp profile only, set by analyzeVideo): the face is unmeasured; `legalSlots` then does not subtract the default box. Absent everywhere else. */
+  unmeasuredSlots?: true;
 };
 
 type GeminiResponse = {
@@ -54,12 +59,39 @@ export function hookRectForAnchor(anchor: MotionAnchor | VisualAnchor): NormRect
   return {x: 0.6, y: 0.05, w: 0.36, h: 0.15};
 }
 
+/** Source-time second at which the single main occupancy frame is taken (28 % into the clip, never at the very edges). */
+export function occupancySampleSec(durationSec: number): number {
+  return Math.max(0.4, Math.min(durationSec * 0.28, durationSec - 0.4));
+}
+
 export async function measureOccupancy(input: {
   sourcePath: string;
   durationSec: number;
   stillPath: string;
 }): Promise<Occupancy> {
-  const at = Math.max(0.4, Math.min(input.durationSec * 0.28, input.durationSec - 0.4));
+  const at = occupancySampleSec(input.durationSec);
+  const replay = activeOccupancyReplay();
+  if (replay) {
+    // Replay (explicit, opt-in): the still is still cut because later stages read it, but the detector is NOT run. A miss throws
+    // OccupancyReplayError (never a fallback box) and is deliberately outside any try/catch here.
+    try {
+      await extractStillJpeg(input.sourcePath, input.stillPath, at);
+    } catch (error) {
+      log.warn({error}, 'occupancy still failed during replay');
+    }
+    const replayed = replay.primary({sampleSourceSec: at, durationSec: input.durationSec});
+    observe(() => ({type: 'occupancy_consumed', origin: 'replay', role: 'primary', requestedSourceSec: at, snapshotId: replay.id, snapshotSha256: replay.contentSha256, occupancy: replayed}));
+    return replayed;
+  }
+  const measured = await measureOccupancyLive(input, at);
+  observe(() => ({type: 'occupancy_consumed', origin: 'live', role: 'primary', requestedSourceSec: at, occupancy: measured}));
+  return measured;
+}
+
+async function measureOccupancyLive(
+  input: {sourcePath: string; durationSec: number; stillPath: string},
+  at: number,
+): Promise<Occupancy> {
   try {
     await extractStillJpeg(input.sourcePath, input.stillPath, at);
     const vision = await detectSpeakerFromStill(input.stillPath);
@@ -73,6 +105,24 @@ export async function measureOccupancy(input: {
 }
 
 export async function measureOccupancyAt(input: {
+  sourcePath: string;
+  durationSec: number;
+  stillPath: string;
+  atSec: number;
+}): Promise<Occupancy> {
+  const replay = activeOccupancyReplay();
+  if (replay) {
+    // Replay (explicit, opt-in): no still is cut and no detector runs for a sampled instant; a miss throws and is never a fallback box.
+    const replayed = replay.at({atSec: input.atSec, durationSec: input.durationSec});
+    observe(() => ({type: 'occupancy_consumed', origin: 'replay', role: 'sampled', requestedSourceSec: input.atSec, snapshotId: replay.id, snapshotSha256: replay.contentSha256, occupancy: replayed}));
+    return replayed;
+  }
+  const measured = await measureOccupancyAtLive(input);
+  observe(() => ({type: 'occupancy_consumed', origin: 'live', role: 'sampled', requestedSourceSec: input.atSec, occupancy: measured}));
+  return measured;
+}
+
+async function measureOccupancyAtLive(input: {
   sourcePath: string;
   durationSec: number;
   stillPath: string;
@@ -189,6 +239,10 @@ export function legalSlots(occupancy: Occupancy): LegalSlot[] {
       kind: 'card',
     },
   ];
+  if (occupancy.unmeasuredSlots && occupancy.source === 'fallback') {
+    // WP3H: an undetected speaker is unknown, not "on the default box": keep the slots that are clear of what IS known (caption band, top safe inset, safe frame).
+    return usableSlotsWithUnmeasuredFace(candidates);
+  }
   return candidates.filter(slot => {
     if (slot.size === 'hero') {
       return true;
@@ -200,16 +254,33 @@ export function legalSlots(occupancy: Occupancy): LegalSlot[] {
   });
 }
 
-export function describeOccupancyForDirector(occupancy: Occupancy): string {
+/**
+ * `context` is passed only under OCCUPANCY_CONTEXT_V2: the box is then described as ONE measurement (or an undetected
+ * default), not as the speaker's position over the whole video. Without it the text is exactly as before.
+ */
+export function describeOccupancyForDirector(occupancy: Occupancy, context?: {atSec: number | null}): string {
   const {speaker} = occupancy;
+  const unmeasured = Boolean(occupancy.unmeasuredSlots) && occupancy.source === 'fallback'; // WP3H (mvp only)
   const slots = legalSlots(occupancy);
   const accent = slots.filter(slot => slot.size === 'accent');
   const pip = slots.filter(slot => slot.kind === 'pip');
   const lines = [
-    'FRAME_OCCUPANCY (9:16 fractions). Never cover the speaker box with graphics, cards, titles, or emphasis.',
-    `speaker_box: x=${fmt(speaker.x)} y=${fmt(speaker.y)} w=${fmt(speaker.w)} h=${fmt(speaker.h)} source=${occupancy.source}`,
-    `open_side: ${occupancy.preferredSide}`,
-    'LEGAL_SLOTS (accent overlays only):',
+    unmeasured
+      ? 'FRAME_OCCUPANCY (9:16 fractions). The speaker position is UNKNOWN (detection failed); do not assume where the face is.'
+      : 'FRAME_OCCUPANCY (9:16 fractions). Never cover the speaker box with graphics, cards, titles, or emphasis.',
+    ...(unmeasured
+      ? ['speaker position UNKNOWN: detection failed. No speaker box is given and none should be assumed.', 'face box: not detected.']
+      : context
+      ? occupancyBoxLinesV2(occupancy, context.atSec)
+      : [
+          `speaker_box: x=${fmt(speaker.x)} y=${fmt(speaker.y)} w=${fmt(speaker.w)} h=${fmt(speaker.h)} source=${occupancy.source}`,
+          `open_side: ${occupancy.preferredSide}`,
+        ]),
+    unmeasured
+      ? 'LEGAL_SLOTS (accent overlays only; the speaker is UNKNOWN, so these are only the slots outside the caption band and the top safe inset. They are not proven clear of the face: keep them small):'
+      : context && occupancy.source === 'fallback'
+        ? 'LEGAL_SLOTS (accent overlays only; computed from the DEFAULT box, not from a detected position):'
+        : 'LEGAL_SLOTS (accent overlays only):',
     ...(accent.length > 0
       ? accent.map(
           slot =>
@@ -223,6 +294,22 @@ export function describeOccupancyForDirector(occupancy: Occupancy): string {
     'CAPTION_BAND y>=0.76 is reserved. Titles, cards, and pip tiles must end above y=0.72.',
   ];
   return lines.join('\n');
+}
+
+function occupancyBoxLinesV2(occupancy: Occupancy, atSec: number | null): string[] {
+  const {speaker} = occupancy;
+  const box = `x=${fmt(speaker.x)} y=${fmt(speaker.y)} w=${fmt(speaker.w)} h=${fmt(speaker.h)}`;
+  if (occupancy.source === 'vision') {
+    return [
+      `speaker_box DETECTED${atSec === null ? '' : ` at ${atSec.toFixed(1)}s`} in ONE frame (confidence not given): ${box}. Where the speaker is at any other time is unknown.`,
+      'face box: not detected. Any face region you infer from the speaker box is an estimate, not a measurement.',
+      `open_side (from this one box): ${occupancy.preferredSide}`,
+    ];
+  }
+  return [
+    `speaker position UNKNOWN: detection failed. ${box} is a conservative DEFAULT used only to choose safe slots; it is not where the speaker is.`,
+    'face box: not detected.',
+  ];
 }
 
 function fmt(value: number): string {

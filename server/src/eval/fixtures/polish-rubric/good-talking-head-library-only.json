@@ -1,0 +1,20 @@
+{
+  "_note": "Synthetic fixture (not a real run): a clean polish edit, talking_head look, matte usable, one library graphic, graphics status library_only.",
+  "profile": "polish",
+  "editLook": {"id": "talking_head", "fellBack": false},
+  "warnings": [
+    "director_v2:v2",
+    "matte_gate:ok",
+    "edit_look:talking_head",
+    "motion_graphics:library_only",
+    "claude_graphics_disabled:claude_budget_unconfigured",
+    "motion_graphic:library:BigKineticHeadline",
+    "transcript_retakes_dropped:2"
+  ],
+  "elementKinds": ["zoom", "cutout", "kinetic_text", "emphasis", "hook_title"],
+  "generatedGraphics": [{"id": "headline_1", "provenance": "library", "compositionId": "BigKineticHeadline"}],
+  "captionPresent": true,
+  "graphicsStatus": "library_only",
+  "speechCutsApplied": true,
+  "fingerprintKey": "edit-profile:polish-v1"
+}

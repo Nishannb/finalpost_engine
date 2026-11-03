@@ -1,0 +1,433 @@
+[
+  {
+    "id": "ne_sales_pip",
+    "ok": true,
+    "reused": false,
+    "ms": 33095,
+    "model": "claude-opus-5-5",
+    "url": "https://media.kinmel.shop/ai-video/motion-graphics/v0/ed072a8fe0fc1449d3fa88ab8a5eee27771f158d1a0933950c174eebe3884d9b.js",
+    "bytes": 2543,
+    "gzipBytes": 1307,
+    "sourceBytes": 4222,
+    "toolkitImports": [
+      "Box",
+      "Card",
+      "FitText",
+      "Progress",
+      "Reveal",
+      "contentBox",
+      "fitTextBlock",
+      "progress",
+      "springIn",
+      "withAlpha",
+      "GraphicProps"
+    ],
+    "attempts": [
+      {
+        "attempt": 1,
+        "kind": "generate",
+        "ok": true,
+        "ms": 32689,
+        "model": "claude-opus-5-5",
+        "inputTokens": 13149,
+        "outputTokens": 3140,
+        "costUsd": 0.115396,
+        "runtime": {
+          "ok": true,
+          "frame": 69,
+          "ms": 605,
+          "stillPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase5-multilingual/ne_sales_pip.attempt1.png"
+        },
+        "report": {
+          "safety": [],
+          "typecheck": [],
+          "compile": [],
+          "runtime": []
+        }
+      }
+    ],
+    "usage": {
+      "inputTokens": 13149,
+      "outputTokens": 3140,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 0
+    },
+    "costUsd": 0.115396,
+    "previewPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase5-multilingual/ne_sales_pip.attempt1.png",
+    "warnings": []
+  },
+  {
+    "id": "ne_steps_split",
+    "ok": true,
+    "reused": false,
+    "ms": 39482,
+    "model": "claude-opus-5-5",
+    "url": "https://media.kinmel.shop/ai-video/motion-graphics/v0/a02c4584c10115d2067da368bdbe514c525f2e526b406dddbe0ffd3a6dedac5e.js",
+    "bytes": 3274,
+    "gzipBytes": 1607,
+    "sourceBytes": 6040,
+    "toolkitImports": [
+      "Arrow",
+      "Background",
+      "Box",
+      "Card",
+      "FitText",
+      "Icon",
+      "KineticText",
+      "Reveal",
+      "contentBox",
+      "fitTextGroup",
+      "isWide",
+      "sliceTop",
+      "splitColumn",
+      "splitRow",
+      "springIn",
+      "withAlpha",
+      "GraphicProps"
+    ],
+    "attempts": [
+      {
+        "attempt": 1,
+        "kind": "generate",
+        "ok": true,
+        "ms": 39153,
+        "model": "claude-opus-5-5",
+        "inputTokens": 13178,
+        "outputTokens": 4095,
+        "costUsd": 0.134612,
+        "runtime": {
+          "ok": true,
+          "frame": 80,
+          "ms": 445,
+          "stillPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase5-multilingual/ne_steps_split.attempt1.png"
+        },
+        "report": {
+          "safety": [],
+          "typecheck": [],
+          "compile": [],
+          "runtime": []
+        }
+      }
+    ],
+    "usage": {
+      "inputTokens": 13178,
+      "outputTokens": 4095,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 0
+    },
+    "costUsd": 0.134612,
+    "previewPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase5-multilingual/ne_steps_split.attempt1.png",
+    "warnings": []
+  },
+  {
+    "id": "ja_revenue_full",
+    "ok": true,
+    "reused": false,
+    "ms": 38166,
+    "model": "claude-opus-5-5",
+    "url": "https://media.kinmel.shop/ai-video/motion-graphics/v0/c687575d67176d56c7c0381dfb120fb10836d095e84f364f74e636c2156b1cc1.js",
+    "bytes": 3970,
+    "gzipBytes": 1765,
+    "sourceBytes": 6924,
+    "toolkitImports": [
+      "Background",
+      "Box",
+      "Counter",
+      "FitText",
+      "Icon",
+      "KineticText",
+      "LineChart",
+      "Reveal",
+      "contentBox",
+      "isWide",
+      "progress",
+      "sliceTop",
+      "splitRow",
+      "springIn",
+      "withAlpha",
+      "GraphicProps"
+    ],
+    "attempts": [
+      {
+        "attempt": 1,
+        "kind": "generate",
+        "ok": true,
+        "ms": 37700,
+        "model": "claude-opus-5-5",
+        "inputTokens": 13187,
+        "outputTokens": 4239,
+        "costUsd": 0.137528,
+        "runtime": {
+          "ok": true,
+          "frame": 76,
+          "ms": 791,
+          "stillPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase5-multilingual/ja_revenue_full.attempt1.png"
+        },
+        "report": {
+          "safety": [],
+          "typecheck": [],
+          "compile": [],
+          "runtime": []
+        }
+      }
+    ],
+    "usage": {
+      "inputTokens": 13187,
+      "outputTokens": 4239,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 0
+    },
+    "costUsd": 0.137528,
+    "previewPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase5-multilingual/ja_revenue_full.attempt1.png",
+    "warnings": []
+  },
+  {
+    "id": "ja_tools_split",
+    "ok": true,
+    "reused": false,
+    "ms": 53913,
+    "model": "claude-opus-5-5",
+    "url": "https://media.kinmel.shop/ai-video/motion-graphics/v0/1af3220545a3663324e36667bedd9abbf728de911cef951f857e18646760de9f.js",
+    "bytes": 3557,
+    "gzipBytes": 1613,
+    "sourceBytes": 6461,
+    "toolkitImports": [
+      "Background",
+      "Box",
+      "Card",
+      "FitText",
+      "Icon",
+      "Reveal",
+      "contentBox",
+      "fitTextGroup",
+      "sliceTop",
+      "splitColumn",
+      "springIn",
+      "withAlpha",
+      "GraphicProps"
+    ],
+    "attempts": [
+      {
+        "attempt": 1,
+        "kind": "generate",
+        "ok": false,
+        "ms": 33623,
+        "model": "claude-opus-5-5",
+        "inputTokens": 13077,
+        "outputTokens": 3877,
+        "costUsd": 0.129848,
+        "report": {
+          "safety": [],
+          "typecheck": [
+            "line 140:27 TS2322: Type 'string' is not assignable to type '\"sparkles\" | \"film\" | \"layers\" | \"search\" | \"repeat\" | \"link\" | \"x\" | \"arrow-down\" | \"arrow-left-right\" | \"arrow-right\" | \"arrow-up\" | \"arrow-up-right\" | \"award\" | \"badge-check\" | ... 84 more ... | \"zap\"'."
+          ],
+          "compile": [],
+          "runtime": []
+        }
+      },
+      {
+        "attempt": 2,
+        "kind": "repair",
+        "ok": true,
+        "ms": 19913,
+        "model": "claude-opus-5-5",
+        "inputTokens": 15798,
+        "outputTokens": 2683,
+        "costUsd": 0.116852,
+        "runtime": {
+          "ok": true,
+          "frame": 71,
+          "ms": 498,
+          "stillPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase5-multilingual/ja_tools_split.attempt2.png"
+        },
+        "report": {
+          "safety": [],
+          "typecheck": [],
+          "compile": [],
+          "runtime": []
+        }
+      }
+    ],
+    "usage": {
+      "inputTokens": 28875,
+      "outputTokens": 6560,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 0
+    },
+    "costUsd": 0.2467,
+    "previewPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase5-multilingual/ja_tools_split.attempt2.png",
+    "warnings": []
+  },
+  {
+    "id": "mixed_overlay",
+    "ok": true,
+    "reused": false,
+    "ms": 33423,
+    "model": "claude-opus-5-5",
+    "url": "https://media.kinmel.shop/ai-video/motion-graphics/v0/7eaf371bad9afeaab02336fb3c178bec1ed460ebf30095ed1fc07277d018537a.js",
+    "bytes": 2675,
+    "gzipBytes": 1372,
+    "sourceBytes": 4739,
+    "toolkitImports": [
+      "Arrow",
+      "Badge",
+      "Box",
+      "Card",
+      "FitText",
+      "FocusRing",
+      "Reveal",
+      "contentBox",
+      "fitTextGroup",
+      "isWide",
+      "splitColumn",
+      "withAlpha",
+      "GraphicProps"
+    ],
+    "attempts": [
+      {
+        "attempt": 1,
+        "kind": "generate",
+        "ok": true,
+        "ms": 33052,
+        "model": "claude-opus-5-5",
+        "inputTokens": 13158,
+        "outputTokens": 3464,
+        "costUsd": 0.121912,
+        "runtime": {
+          "ok": true,
+          "frame": 65,
+          "ms": 470,
+          "stillPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase5-multilingual/mixed_overlay.attempt1.png"
+        },
+        "report": {
+          "safety": [],
+          "typecheck": [],
+          "compile": [],
+          "runtime": []
+        }
+      }
+    ],
+    "usage": {
+      "inputTokens": 13158,
+      "outputTokens": 3464,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 0
+    },
+    "costUsd": 0.121912,
+    "previewPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase5-multilingual/mixed_overlay.attempt1.png",
+    "warnings": []
+  },
+  {
+    "id": "adversarial_pip",
+    "ok": true,
+    "reused": false,
+    "ms": 22946,
+    "model": "claude-opus-5-5",
+    "url": "https://media.kinmel.shop/ai-video/motion-graphics/v0/8900a93b834ec79a23934d26f3f5c9b2328db4ba7168cfc4c9cc21bd189b6fa1.js",
+    "bytes": 2297,
+    "gzipBytes": 1118,
+    "sourceBytes": 3555,
+    "toolkitImports": [
+      "Box",
+      "Card",
+      "FitText",
+      "Reveal",
+      "contentBox",
+      "isWide",
+      "progress",
+      "sliceTop",
+      "withAlpha",
+      "GraphicProps"
+    ],
+    "attempts": [
+      {
+        "attempt": 1,
+        "kind": "generate",
+        "ok": true,
+        "ms": 22534,
+        "model": "claude-opus-5-5",
+        "inputTokens": 13178,
+        "outputTokens": 2152,
+        "costUsd": 0.095752,
+        "runtime": {
+          "ok": true,
+          "frame": 57,
+          "ms": 454,
+          "stillPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase5-multilingual/adversarial_pip.attempt1.png"
+        },
+        "report": {
+          "safety": [],
+          "typecheck": [],
+          "compile": [],
+          "runtime": []
+        }
+      }
+    ],
+    "usage": {
+      "inputTokens": 13178,
+      "outputTokens": 2152,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 0
+    },
+    "costUsd": 0.095752,
+    "previewPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase5-multilingual/adversarial_pip.attempt1.png",
+    "warnings": []
+  },
+  {
+    "id": "long_text_full",
+    "ok": true,
+    "reused": false,
+    "ms": 21414,
+    "model": "claude-opus-5-5",
+    "url": "https://media.kinmel.shop/ai-video/motion-graphics/v0/8b509b06d397df819dd40b8390477ac4ef93eb31ce745f0e6f90f14e9cdb1a46.js",
+    "bytes": 1824,
+    "gzipBytes": 983,
+    "sourceBytes": 2724,
+    "toolkitImports": [
+      "Background",
+      "Box",
+      "KineticText",
+      "Reveal",
+      "contentBox",
+      "fitTextBlock",
+      "isWide",
+      "progress",
+      "sliceTop",
+      "withAlpha",
+      "GraphicProps"
+    ],
+    "attempts": [
+      {
+        "attempt": 1,
+        "kind": "generate",
+        "ok": true,
+        "ms": 20931,
+        "model": "claude-opus-5-5",
+        "inputTokens": 13076,
+        "outputTokens": 1628,
+        "costUsd": 0.084864,
+        "runtime": {
+          "ok": true,
+          "frame": 50,
+          "ms": 3976,
+          "stillPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase5-multilingual/long_text_full.attempt1.png"
+        },
+        "report": {
+          "safety": [],
+          "typecheck": [],
+          "compile": [],
+          "runtime": []
+        }
+      }
+    ],
+    "usage": {
+      "inputTokens": 13076,
+      "outputTokens": 1628,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 0
+    },
+    "costUsd": 0.084864,
+    "previewPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase5-multilingual/long_text_full.attempt1.png",
+    "warnings": []
+  }
+]

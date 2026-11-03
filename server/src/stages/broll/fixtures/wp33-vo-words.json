@@ -1,0 +1,281 @@
+{
+ "_note": "WP33 offline fixture: a hardcoded ~20 s faceless VO word timeline (fixed timestamps, no ASR, no network).",
+ "durationSec": 20,
+ "words": [
+  {
+   "text": "In",
+   "start": 0.2,
+   "end": 0.39
+  },
+  {
+   "text": "2008,",
+   "start": 0.43,
+   "end": 0.68
+  },
+  {
+   "text": "a",
+   "start": 0.86,
+   "end": 1.02
+  },
+  {
+   "text": "young",
+   "start": 1.06,
+   "end": 1.34
+  },
+  {
+   "text": "founder",
+   "start": 1.38,
+   "end": 1.72
+  },
+  {
+   "text": "built",
+   "start": 1.76,
+   "end": 2.04
+  },
+  {
+   "text": "a",
+   "start": 2.08,
+   "end": 2.24
+  },
+  {
+   "text": "startup",
+   "start": 2.28,
+   "end": 2.62
+  },
+  {
+   "text": "in",
+   "start": 2.66,
+   "end": 2.85
+  },
+  {
+   "text": "a",
+   "start": 2.89,
+   "end": 3.05
+  },
+  {
+   "text": "tiny",
+   "start": 3.09,
+   "end": 3.34
+  },
+  {
+   "text": "office.",
+   "start": 3.38,
+   "end": 3.69
+  },
+  {
+   "text": "Investors",
+   "start": 4.05,
+   "end": 4.45
+  },
+  {
+   "text": "poured",
+   "start": 4.49,
+   "end": 4.8
+  },
+  {
+   "text": "in",
+   "start": 4.84,
+   "end": 5.03
+  },
+  {
+   "text": "six",
+   "start": 5.07,
+   "end": 5.29
+  },
+  {
+   "text": "billion",
+   "start": 5.33,
+   "end": 5.67
+  },
+  {
+   "text": "dollars.",
+   "start": 5.71,
+   "end": 6.05
+  },
+  {
+   "text": "Everyone",
+   "start": 6.41,
+   "end": 6.78
+  },
+  {
+   "text": "cheered,",
+   "start": 6.82,
+   "end": 7.16
+  },
+  {
+   "text": "and",
+   "start": 7.34,
+   "end": 7.56
+  },
+  {
+   "text": "the",
+   "start": 7.6,
+   "end": 7.82
+  },
+  {
+   "text": "headlines",
+   "start": 7.86,
+   "end": 8.26
+  },
+  {
+   "text": "called",
+   "start": 8.3,
+   "end": 8.61
+  },
+  {
+   "text": "him",
+   "start": 8.65,
+   "end": 8.87
+  },
+  {
+   "text": "a",
+   "start": 8.91,
+   "end": 9.07
+  },
+  {
+   "text": "genius.",
+   "start": 9.11,
+   "end": 9.42
+  },
+  {
+   "text": "For",
+   "start": 9.78,
+   "end": 10
+  },
+  {
+   "text": "years",
+   "start": 10.04,
+   "end": 10.32
+  },
+  {
+   "text": "the",
+   "start": 10.36,
+   "end": 10.58
+  },
+  {
+   "text": "crowd",
+   "start": 10.62,
+   "end": 10.9
+  },
+  {
+   "text": "kept",
+   "start": 10.94,
+   "end": 11.19
+  },
+  {
+   "text": "growing",
+   "start": 11.23,
+   "end": 11.57
+  },
+  {
+   "text": "and",
+   "start": 11.61,
+   "end": 11.83
+  },
+  {
+   "text": "the",
+   "start": 11.87,
+   "end": 12.09
+  },
+  {
+   "text": "numbers",
+   "start": 12.13,
+   "end": 12.47
+  },
+  {
+   "text": "looked",
+   "start": 12.51,
+   "end": 12.82
+  },
+  {
+   "text": "perfect.",
+   "start": 12.86,
+   "end": 13.2
+  },
+  {
+   "text": "But",
+   "start": 13.56,
+   "end": 13.78
+  },
+  {
+   "text": "then,",
+   "start": 13.82,
+   "end": 14.07
+  },
+  {
+   "text": "one",
+   "start": 14.25,
+   "end": 14.47
+  },
+  {
+   "text": "cold",
+   "start": 14.51,
+   "end": 14.76
+  },
+  {
+   "text": "morning,",
+   "start": 14.8,
+   "end": 15.14
+  },
+  {
+   "text": "the",
+   "start": 15.32,
+   "end": 15.54
+  },
+  {
+   "text": "company",
+   "start": 15.58,
+   "end": 15.92
+  },
+  {
+   "text": "collapsed.",
+   "start": 15.96,
+   "end": 16.36
+  },
+  {
+   "text": "He",
+   "start": 16.72,
+   "end": 16.91
+  },
+  {
+   "text": "was",
+   "start": 16.95,
+   "end": 17.17
+  },
+  {
+   "text": "fired",
+   "start": 17.21,
+   "end": 17.49
+  },
+  {
+   "text": "by",
+   "start": 17.53,
+   "end": 17.72
+  },
+  {
+   "text": "email.",
+   "start": 17.76,
+   "end": 18.04
+  },
+  {
+   "text": "Follow",
+   "start": 18.4,
+   "end": 18.71
+  },
+  {
+   "text": "for",
+   "start": 18.75,
+   "end": 18.97
+  },
+  {
+   "text": "part",
+   "start": 19.01,
+   "end": 19.26
+  },
+  {
+   "text": "two.",
+   "start": 19.3,
+   "end": 19.52
+  }
+ ]
+}

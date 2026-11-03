@@ -1,0 +1,242 @@
+{
+ "schemaVersion": 1,
+ "blueprintId": "bp_77b3bdb57fc04d4c9d12",
+ "createdAt": "2026-10-13T07:06:32.413Z",
+ "videoUrl": "http://127.0.0.1:52861/source.mp4",
+ "languageCode": "en",
+ "detectedLanguage": "English",
+ "fps": 30,
+ "width": 1080,
+ "height": 1920,
+ "sourceDurationSec": 41.708,
+ "outputDurationSec": 41.708,
+ "zoomTriggers": [
+  {
+   "start": 7.54,
+   "end": 9.04,
+   "scale": 1.25,
+   "focus": {
+    "x": 0.5,
+    "y": 0.35
+   },
+   "sentenceIndex": 2
+  },
+  {
+   "start": 21,
+   "end": 22.8,
+   "scale": 1.25,
+   "focus": {
+    "x": 0.5,
+    "y": 0.35
+   },
+   "sentenceIndex": 6
+  },
+  {
+   "start": 36.66,
+   "end": 38.06,
+   "scale": 1.25,
+   "focus": {
+    "x": 0.5,
+    "y": 0.35
+   },
+   "sentenceIndex": 10
+  }
+ ],
+ "brollClips": [],
+ "depthOverlays": [],
+ "insetReveals": [],
+ "hookTitle": "Never ever do these three things",
+ "hookSubtitle": "",
+ "hookDurationSec": 3,
+ "hookStartSec": 0,
+ "hookStyle": "impact",
+ "hookAnchor": "top_left",
+ "visualOverlays": [
+  {
+   "start": 4.42,
+   "end": 6.82,
+   "layout": "lockup",
+   "mediaKind": "text",
+   "anchor": "top_left",
+   "keyword": "editing monitor",
+   "overlayText": "HOOK IS KEY",
+   "assetUrl": "",
+   "provider": "generated",
+   "providerId": 0,
+   "width": 0,
+   "height": 0,
+   "credit": "",
+   "creditUrl": "",
+   "accentColor": "#FFFFFF",
+   "textStyle": "stack",
+   "visualWeight": "accent"
+  },
+  {
+   "start": 34.88,
+   "end": 37.39,
+   "layout": "lockup",
+   "mediaKind": "text",
+   "anchor": "top_left",
+   "keyword": "creative performance reward",
+   "overlayText": "PERFORMANCE BONUS",
+   "assetUrl": "",
+   "provider": "generated",
+   "providerId": 0,
+   "width": 0,
+   "height": 0,
+   "credit": "",
+   "creditUrl": "",
+   "accentColor": "#FFFFFF",
+   "textStyle": "stack",
+   "visualWeight": "accent"
+  }
+ ],
+ "transitions": [],
+ "motionGraphics": [
+  {
+   "start": 10.58,
+   "end": 12.78,
+   "text": "THREE LINES",
+   "role": "primary",
+   "shape": "pill",
+   "accentColor": "#00E5FF",
+   "textColor": "#111111",
+   "anchor": "top_left",
+   "entrance": "spring_up",
+   "exit": "fade",
+   "fontScale": 0.82,
+   "italic": false
+  }
+ ],
+ "mediaContainers": [],
+ "frameInsets": [
+  {
+   "start": 25.3,
+   "end": 29.1,
+   "scale": 0.88,
+   "marginColor": "#0B1B2B",
+   "cornerRadius": 24,
+   "transitionSec": 0.6
+  }
+ ],
+ "semanticEmphasis": [
+  {
+   "start": 13.34,
+   "end": 15.74,
+   "text": "CONTROL EMOTIONS",
+   "weight": "secondary",
+   "treatment": "pop",
+   "accentColor": "#38BDF8",
+   "anchor": "top_left",
+   "countSuffix": ""
+  },
+  {
+   "start": 18.04,
+   "end": 20.44,
+   "text": "9 HASHTAGS",
+   "weight": "primary",
+   "treatment": "count",
+   "accentColor": "#00E5FF",
+   "anchor": "top_right",
+   "countFrom": 1,
+   "countTo": 9,
+   "countSuffix": ""
+  }
+ ],
+ "generatedGraphics": [
+  {
+   "id": "editing-software-list",
+   "start": 30.16,
+   "end": 33.66,
+   "placement": {
+    "mode": "split_screen",
+    "graphicSide": "top"
+   }
+  }
+ ],
+ "speakerCutout": {
+  "available": false,
+  "keyColor": "#2E8AB7",
+  "similarity": 0.12,
+  "blend": 0.06,
+  "speaker": {
+   "x": 0.18,
+   "y": 0.16,
+   "w": 0.64,
+   "h": 0.62
+  }
+ },
+ "captionDirection": {
+  "position": "bottom",
+  "bottomFrac": 0.2,
+  "textColor": "#EAF2F8",
+  "highlightColor": "#00E5FF",
+  "boxColor": null,
+  "template": "editorial-emphasis",
+  "animation": "highlight",
+  "fontScale": 1.05
+ },
+ "colorGradeLut": "",
+ "suggestedLutIds": [],
+ "preferredLutId": "",
+ "editThesis": "",
+ "stats": {
+  "wordCount": 155,
+  "sentenceCount": 12,
+  "silenceCutCount": 0,
+  "silenceRemovedSec": 0,
+  "zoomTriggerCount": 3,
+  "brollClipCount": 0,
+  "depthOverlayCount": 0,
+  "insetRevealCount": 0,
+  "deliveryOperationCount": 0,
+  "visualOverlayCount": 2,
+  "splitCount": 0,
+  "transitionCount": 0,
+  "motionGraphicCount": 1,
+  "mediaContainerCount": 0,
+  "frameInsetCount": 1,
+  "semanticEmphasisCount": 2,
+  "hasHookTitle": true,
+  "timings": {
+   "download": 73,
+   "probe": 90,
+   "audioExtract": 415,
+   "transcribe": 534,
+   "filters": 2,
+   "occupancy": 17303,
+   "broll": 233892,
+   "layout": 4826,
+   "motionGraphics": 52514,
+   "total": 292360
+  },
+  "estimatedCostUsd": 0.09304,
+  "warnings": [
+   "delivery_shaping_skipped:not_in_allowlist",
+   "content_type:educational_tips",
+   "director_video_input:1766685b",
+   "requested_not_placed:lockup",
+   "broll_not_configured",
+   "layout_priority:inset_reveal_dropped:overlaps_frame_inset_equal_rank_directed_earlier",
+   "occupancy_fallback",
+   "layout_patch:geometric"
+  ],
+  "editOutcomes": {
+   "version": 1,
+   "evidence": "pipeline_ledger_not_rendered_frames",
+   "scheduling": "legacy",
+   "cutaways": [],
+   "counts": {},
+   "directorParseRejections": [],
+   "fallbackSubstitutions": [],
+   "directorFallbackReason": null
+  },
+  "generatedGraphicCount": 1,
+  "costBreakdownUsd": {
+   "transcription": 0.000463,
+   "gemini": 0.002228,
+   "geminiMotionDirector": 0.000789,
+   "claude": 0.090344
+  }
+ }
+}

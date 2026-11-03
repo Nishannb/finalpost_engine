@@ -6,7 +6,9 @@
  */
 
 import {EngineError, type EngineErrorCode} from './errors.ts';
+import {reserveGeminiAttempt} from './geminiEditBudget.ts';
 import {logger} from './logger.ts';
+import {observe} from './runObserver.ts';
 
 export type RequestOptions = {
   method?: string;
@@ -19,6 +21,18 @@ export type RequestOptions = {
   failureCode?: EngineErrorCode;
   label: string;
 };
+
+let nextCallId = 0;
+
+/** Origin + path only: the query string (which can carry an API key) and credentials are never reported. */
+function redactedUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.origin}${parsed.pathname}`;
+  } catch {
+    return '(unparsable url)';
+  }
+}
 
 const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
 
@@ -43,10 +57,14 @@ export async function requestWithRetry(
 
   let lastStatus = 0;
   let lastDetail = '';
+  const callId = (nextCallId += 1);
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
+    // WP3C: per-edit Gemini request cap. Every ATTEMPT (retries included) takes a slot BEFORE it is sent; a no-op outside a capped analyze job and for other hosts.
+    reserveGeminiAttempt(url, label, failureCode);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
+    observe(() => ({type: 'http_request', callId, label, method, url: redactedUrl(url), attempt, maxAttempts: retries + 1, body}));
     try {
       const response = await fetch(url, {
         method,
@@ -54,6 +72,7 @@ export async function requestWithRetry(
         body,
         signal: controller.signal,
       });
+      observe(() => ({type: 'http_response', callId, label, attempt, status: response.status}));
       if (response.ok) {
         return response;
       }
@@ -75,6 +94,7 @@ export async function requestWithRetry(
         throw error;
       }
       const aborted = error instanceof Error && error.name === 'AbortError';
+      observe(() => ({type: 'http_response', callId, label, attempt, status: 0, error: aborted ? 'timeout' : error instanceof EngineError ? 'engine_error' : 'network'}));
       // A timed-out LLM call will time out again with the same payload. Fail
       // over immediately so the director can drop thinking / switch models.
       if (aborted || attempt === retries) {

@@ -168,4 +168,68 @@ describe('prefetch rewrite', () => {
     expect(rewritten.transitions).toHaveLength(1);
     expect(rewritten.stats.splitCount).toBe(0);
   });
+
+  it('prefetches generated graphic modules and drops ones that failed', () => {
+    const sha = 'a'.repeat(64);
+    const graphics = blueprint({
+      generatedGraphics: [
+        {
+          id: 'mg1',
+          start: 3,
+          end: 5,
+          placement: {mode: 'full_screen'},
+          module: {url: `https://media.example/mg/${sha}.js`, sha256: sha},
+        },
+        {
+          id: 'mg2',
+          start: 6,
+          end: 8,
+          placement: {mode: 'split_screen', graphicSide: 'bottom'},
+          module: {url: 'https://media.example/mg/missing.js', sha256: sha},
+        },
+      ],
+    });
+    expect(collectBlueprintMediaUrls(graphics)).toContain(`https://media.example/mg/${sha}.js`);
+
+    const rewritten = rewriteBlueprintMediaUrls(
+      graphics,
+      new Map([
+        [`https://media.example/mg/${sha}.js`, `/prefetch/job/${sha.slice(0, 16)}.js`],
+        ['https://media.example/mg/missing.js', ''],
+      ]),
+    );
+    expect(rewritten.generatedGraphics).toEqual([
+      expect.objectContaining({id: 'mg1', module: {url: `/prefetch/job/${sha.slice(0, 16)}.js`, sha256: sha}}),
+    ]);
+    // B-roll is untouched by graphic prefetch.
+    expect(rewritten.brollClips).toEqual(graphics.brollClips);
+  });
+
+  describe('generated transitions survive the render-path rewrite', () => {
+    const sweep = (extra: Record<string, unknown> = {}) => ({at: 5, duration: 0.4, keyword: 'film burn', assetUrl: '', blend: 'screen', provider: 'generated', providerId: 0, width: 1080, height: 1920, credit: '', creditUrl: '', ...extra}) as never;
+
+    it('keeps an asset-less transition marked renderGenerated (it was silently dropped, so the flag could never show)', () => {
+      const out = rewriteBlueprintMediaUrls(blueprint({transitions: [sweep({renderGenerated: true})]}), new Map());
+      expect(out.transitions).toHaveLength(1);
+      expect(out.transitions[0]).toMatchObject({at: 5, renderGenerated: true});
+      expect(out.stats.transitionCount).toBe(1);
+    });
+
+    it('still drops asset-less transitions without the flag, and failed asset transitions (legacy behaviour)', () => {
+      const out = rewriteBlueprintMediaUrls(blueprint({transitions: [sweep(), sweep({at: 9, assetUrl: 'https://cdn.example/leak.mp4'})]}), new Map([['https://cdn.example/leak.mp4', '']]));
+      expect(out.transitions).toEqual([]);
+      expect(out.stats.transitionCount).toBe(0);
+    });
+
+    it('keeps an asset transition whose download succeeded and rewrites its url', () => {
+      const out = rewriteBlueprintMediaUrls(blueprint({transitions: [sweep({assetUrl: 'https://cdn.example/leak.mp4'})]}), new Map([['https://cdn.example/leak.mp4', '/prefetch/x/leak.mp4']]));
+      expect(out.transitions.map(item => item.assetUrl)).toEqual(['/prefetch/x/leak.mp4']);
+    });
+
+    it('does not touch zoom focus or frame insets', () => {
+      const out = rewriteBlueprintMediaUrls(blueprint({zoomTriggers: [{start: 1, end: 3, scale: 1.4, focus: {x: 0.7, y: 0.3}, sentenceIndex: 0}], frameInsets: [{start: 4, end: 8, scale: 0.8, marginColor: '#222222', cornerRadius: 18, transitionSec: 0.9}]}), new Map());
+      expect(out.zoomTriggers[0]!.focus).toEqual({x: 0.7, y: 0.3});
+      expect(out.frameInsets).toHaveLength(1);
+    });
+  });
 });

@@ -14,6 +14,7 @@ import {
   loadCaptionsEditJob,
   markCaptionsSourceUploaded,
 } from '../../pipeline/captionsEditRunner.ts';
+import {isCaptionKitPresetId} from '../../lib/captionKitPresets.ts';
 import {CAPTION_TEMPLATES, SUPPORTED_LANGUAGES} from '../../types/blueprint.ts';
 import {getAuth} from '../auth.ts';
 
@@ -24,6 +25,19 @@ const createSchema = z.object({
   extension: z.enum(['.mp4', '.mov', '.m4v']).optional(),
   languageCode: z.enum(SUPPORTED_LANGUAGES).default('auto'),
   captionTemplate: z.enum(CAPTION_TEMPLATES).default('karaoke'),
+  /**
+   * CaptionKit preset id (`presets.json`). When set on mode `captions`, this
+   * is the style that gets burned. Unknown ids are rejected.
+   */
+  captionPreset: z
+    .string()
+    .trim()
+    .min(1)
+    .max(80)
+    .optional()
+    .refine(id => id == null || isCaptionKitPresetId(id), {
+      message: 'Unknown caption preset',
+    }),
   captionStyleGuide: z.record(z.string(), z.unknown()).optional(),
   /** captions (default) | teleprompter_clean (silence + retakes + captions). */
   mode: z.enum(['captions', 'teleprompter_clean']).optional(),
@@ -47,6 +61,7 @@ editRoutes.post('/edits/captions', async (req, res) => {
     extension: parsed.data.extension,
     languageCode: parsed.data.languageCode,
     captionTemplate: parsed.data.captionTemplate,
+    captionPreset: parsed.data.captionPreset,
     captionStyleGuide: parsed.data.captionStyleGuide,
     mode: parsed.data.mode,
     scriptText: parsed.data.scriptText,

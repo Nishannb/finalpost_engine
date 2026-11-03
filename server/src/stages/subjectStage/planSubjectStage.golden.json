@@ -1,0 +1,959 @@
+{
+ "alert": {
+  "spans": [
+   [
+    "S1",
+    0,
+    4.85,
+    "hard_cut",
+    "none",
+    "plate",
+    "Imagine you open your phone right after a flood hit your town.",
+    null
+   ],
+   [
+    "S4",
+    4.85,
+    9.1,
+    "hard_cut",
+    "none",
+    null,
+    null,
+    null
+   ],
+   [
+    "S2",
+    9.1,
+    14.55,
+    "hard_cut",
+    "slow_push",
+    "quote_card",
+    "please send relief money to this personal account",
+    null
+   ],
+   [
+    "S4",
+    14.55,
+    18.4,
+    "hard_cut",
+    "none",
+    null,
+    null,
+    null
+   ],
+   [
+    "S3",
+    18.4,
+    22.45,
+    "flash_cut",
+    "auto_scroll",
+    "result_page",
+    null,
+    [
+     "So I searched for it",
+     "the results were everywhere",
+     "Some links looked real",
+     "some websites copied the same headline",
+     "many sources repeated it",
+     "The post said the money would go to the national relief fund"
+    ]
+   ],
+   [
+    "S2",
+    22.45,
+    28.1,
+    "hard_cut",
+    "slow_push",
+    "quote_card",
+    "Some links looked real, some websites copied the same headline, and many sources repeated it.",
+    null
+   ],
+   [
+    "S4",
+    28.1,
+    33.35,
+    "hard_cut",
+    "none",
+    null,
+    null,
+    null
+   ],
+   [
+    "S1",
+    33.35,
+    39.85,
+    "hard_cut",
+    "none",
+    "plate",
+    "Now the official statement from the ministry is clear about it.",
+    null
+   ],
+   [
+    "S5",
+    39.85,
+    42.85,
+    "slide_up_front",
+    "slide_up_front",
+    "quote_card",
+    "The final conclusion is that you should verify through official channels before sending any money.",
+    null
+   ],
+   [
+    "S4",
+    42.85,
+    51.35,
+    "hard_cut",
+    "none",
+    null,
+    null,
+    null
+   ],
+   [
+    "S1",
+    51.35,
+    56.8,
+    "hard_cut",
+    "none",
+    "plate",
+    "Back in 2019 a similar scam took 40 percent of one village savings.",
+    null
+   ],
+   [
+    "S3",
+    56.8,
+    61.65,
+    "flash_cut",
+    "auto_scroll",
+    "result_page",
+    null,
+    [
+     "Everyone I know searched the same terms",
+     "scrolled through the same pages",
+     "Because the reason it spreads is that people share before…",
+     "Back in 2019 a similar scam took 40 percent of one village…",
+     "Remember the first step is to pause",
+     "read the source",
+     "Never share your bank PIN",
+     "your OTP",
+     "a password with a stranger online"
+    ]
+   ],
+   [
+    "S4",
+    61.65,
+    66.5,
+    "hard_cut",
+    "none",
+    null,
+    null,
+    null
+   ],
+   [
+    "S1",
+    66.5,
+    71.15,
+    "hard_cut",
+    "none",
+    "plate",
+    "Remember the first step is to pause and read the source.",
+    null
+   ]
+  ],
+  "accents": [
+   [
+    "text_stack",
+    4.85,
+    9,
+    [
+     "Last",
+     "happened"
+    ],
+    [
+     0,
+     1.871
+    ],
+    2
+   ],
+   [
+    "text_stack",
+    14.55,
+    18.3,
+    [
+     "post",
+     "national"
+    ],
+    [
+     0,
+     2.597
+    ],
+    2
+   ],
+   [
+    "text_stack",
+    28.1,
+    33.25,
+    [
+     "term",
+     "phishing"
+    ],
+    [
+     0,
+     1.975
+    ],
+    2
+   ],
+   [
+    "text_stack",
+    42.85,
+    51.25,
+    [
+     "final",
+     "PIN"
+    ],
+    [
+     0,
+     4.838
+    ],
+    2
+   ],
+   [
+    "text_stack",
+    61.65,
+    66.4,
+    [
+     "reason",
+     "spreads"
+    ],
+    [
+     0,
+     1.7
+    ],
+    2
+   ]
+  ],
+  "shares": {
+   "S1": 0.301,
+   "S2": 0.156,
+   "S3": 0.125,
+   "S4": 0.375,
+   "S5": 0.042
+  },
+  "warnings": [
+   "subject_stage:intent_overridden:1:context_or_setting:S4",
+   "subject_stage:intent_overridden:3:quoting_or_citing:S4",
+   "subject_stage:intent_overridden:5:search_or_many_sources:S2",
+   "subject_stage:intent_overridden:8:official_or_final:S2",
+   "subject_stage:intent_overridden:13:explanation_key_terms:S1"
+  ]
+ },
+ "explainer": {
+  "spans": [
+   [
+    "S1",
+    0,
+    4.85,
+    "hard_cut",
+    "none",
+    "plate",
+    "Here is what a contract clause actually means in plain words.",
+    null
+   ],
+   [
+    "S4",
+    4.85,
+    9.7,
+    "hard_cut",
+    "none",
+    null,
+    null,
+    null
+   ],
+   [
+    "S2",
+    9.7,
+    14.95,
+    "hard_cut",
+    "slow_push",
+    "quote_card",
+    "this clause protects the buyer from hidden costs and fees",
+    null
+   ],
+   [
+    "S4",
+    14.95,
+    20.6,
+    "hard_cut",
+    "none",
+    null,
+    null,
+    null
+   ],
+   [
+    "S1",
+    20.6,
+    25.25,
+    "hard_cut",
+    "none",
+    "plate",
+    "Second, check the termination notice period, which is usually 30 days.",
+    null
+   ],
+   [
+    "S2",
+    25.25,
+    30.7,
+    "hard_cut",
+    "slow_push",
+    "quote_card",
+    "Then look at the governing law because it decides which court hears a dispute.",
+    null
+   ],
+   [
+    "S4",
+    30.7,
+    34.55,
+    "hard_cut",
+    "none",
+    null,
+    null,
+    null
+   ],
+   [
+    "S2",
+    34.55,
+    40.2,
+    "hard_cut",
+    "slow_push",
+    "quote_card",
+    "According to the report, nearly half of small businesses never read the fine print.",
+    null
+   ],
+   [
+    "S5",
+    40.2,
+    43.2,
+    "slide_up_front",
+    "slide_up_front",
+    "quote_card",
+    "Exactly.",
+    null
+   ],
+   [
+    "S4",
+    43.2,
+    49.65,
+    "hard_cut",
+    "none",
+    null,
+    null,
+    null
+   ]
+  ],
+  "accents": [
+   [
+    "pop_in",
+    4.85,
+    9.6,
+    [
+     "indemnity"
+    ],
+    null,
+    0
+   ],
+   [
+    "text_stack",
+    14.95,
+    20.5,
+    [
+     "example",
+     "supplier"
+    ],
+    [
+     0,
+     1.523
+    ],
+    2
+   ],
+   [
+    "drop_in_tilt",
+    30.7,
+    34.45,
+    [
+     "Honestly"
+    ],
+    null,
+    0
+   ],
+   [
+    "text_stack",
+    43.2,
+    49.55,
+    [
+     "written",
+     "process"
+    ],
+    [
+     0,
+     5.385
+    ],
+    2
+   ]
+  ],
+  "shares": {
+   "S1": 0.191,
+   "S2": 0.329,
+   "S3": 0,
+   "S4": 0.419,
+   "S5": 0.06
+  },
+  "warnings": [
+   "subject_stage:intent_overridden:4:explanation_key_terms:S1",
+   "subject_stage:s4_no_keywords:6"
+  ]
+ },
+ "long": {
+  "spans": [
+   [
+    "S1",
+    0,
+    6.85,
+    "hard_cut",
+    "none",
+    "plate",
+    "Imagine a small town where the story started last spring.",
+    null
+   ],
+   [
+    "S2",
+    6.85,
+    13.3,
+    "hard_cut",
+    "slow_push",
+    "quote_card",
+    "the market will double by next year, according to experts",
+    null
+   ],
+   [
+    "S4",
+    13.3,
+    17.15,
+    "hard_cut",
+    "none",
+    null,
+    null,
+    null
+   ],
+   [
+    "S1",
+    17.15,
+    23.6,
+    "hard_cut",
+    "none",
+    "plate",
+    "Back in 2020 the situation was different and prices were stable.",
+    null
+   ],
+   [
+    "S3",
+    23.6,
+    30.05,
+    "hard_cut",
+    "auto_scroll",
+    "result_page",
+    null,
+    [
+     "I searched for the numbers",
+     "the results were all over the place",
+     "Recently the background changed again after new data arrived",
+     "Back in 2020 the situation was different",
+     "prices were stable",
+     "She wrote that the headline was misleading",
+     "the numbers were wrong",
+     "The key idea is called compounding",
+     "it grows slowly at first"
+    ]
+   ],
+   [
+    "S4",
+    30.05,
+    36.5,
+    "hard_cut",
+    "none",
+    null,
+    null,
+    null
+   ],
+   [
+    "S2",
+    36.5,
+    42.95,
+    "hard_cut",
+    "slow_push",
+    "quote_card",
+    "She wrote that the headline was misleading and the numbers were wrong.",
+    null
+   ],
+   [
+    "S4",
+    42.95,
+    46.8,
+    "hard_cut",
+    "none",
+    null,
+    null,
+    null
+   ],
+   [
+    "S1",
+    46.8,
+    53.25,
+    "hard_cut",
+    "none",
+    "plate",
+    "It started with one person who kept reading the comments.",
+    null
+   ],
+   [
+    "S3",
+    53.25,
+    59.7,
+    "hard_cut",
+    "auto_scroll",
+    "result_page",
+    null,
+    [
+     "Several websites listed different sources",
+     "many links pointed nowhere",
+     "Currently the situation is that every voice repeats the…",
+     "It started with one person who kept reading the comments",
+     "He said we never expected the numbers to move this fast",
+     "Basically it means small habits matter more than big plans"
+    ]
+   ],
+   [
+    "S4",
+    59.7,
+    66.15,
+    "hard_cut",
+    "none",
+    null,
+    null,
+    null
+   ],
+   [
+    "S2",
+    66.15,
+    72.6,
+    "hard_cut",
+    "slow_push",
+    "quote_card",
+    "we never expected the numbers to move this fast",
+    null
+   ],
+   [
+    "S4",
+    72.6,
+    76.45,
+    "hard_cut",
+    "none",
+    null,
+    null,
+    null
+   ],
+   [
+    "S1",
+    76.45,
+    82.9,
+    "hard_cut",
+    "none",
+    "plate",
+    "Imagine how different your savings would look five years from now.",
+    null
+   ],
+   [
+    "S3",
+    82.9,
+    89.35,
+    "hard_cut",
+    "auto_scroll",
+    "result_page",
+    null,
+    [
+     "Search results for this topic show multiple listings",
+     "Because the important part is the second screen",
+     "Imagine how different your savings would look five years…",
+     "There were rumors during the winter",
+     "nobody knew why",
+     "The first step is to track where your money actually goes…"
+    ]
+   ],
+   [
+    "S4",
+    89.35,
+    93.2,
+    "hard_cut",
+    "none",
+    null,
+    null,
+    null
+   ],
+   [
+    "S1",
+    93.2,
+    99.65,
+    "hard_cut",
+    "none",
+    "plate",
+    "There were rumors during the winter and nobody knew why.",
+    null
+   ],
+   [
+    "S2",
+    99.65,
+    106.1,
+    "hard_cut",
+    "slow_push",
+    "quote_card",
+    "They announced it yesterday and posted a statement online.",
+    null
+   ],
+   [
+    "S4",
+    106.1,
+    112.55,
+    "hard_cut",
+    "none",
+    null,
+    null,
+    null
+   ],
+   [
+    "S1",
+    112.55,
+    119,
+    "hard_cut",
+    "none",
+    "plate",
+    "Once the story spread everybody had a theory.",
+    null
+   ],
+   [
+    "S5",
+    119,
+    122,
+    "slide_up_front",
+    "slide_up_front",
+    "quote_card",
+    "The official announcement from the authority confirmed the new rule.",
+    null
+   ],
+   [
+    "S4",
+    122,
+    129.3,
+    "hard_cut",
+    "none",
+    null,
+    null,
+    null
+   ],
+   [
+    "S1",
+    129.3,
+    135.75,
+    "hard_cut",
+    "none",
+    "plate",
+    "Last year the context was completely different.",
+    null
+   ],
+   [
+    "S2",
+    135.75,
+    142.2,
+    "hard_cut",
+    "slow_push",
+    "quote_card",
+    "The report said the loss was bigger than anyone expected.",
+    null
+   ],
+   [
+    "S4",
+    142.2,
+    148.65,
+    "hard_cut",
+    "none",
+    null,
+    null,
+    null
+   ],
+   [
+    "S1",
+    148.65,
+    155.1,
+    "hard_cut",
+    "none",
+    "plate",
+    "A few days later the situation looked better.",
+    null
+   ],
+   [
+    "S4",
+    155.1,
+    158.95,
+    "hard_cut",
+    "none",
+    null,
+    null,
+    null
+   ],
+   [
+    "S2",
+    158.95,
+    165.4,
+    "hard_cut",
+    "slow_push",
+    "quote_card",
+    "wait for confirmation before you act on this",
+    null
+   ],
+   [
+    "S1",
+    165.4,
+    171.85,
+    "hard_cut",
+    "none",
+    "plate",
+    "Right now the whole situation is still uncertain.",
+    null
+   ],
+   [
+    "S4",
+    171.85,
+    173.7,
+    "hard_cut",
+    "none",
+    null,
+    null,
+    null
+   ],
+   [
+    "S3",
+    173.7,
+    180.15,
+    "hard_cut",
+    "auto_scroll",
+    "result_page",
+    null,
+    [
+     "Everywhere I looked there were articles",
+     "websites",
+     "Picture this",
+     "a quiet evening",
+     "one notification",
+     "The term is called confirmation bias",
+     "it affects everyone",
+     "Right now the whole situation is still uncertain"
+    ]
+   ],
+   [
+    "S1",
+    180.15,
+    186.6,
+    "hard_cut",
+    "none",
+    "plate",
+    "Picture this: a quiet evening and one notification.",
+    null
+   ],
+   [
+    "S4",
+    186.6,
+    190.45,
+    "hard_cut",
+    "none",
+    null,
+    null,
+    null
+   ],
+   [
+    "S1",
+    190.45,
+    196.9,
+    "hard_cut",
+    "none",
+    "plate",
+    "Years ago nobody talked about this background.",
+    null
+   ],
+   [
+    "S2",
+    196.9,
+    201.15,
+    "hard_cut",
+    "slow_push",
+    "quote_card",
+    "Honestly the simple rule works best for most people.",
+    null
+   ]
+  ],
+  "accents": [
+   [
+    "text_stack",
+    13.3,
+    17.05,
+    [
+     "key",
+     "compounding"
+    ],
+    [
+     0,
+     1.716
+    ],
+    2
+   ],
+   [
+    "pop_in",
+    30.05,
+    36.4,
+    [
+     "background"
+    ],
+    null,
+    0
+   ],
+   [
+    "text_stack",
+    42.95,
+    46.7,
+    [
+     "means",
+     "small habits"
+    ],
+    [
+     0,
+     1.525
+    ],
+    2
+   ],
+   [
+    "drop_in_tilt",
+    59.7,
+    66.05,
+    [
+     "situation"
+    ],
+    null,
+    0
+   ],
+   [
+    "pop_in",
+    72.6,
+    76.35,
+    [
+     "actually"
+    ],
+    null,
+    0
+   ],
+   [
+    "drop_in_tilt",
+    89.35,
+    93.1,
+    [
+     "important"
+    ],
+    null,
+    0
+   ],
+   [
+    "pop_in",
+    106.1,
+    112.45,
+    [
+     "Scrolling"
+    ],
+    null,
+    0
+   ],
+   [
+    "drop_in_tilt",
+    122,
+    129.2,
+    [
+     "announcement"
+    ],
+    null,
+    0
+   ],
+   [
+    "text_stack",
+    142.2,
+    148.55,
+    [
+     "Multiple",
+     "everywhere"
+    ],
+    [
+     0,
+     4.597
+    ],
+    2
+   ],
+   [
+    "pop_in",
+    155.1,
+    158.85,
+    [
+     "important"
+    ],
+    null,
+    0
+   ],
+   [
+    "drop_in_tilt",
+    171.85,
+    173.6,
+    [
+     "Yes"
+    ],
+    null,
+    0
+   ],
+   [
+    "text_stack",
+    186.6,
+    190.35,
+    [
+     "term",
+     "confirmation bias"
+    ],
+    [
+     0,
+     1.623
+    ],
+    2
+   ]
+  ],
+  "shares": {
+   "S1": 0.355,
+   "S2": 0.214,
+   "S3": 0.128,
+   "S4": 0.289,
+   "S5": 0.015
+  },
+  "warnings": [
+   "subject_stage:intent_overridden:5:context_or_setting:S4",
+   "subject_stage:intent_overridden:10:context_or_setting:S4",
+   "subject_stage:intent_overridden:18:search_or_many_sources:S4",
+   "subject_stage:intent_overridden:20:official_or_final:S2",
+   "subject_stage:intent_overridden:24:search_or_many_sources:S4",
+   "subject_stage:accent_anticipated:5:1.83s",
+   "subject_stage:accent_anticipated:10:1.712s",
+   "subject_stage:s4_no_keywords:12",
+   "subject_stage:s4_no_keywords:15",
+   "subject_stage:s4_no_keywords:21",
+   "subject_stage:s4_no_keywords:26"
+  ]
+ }
+}

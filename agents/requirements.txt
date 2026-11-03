@@ -1,0 +1,5 @@
+pydub
+pytest
+audioop-lts; python_version >= "3.13"
+pyloudnorm
+numpy

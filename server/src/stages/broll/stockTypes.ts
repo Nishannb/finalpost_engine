@@ -14,6 +14,10 @@ export type StockAsset = {
   durationSec: number;
   credit: string;
   creditUrl: string;
+  /** WP37 relevance metadata (photos only): Pexels alt text, Pixabay tags, and the provider page url (its slug names the picture). Absent when the API gave none. */
+  alt?: string;
+  tags?: string;
+  pageUrl?: string;
 };
 
 /** Namespaced id so Pexels #42 and Pixabay #42 do not collide in exclude sets. */

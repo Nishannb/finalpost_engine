@@ -1,0 +1,8 @@
+# Robust Video Matting (MobileNetV3) - the only production person matte (MediaPipe is retired; see requirements.txt).
+# Install into subjectmatte/.venv-rvm with the default PyPI wheels (CPU / Apple MPS on macOS; no CUDA wheel pinned here).
+torch
+torchvision
+numpy
+# test-time frame reader
+opencv-python-headless
+pytest

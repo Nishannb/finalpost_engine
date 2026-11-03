@@ -1,0 +1,19 @@
+{
+  "name": "phase3-docs",
+  "durationSec": 8,
+  "videoUrl": "https://media.kinmel.shop/ai-video/source/2026-10-07/ed6b5786-e3a5-4ea8-9289-8cddf537207d.mp4",
+  "blueprint": {
+    "captionWords": [
+      {"text": "captions", "start": 0.2, "end": 1.6, "sentenceIndex": 0},
+      {"text": "stay", "start": 1.6, "end": 3.0, "sentenceIndex": 0},
+      {"text": "readable", "start": 4.2, "end": 5.6, "sentenceIndex": 1},
+      {"text": "here", "start": 5.6, "end": 7.8, "sentenceIndex": 1}
+    ]
+  },
+  "graphics": [
+    {"id": "doc_full", "graphic": "ex_checklist", "start": 0, "end": 4, "placement": {"mode": "full_screen"},
+     "props": {"content": {"title": "Before you hit publish", "highlight": "publish", "items": ["Hook in the first second", "Captions on every word", "One clear call to action"], "doneLabel": "ready"}}},
+    {"id": "doc_split", "graphic": "ex_checklist", "start": 4, "end": 8, "placement": {"mode": "split_screen", "graphicSide": "bottom"},
+     "props": {"content": {"title": "Before you hit publish", "highlight": "publish", "items": ["Hook in the first second", "Captions on every word", "One clear call to action"], "doneLabel": "ready"}}}
+  ]
+}

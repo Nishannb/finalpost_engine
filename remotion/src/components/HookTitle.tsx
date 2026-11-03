@@ -15,7 +15,8 @@ import {
 import type {
   HookStyle,
   LanguageCode,
-  NorthStarDesign,
+  DesignTokens,
+  TimelineBlueprint,
   VisualAnchor,
 } from '../blueprintSchema';
 import {fontFamilyFor, fontWeightFor, hookDisplayFamily} from '../styles/fonts';
@@ -27,7 +28,9 @@ type HookTitleProps = {
   language: LanguageCode;
   styleId?: HookStyle;
   anchor?: VisualAnchor;
-  design?: NorthStarDesign;
+  design?: DesignTokens;
+  /** WP2B: server-computed legible layout (mvp profile only). Absent = the layout below is exactly the legacy one. */
+  fit?: NonNullable<TimelineBlueprint['legibility']>['hook'];
 };
 
 type Palette = {
@@ -45,6 +48,7 @@ export const HookTitle: React.FC<HookTitleProps> = ({
   styleId = 'impact',
   anchor = 'top_right',
   design,
+  fit,
 }) => {
   const frame = useCurrentFrame();
   const {fps, width, height, durationInFrames} = useVideoConfig();
@@ -74,11 +78,15 @@ export const HookTitle: React.FC<HookTitleProps> = ({
     [1, 0],
     {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'},
   );
-  const palette = paletteFor(trimmed, styleId, design);
+  // WP2B: with a `fit`, styles that cannot honour a measured box (a tiny lead label, a tilted poster, a 3.4%-size line) are drawn as the boxed title, and every style
+  // takes the fitted size, a centred full-width slot, the fitted top and a fixed ink/plate pair whose contrast was verified on the server. No `fit`: legacy path.
+  const shownStyle: HookStyle = fit && (styleId === 'stack' || styleId === 'minimal' || styleId === 'poster') ? 'boxed' : styleId;
+  const palette = fit ? legiblePalette(fit, shownStyle) : paletteFor(trimmed, styleId, design);
   const split = splitTitle(trimmed);
-  const fontFamily = hookDisplayFamily(language, styleId, design);
-  const slot = slotFor(anchor, width, height, styleId);
-  const titleSize = Math.round(width * sizeFrac(styleId, trimmed.length));
+  const fontFamily = hookDisplayFamily(language, shownStyle, design);
+  const slot = fit ? fittedSlot(fit, width, height) : slotFor(anchor, width, height, styleId);
+  const topPx = fit ? height * fit.topFrac : undefined;
+  const titleSize = fit ? Math.round(width * fit.sizeFrac) : Math.round(width * sizeFrac(styleId, trimmed.length));
   const typed = typeOn(trimmed, enter, styleId === 'bar' || styleId === 'underline');
   const wipe = interpolate(enter, [0, 1], [0, 1], {
     extrapolateLeft: 'clamp',
@@ -87,9 +95,23 @@ export const HookTitle: React.FC<HookTitleProps> = ({
 
   return (
     <AbsoluteFill style={{pointerEvents: 'none', zIndex: 18}}>
-      {styleId === 'bar' ? (
+      {fit && NEEDS_SCRIM.has(shownStyle) ? (
+        <div
+          style={{
+            position: 'absolute',
+            left: width * ((1 - fit.widthFrac) / 2),
+            top: height * fit.topFrac,
+            width: width * fit.widthFrac,
+            height: height * fit.heightFrac,
+            borderRadius: 18,
+            backgroundColor: fit.plateColor,
+            opacity: 0.78 * fadeOut,
+          }}
+        />
+      ) : null}
+      {shownStyle === 'bar' ? (
         <FullBar
-          slotTop={height * 0.055}
+          slotTop={topPx ?? height * 0.055}
           width={width}
           height={height}
           enter={enter}
@@ -103,8 +125,10 @@ export const HookTitle: React.FC<HookTitleProps> = ({
           subtitle={subtitle}
           wipe={wipe}
         />
-      ) : styleId === 'impact' ? (
+      ) : shownStyle === 'impact' ? (
         <ImpactTitle
+          topPx={topPx}
+          steady={Boolean(fit)}
           width={width}
           height={height}
           enter={enter}
@@ -116,8 +140,9 @@ export const HookTitle: React.FC<HookTitleProps> = ({
           subtitle={subtitle}
           language={language}
         />
-      ) : styleId === 'outline' ? (
+      ) : shownStyle === 'outline' ? (
         <OutlineTitle
+          topPx={topPx}
           width={width}
           height={height}
           enter={enter}
@@ -129,7 +154,7 @@ export const HookTitle: React.FC<HookTitleProps> = ({
           subtitle={subtitle}
           language={language}
         />
-      ) : styleId === 'poster' ? (
+      ) : shownStyle === 'poster' ? (
         <PosterTitle
           width={width}
           height={height}
@@ -142,7 +167,7 @@ export const HookTitle: React.FC<HookTitleProps> = ({
           subtitle={subtitle}
           language={language}
         />
-      ) : styleId === 'stack' ? (
+      ) : shownStyle === 'stack' ? (
         <StackTitle
           slot={slot}
           enter={enter}
@@ -155,7 +180,7 @@ export const HookTitle: React.FC<HookTitleProps> = ({
           split={split}
           subtitle={subtitle}
         />
-      ) : styleId === 'duo' ? (
+      ) : shownStyle === 'duo' ? (
         <DuoTitle
           slot={slot}
           enter={enter}
@@ -168,7 +193,7 @@ export const HookTitle: React.FC<HookTitleProps> = ({
           split={split}
           subtitle={subtitle}
         />
-      ) : styleId === 'underline' ? (
+      ) : shownStyle === 'underline' ? (
         <UnderlineTitle
           slot={slot}
           enter={enter}
@@ -183,7 +208,7 @@ export const HookTitle: React.FC<HookTitleProps> = ({
           subtitle={subtitle}
           wipe={wipe}
         />
-      ) : styleId === 'minimal' ? (
+      ) : shownStyle === 'minimal' ? (
         <MinimalTitle
           slot={slot}
           enter={enter}
@@ -192,11 +217,11 @@ export const HookTitle: React.FC<HookTitleProps> = ({
           fontFamily={fontFamily}
           language={language}
           width={width}
-          titleSize={Math.round(width * 0.034)}
+          titleSize={fit ? titleSize : Math.round(width * 0.034)}
           title={trimmed}
           subtitle={subtitle}
         />
-      ) : styleId === 'rail' ? (
+      ) : shownStyle === 'rail' ? (
         <RailTitle
           slot={slot}
           enter={enter}
@@ -317,6 +342,8 @@ function FullBar({
 }
 
 function ImpactTitle({
+  topPx,
+  steady,
   width,
   height,
   enter,
@@ -328,6 +355,8 @@ function ImpactTitle({
   subtitle,
   language,
 }: {
+  topPx?: number;
+  steady?: boolean;
   width: number;
   height: number;
   enter: number;
@@ -339,12 +368,12 @@ function ImpactTitle({
   subtitle?: string;
   language: LanguageCode;
 }) {
-  const scale = interpolate(enter, [0, 1], [1.28, 1]);
+  const scale = steady ? 1 : interpolate(enter, [0, 1], [1.28, 1]);
   return (
     <div
       style={{
         position: 'absolute',
-        top: height * 0.1,
+        top: topPx ?? height * 0.1,
         left: width * 0.06,
         right: width * 0.06,
         opacity: fadeOut,
@@ -391,6 +420,7 @@ function ImpactTitle({
 }
 
 function OutlineTitle({
+  topPx,
   width,
   height,
   enter,
@@ -402,6 +432,7 @@ function OutlineTitle({
   subtitle,
   language,
 }: {
+  topPx?: number;
   width: number;
   height: number;
   enter: number;
@@ -417,7 +448,7 @@ function OutlineTitle({
     <div
       style={{
         position: 'absolute',
-        top: height * 0.12,
+        top: topPx ?? height * 0.12,
         left: width * 0.07,
         right: width * 0.07,
         opacity: fadeOut,
@@ -771,7 +802,7 @@ function MinimalTitle({
       <div
         style={{
           fontFamily,
-          fontWeight: 600,
+          fontWeight: 700, // WP5F: was 600, which is not a loaded caption-font file (styles/fontRequests.ts loads 400 / 700 / 800)
           fontSize: titleSize,
           lineHeight: 1.2,
           color: palette.ink,
@@ -901,7 +932,7 @@ function BoxedTitle({
   titleSize: number;
   title: string;
   subtitle?: string;
-  design?: NorthStarDesign;
+  design?: DesignTokens;
 }) {
   return (
     <div
@@ -957,6 +988,22 @@ type Slot = {
   fromX: number;
   origin: string;
 };
+
+/** Styles that draw no plate of their own: with a `fit` they get the verified dark plate behind the text. */
+const NEEDS_SCRIM: ReadonlySet<HookStyle> = new Set(['impact', 'outline', 'duo', 'underline', 'rail']);
+
+type HookFit = NonNullable<NonNullable<TimelineBlueprint['legibility']>['hook']>;
+
+function legiblePalette(fit: HookFit, style: HookStyle): Palette {
+  // The bar is an accent-coloured strip: dark type on it. Everything else is light type on the dark plate. Pairs are verified >= 4.5:1 on the server.
+  return style === 'bar'
+    ? {ink: fit.plateColor, accent: fit.accentColor, surface: fit.plateColor, muted: fit.plateColor}
+    : {ink: fit.inkColor, accent: fit.accentColor, surface: fit.plateColor, muted: fit.inkColor};
+}
+
+function fittedSlot(fit: HookFit, width: number, height: number): Slot {
+  return {top: height * fit.topFrac, left: (width * (1 - fit.widthFrac)) / 2, width: width * fit.widthFrac, fromX: 0, origin: '50% 0%'};
+}
 
 function slotFor(
   anchor: VisualAnchor,
@@ -1033,7 +1080,7 @@ function typeOn(title: string, enter: number, enabled: boolean): string {
   );
 }
 
-function paletteFor(title: string, styleId: HookStyle, design?: NorthStarDesign): Palette {
+function paletteFor(title: string, styleId: HookStyle, design?: DesignTokens): Palette {
   if (design?.enabled) {
     return {
       ink: design.inkColor,

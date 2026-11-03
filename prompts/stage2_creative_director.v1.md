@@ -43,7 +43,7 @@ TOOLBOX (capabilities, not requirements; the renderer supports exactly these kin
 - cutout: speaker keyed in front of a designed background or B-roll (only when SPEAKER_CUTOUT is available).
 - card: photo/screenshot/user-asset card. Treatments: card, scroll, suspense, focus (with focus_region on documents), float, wipe, slideshow.
 - slideshow: related stills cycling as an overlay card or on a split half. Use only when related images exist.
-- bubble: chat/message-style cards.
+- bubble: chat/message-style cards. WP52: NOT a polish toolkit (scatter chips). Lists use TopicPills or Layer-2 templates (BlurWordCarousel); ChatConversationBubbles only for real chat intent.
 - lockup: stacked spoken phrase in a slot.
 - kinetic_text: motion-graphic text with shape (none, underline, pill, bar, block, outline_box, bubble), entrance, exit, font scale.
 - counter: animated count-up for spoken numbers.

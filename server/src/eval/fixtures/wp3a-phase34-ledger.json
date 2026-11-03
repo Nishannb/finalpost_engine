@@ -1,0 +1,860 @@
+{
+ "version": 1,
+ "timeBase": "output_seconds",
+ "contentProfile": {
+  "present": false
+ },
+ "stageContext": {
+  "visual_director": {
+   "profile": true,
+   "theme": true
+  },
+  "motion_director": {
+   "profile": true,
+   "theme": true
+  },
+  "motion_worker": {
+   "profile": true,
+   "theme": true
+  },
+  "conflict_validator": {
+   "profile": false,
+   "theme": false
+  }
+ },
+ "trackTheme": {
+  "HookTitle": true,
+  "KineticCaptions": true,
+  "MotionGraphicTrack": true,
+  "SemanticEmphasisTrack": true,
+  "InsetRevealTrack": true,
+  "VisualOverlayTrack": true,
+  "GeneratedGraphicTrack": true
+ },
+ "edits": [
+  {
+   "id": "hook_title@0#47bf5f",
+   "type": "hook_title",
+   "source": "visual_director",
+   "label": "Never ever do these three things",
+   "proposed": {
+    "start": 0,
+    "end": 3
+   },
+   "final": {
+    "start": 0,
+    "end": 3
+   },
+   "prerequisites": [],
+   "events": [
+    {
+     "stage": "visual_director",
+     "decision": "proposed"
+    },
+    {
+     "stage": "plan_assembly",
+     "decision": "accepted",
+     "change": {
+      "to": {
+       "start": 0,
+       "end": 3
+      }
+     }
+    },
+    {
+     "stage": "conflict_validator",
+     "decision": "accepted",
+     "change": {
+      "to": {
+       "start": 0,
+       "end": 3
+      }
+     }
+    },
+    {
+     "stage": "renderer",
+     "decision": "rendered",
+     "track": "HookTitle",
+     "visibility": "visible"
+    }
+   ]
+  },
+  {
+   "id": "zoom@7540#922988",
+   "type": "zoom",
+   "source": "visual_director",
+   "label": "zoom",
+   "proposed": {
+    "start": 7.54,
+    "end": 9.04
+   },
+   "final": {
+    "start": 7.54,
+    "end": 9.04
+   },
+   "prerequisites": [],
+   "events": [
+    {
+     "stage": "visual_director",
+     "decision": "proposed"
+    },
+    {
+     "stage": "editorial_gate",
+     "decision": "accepted",
+     "change": {
+      "to": {
+       "start": 7.54,
+       "end": 9.04
+      }
+     }
+    },
+    {
+     "stage": "plan_assembly",
+     "decision": "accepted",
+     "reason": "zoom_focus_0.5_0.35",
+     "change": {
+      "to": {
+       "start": 7.54,
+       "end": 9.04
+      }
+     }
+    },
+    {
+     "stage": "renderer",
+     "decision": "rendered",
+     "track": "ZoomFrame",
+     "visibility": "visible"
+    }
+   ]
+  },
+  {
+   "id": "zoom@21000#922988",
+   "type": "zoom",
+   "source": "visual_director",
+   "label": "zoom",
+   "proposed": {
+    "start": 21,
+    "end": 22.8
+   },
+   "final": {
+    "start": 21,
+    "end": 22.8
+   },
+   "prerequisites": [],
+   "events": [
+    {
+     "stage": "visual_director",
+     "decision": "proposed"
+    },
+    {
+     "stage": "editorial_gate",
+     "decision": "accepted",
+     "change": {
+      "to": {
+       "start": 21,
+       "end": 22.8
+      }
+     }
+    },
+    {
+     "stage": "plan_assembly",
+     "decision": "accepted",
+     "reason": "zoom_focus_0.5_0.35",
+     "change": {
+      "to": {
+       "start": 21,
+       "end": 22.8
+      }
+     }
+    },
+    {
+     "stage": "renderer",
+     "decision": "rendered",
+     "track": "ZoomFrame",
+     "visibility": "visible"
+    }
+   ]
+  },
+  {
+   "id": "zoom@36660#922988",
+   "type": "zoom",
+   "source": "visual_director",
+   "label": "zoom",
+   "proposed": {
+    "start": 36.66,
+    "end": 38.06
+   },
+   "final": {
+    "start": 36.66,
+    "end": 38.06
+   },
+   "prerequisites": [],
+   "events": [
+    {
+     "stage": "visual_director",
+     "decision": "proposed"
+    },
+    {
+     "stage": "editorial_gate",
+     "decision": "accepted",
+     "change": {
+      "to": {
+       "start": 36.66,
+       "end": 38.06
+      }
+     }
+    },
+    {
+     "stage": "plan_assembly",
+     "decision": "accepted",
+     "reason": "zoom_focus_0.5_0.35",
+     "change": {
+      "to": {
+       "start": 36.66,
+       "end": 38.06
+      }
+     }
+    },
+    {
+     "stage": "renderer",
+     "decision": "rendered",
+     "track": "ZoomFrame",
+     "visibility": "visible"
+    }
+   ]
+  },
+  {
+   "id": "lockup@4420#fa21ec",
+   "type": "lockup",
+   "source": "visual_director",
+   "label": "HOOK IS KEY",
+   "proposed": {
+    "start": 4.42,
+    "end": 4.42
+   },
+   "final": {
+    "start": 4.42,
+    "end": 6.82
+   },
+   "prerequisites": [],
+   "events": [
+    {
+     "stage": "visual_director",
+     "decision": "proposed"
+    },
+    {
+     "stage": "moment_planner",
+     "decision": "accepted",
+     "change": {
+      "from": {
+       "start": 4.42,
+       "end": 4.42
+      },
+      "to": {
+       "start": 4.42,
+       "end": 6.82
+      }
+     }
+    },
+    {
+     "stage": "editorial_gate",
+     "decision": "accepted",
+     "change": {
+      "to": {
+       "start": 4.42,
+       "end": 6.82
+      }
+     }
+    },
+    {
+     "stage": "conflict_validator",
+     "decision": "accepted",
+     "change": {
+      "to": {
+       "start": 4.42,
+       "end": 6.82
+      }
+     }
+    },
+    {
+     "stage": "renderer",
+     "decision": "rendered",
+     "track": "VisualOverlayTrack",
+     "visibility": "visible"
+    }
+   ]
+  },
+  {
+   "id": "lockup@33460#0c5f4d",
+   "type": "lockup",
+   "source": "visual_director",
+   "label": "PERFORMANCE BONUS",
+   "proposed": {
+    "start": 33.46,
+    "end": 33.46
+   },
+   "final": {
+    "start": 34.88,
+    "end": 37.39
+   },
+   "prerequisites": [],
+   "events": [
+    {
+     "stage": "visual_director",
+     "decision": "proposed"
+    },
+    {
+     "stage": "moment_planner",
+     "decision": "accepted",
+     "change": {
+      "from": {
+       "start": 33.46,
+       "end": 33.46
+      },
+      "to": {
+       "start": 34.88,
+       "end": 37.39
+      }
+     }
+    },
+    {
+     "stage": "editorial_gate",
+     "decision": "accepted",
+     "change": {
+      "to": {
+       "start": 34.88,
+       "end": 37.39
+      }
+     }
+    },
+    {
+     "stage": "conflict_validator",
+     "decision": "accepted",
+     "change": {
+      "to": {
+       "start": 34.88,
+       "end": 37.39
+      }
+     }
+    },
+    {
+     "stage": "renderer",
+     "decision": "rendered",
+     "track": "VisualOverlayTrack",
+     "visibility": "visible"
+    }
+   ]
+  },
+  {
+   "id": "inset_reveal@28460#3ec1e5",
+   "type": "inset_reveal",
+   "source": "visual_director",
+   "label": "motion_graphic",
+   "proposed": {
+    "start": 28.46,
+    "end": 33.04
+   },
+   "final": null,
+   "reason": "Showcases the professional editing software suite mentioned by the creator",
+   "prerequisites": [],
+   "events": [
+    {
+     "stage": "visual_director",
+     "decision": "proposed"
+    },
+    {
+     "stage": "inset_planner",
+     "decision": "accepted",
+     "change": {
+      "from": {
+       "start": 28.46,
+       "end": 33.04
+      },
+      "to": {
+       "start": 28.46,
+       "end": 33.04
+      }
+     }
+    },
+    {
+     "stage": "plan_assembly",
+     "decision": "dropped",
+     "reason": "overlaps_frame_inset_equal_rank_directed_earlier",
+     "precision": "exact",
+     "conflictsWith": [
+      "frame_inset@25300#39d88b"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "kinetic_text@10580#7db56d",
+   "type": "kinetic_text",
+   "source": "visual_director",
+   "label": "THREE LINES",
+   "proposed": {
+    "start": 10.58,
+    "end": 12.44
+   },
+   "final": {
+    "start": 10.58,
+    "end": 12.78
+   },
+   "prerequisites": [],
+   "events": [
+    {
+     "stage": "visual_director",
+     "decision": "proposed"
+    },
+    {
+     "stage": "plan_assembly",
+     "decision": "accepted",
+     "change": {
+      "from": {
+       "start": 10.58,
+       "end": 12.44
+      },
+      "to": {
+       "start": 10.58,
+       "end": 12.78
+      }
+     }
+    },
+    {
+     "stage": "conflict_validator",
+     "decision": "accepted",
+     "change": {
+      "to": {
+       "start": 10.58,
+       "end": 12.78
+      }
+     }
+    },
+    {
+     "stage": "renderer",
+     "decision": "rendered",
+     "track": "MotionGraphicTrack",
+     "visibility": "visible"
+    }
+   ]
+  },
+  {
+   "id": "kinetic_text@38500#c6751c",
+   "type": "kinetic_text",
+   "source": "visual_director",
+   "label": "EXPECT A BONUS",
+   "proposed": {
+    "start": 38.5,
+    "end": 39.6
+   },
+   "final": null,
+   "prerequisites": [],
+   "events": [
+    {
+     "stage": "visual_director",
+     "decision": "proposed"
+    },
+    {
+     "stage": "plan_assembly",
+     "decision": "dropped",
+     "reason": "shorter_than_1.8s_or_inside_first_0.55s",
+     "precision": "exact"
+    }
+   ]
+  },
+  {
+   "id": "frame_inset@25300#39d88b",
+   "type": "frame_inset",
+   "source": "visual_director",
+   "label": "frame",
+   "proposed": {
+    "start": 25.3,
+    "end": 29.1
+   },
+   "final": {
+    "start": 25.3,
+    "end": 29.1
+   },
+   "prerequisites": [],
+   "events": [
+    {
+     "stage": "visual_director",
+     "decision": "proposed"
+    },
+    {
+     "stage": "plan_assembly",
+     "decision": "accepted",
+     "change": {
+      "from": {
+       "start": 25.3,
+       "end": 29.1
+      },
+      "to": {
+       "start": 25.3,
+       "end": 29.1
+      }
+     }
+    },
+    {
+     "stage": "conflict_validator",
+     "decision": "accepted",
+     "change": {
+      "to": {
+       "start": 25.3,
+       "end": 29.1
+      }
+     }
+    },
+    {
+     "stage": "renderer",
+     "decision": "rendered",
+     "track": "FrameInsetFrame",
+     "visibility": "visible"
+    }
+   ]
+  },
+  {
+   "id": "emphasis@13340#c0bc68",
+   "type": "emphasis",
+   "source": "visual_director",
+   "label": "CONTROL EMOTIONS",
+   "proposed": {
+    "start": 13.34,
+    "end": 15.74
+   },
+   "final": {
+    "start": 13.34,
+    "end": 15.74
+   },
+   "prerequisites": [],
+   "events": [
+    {
+     "stage": "visual_director",
+     "decision": "proposed"
+    },
+    {
+     "stage": "plan_assembly",
+     "decision": "accepted",
+     "change": {
+      "from": {
+       "start": 13.34,
+       "end": 15.74
+      },
+      "to": {
+       "start": 13.34,
+       "end": 15.74
+      }
+     }
+    },
+    {
+     "stage": "conflict_validator",
+     "decision": "accepted",
+     "change": {
+      "to": {
+       "start": 13.34,
+       "end": 15.74
+      }
+     }
+    },
+    {
+     "stage": "renderer",
+     "decision": "rendered",
+     "track": "SemanticEmphasisTrack",
+     "visibility": "visible"
+    }
+   ]
+  },
+  {
+   "id": "emphasis@18040#9cfea8",
+   "type": "emphasis",
+   "source": "visual_director",
+   "label": "9 HASHTAGS",
+   "proposed": {
+    "start": 18.04,
+    "end": 20.44
+   },
+   "final": {
+    "start": 18.04,
+    "end": 20.44
+   },
+   "prerequisites": [],
+   "events": [
+    {
+     "stage": "visual_director",
+     "decision": "proposed"
+    },
+    {
+     "stage": "plan_assembly",
+     "decision": "accepted",
+     "change": {
+      "from": {
+       "start": 18.04,
+       "end": 20.44
+      },
+      "to": {
+       "start": 18.04,
+       "end": 20.44
+      }
+     }
+    },
+    {
+     "stage": "conflict_validator",
+     "decision": "accepted",
+     "reason": "advisory:spatial_covers_face",
+     "change": {
+      "to": {
+       "start": 18.04,
+       "end": 20.44
+      }
+     }
+    },
+    {
+     "stage": "renderer",
+     "decision": "rendered",
+     "track": "SemanticEmphasisTrack",
+     "visibility": "visible"
+    }
+   ]
+  },
+  {
+   "id": "generated_graphic@30160#405438",
+   "type": "generated_graphic",
+   "source": "motion_director",
+   "label": "editing-software-list",
+   "proposed": {
+    "start": 30.16,
+    "end": 33.66
+   },
+   "final": {
+    "start": 30.16,
+    "end": 33.66
+   },
+   "reason": "The speaker lists three specific industry-standard editing software tools that editors should use.",
+   "prerequisites": [],
+   "events": [
+    {
+     "stage": "motion_director",
+     "decision": "proposed"
+    },
+    {
+     "stage": "motion_worker",
+     "decision": "accepted",
+     "change": {
+      "to": {
+       "start": 30.16,
+       "end": 33.66
+      }
+     }
+    },
+    {
+     "stage": "conflict_validator",
+     "decision": "accepted",
+     "change": {
+      "to": {
+       "start": 30.16,
+       "end": 33.66
+      }
+     }
+    },
+    {
+     "stage": "renderer",
+     "decision": "rendered",
+     "track": "GeneratedSplitStage",
+     "visibility": "visible"
+    }
+   ]
+  },
+  {
+   "id": "caption@0#1405df",
+   "type": "caption",
+   "source": "plan_assembly",
+   "label": "base",
+   "proposed": {
+    "start": 0,
+    "end": 0
+   },
+   "final": {
+    "start": 0,
+    "end": 30.16
+   },
+   "prerequisites": [],
+   "events": [
+    {
+     "stage": "plan_assembly",
+     "decision": "proposed"
+    },
+    {
+     "stage": "conflict_validator",
+     "decision": "accepted",
+     "change": {
+      "to": {
+       "start": 0,
+       "end": 30.16
+      }
+     }
+    },
+    {
+     "stage": "renderer",
+     "decision": "rendered",
+     "track": "KineticCaptions",
+     "visibility": "visible"
+    }
+   ]
+  },
+  {
+   "id": "caption@30160#1d4d61",
+   "type": "caption",
+   "source": "plan_assembly",
+   "label": "docked-top",
+   "proposed": {
+    "start": 30.16,
+    "end": 30.16
+   },
+   "final": {
+    "start": 30.16,
+    "end": 33.66
+   },
+   "prerequisites": [],
+   "events": [
+    {
+     "stage": "plan_assembly",
+     "decision": "proposed"
+    },
+    {
+     "stage": "conflict_validator",
+     "decision": "accepted",
+     "change": {
+      "to": {
+       "start": 30.16,
+       "end": 33.66
+      }
+     }
+    },
+    {
+     "stage": "renderer",
+     "decision": "rendered",
+     "track": "KineticCaptions",
+     "visibility": "visible"
+    }
+   ]
+  },
+  {
+   "id": "caption@33660#1405df",
+   "type": "caption",
+   "source": "plan_assembly",
+   "label": "base",
+   "proposed": {
+    "start": 33.66,
+    "end": 33.66
+   },
+   "final": {
+    "start": 33.66,
+    "end": 41.708
+   },
+   "prerequisites": [],
+   "events": [
+    {
+     "stage": "plan_assembly",
+     "decision": "proposed"
+    },
+    {
+     "stage": "conflict_validator",
+     "decision": "accepted",
+     "change": {
+      "to": {
+       "start": 33.66,
+       "end": 41.708
+      }
+     }
+    },
+    {
+     "stage": "renderer",
+     "decision": "rendered",
+     "track": "KineticCaptions",
+     "visibility": "visible"
+    }
+   ]
+  }
+ ],
+ "summary": {
+  "proposedByType": {
+   "hook_title": 1,
+   "zoom": 3,
+   "lockup": 2,
+   "inset_reveal": 1,
+   "kinetic_text": 2,
+   "frame_inset": 1,
+   "emphasis": 2,
+   "generated_graphic": 1,
+   "caption": 3
+  },
+  "acceptedByType": {
+   "hook_title": 1,
+   "zoom": 3,
+   "lockup": 2,
+   "kinetic_text": 1,
+   "frame_inset": 1,
+   "emphasis": 2,
+   "generated_graphic": 1,
+   "caption": 3
+  },
+  "lostByTypeAndReason": {
+   "inset_reveal": {
+    "overlaps_frame_inset_equal_rank_directed_earlier": 1
+   },
+   "kinetic_text": {
+    "shorter_than_1.8s_or_inside_first_0.55s": 1
+   }
+  },
+  "outcomes": {
+   "rendered": 14,
+   "rendered_not_apparent": 0,
+   "accepted_not_rendered": 0,
+   "dropped": 2,
+   "rejected": 0,
+   "proposed_only": 0
+  },
+  "reachedRendererByTrack": {
+   "HookTitle": 1,
+   "ZoomFrame": 3,
+   "VisualOverlayTrack": 2,
+   "MotionGraphicTrack": 1,
+   "FrameInsetFrame": 1,
+   "SemanticEmphasisTrack": 2,
+   "GeneratedSplitStage": 1,
+   "KineticCaptions": 3
+  },
+  "conflicts": {
+   "temporal": 0,
+   "spatial": 1
+  },
+  "stageContext": {
+   "visual_director": {
+    "profile": true,
+    "theme": true
+   },
+   "motion_director": {
+    "profile": true,
+    "theme": true
+   },
+   "motion_worker": {
+    "profile": true,
+    "theme": true
+   },
+   "conflict_validator": {
+    "profile": false,
+    "theme": false
+   }
+  },
+  "trackTheme": {
+   "HookTitle": true,
+   "KineticCaptions": true,
+   "MotionGraphicTrack": true,
+   "SemanticEmphasisTrack": true,
+   "InsetRevealTrack": true,
+   "VisualOverlayTrack": true,
+   "GeneratedGraphicTrack": true
+  },
+  "profilePresent": false
+ }
+}

@@ -31,6 +31,8 @@ export async function resolveDepthOverlays(input: {
   occupancySlices?: Array<{atSec: number; occupancy: Occupancy}>;
   maskAvailable: boolean;
   allowStock?: boolean;
+  /** WP1: creator assets only, referenced by exact id; never substitute the first clip/asset. */
+  userBrollOnly?: boolean;
   alreadyOutput?: boolean;
 }): Promise<{clips: DepthOverlayClip[]; warnings: string[]}> {
   const warnings: string[] = [];
@@ -63,7 +65,7 @@ export async function resolveDepthOverlays(input: {
     const end = input.alreadyOutput
       ? clamp(item.end, start, input.timeline.outputDurationSec)
       : input.timeline.mapSourceToOutputClamped(item.end);
-    const user = resolveUserDepthAsset(item, input.userBrollById);
+    const user = resolveUserDepthAsset(item, input.userBrollById, input.userBrollOnly);
     if (user) {
       resolved.push({
         id: item.assetId || item.userBrollId || `depth_${index}`,
@@ -206,12 +208,16 @@ export async function resolveDepthOverlays(input: {
 function resolveUserDepthAsset(
   item: DirectedDepthOverlay,
   userBrollById: Map<string, UserBrollAsset>,
+  userBrollOnly?: boolean,
 ): UserBrollAsset | undefined {
   if (item.assetId && userBrollById.has(item.assetId)) {
     return userBrollById.get(item.assetId);
   }
   if (item.userBrollId && userBrollById.has(item.userBrollId)) {
     return userBrollById.get(item.userBrollId);
+  }
+  if (userBrollOnly) {
+    return undefined; // WP1: an unknown or missing id never selects a different asset
   }
   const assets = [...userBrollById.values()];
   return (

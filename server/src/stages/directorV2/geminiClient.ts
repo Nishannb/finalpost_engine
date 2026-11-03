@@ -1,6 +1,8 @@
+import {LEGACY_FRAME_SEND_LIMIT} from './storyboardPlan.ts';
 import {promises as fs} from 'node:fs';
 
 import {env} from '../../config/env.ts';
+import {inStrictRun} from '../../lib/billingGuard.ts';
 import {dumpDirectorTrace} from '../../lib/directorDump.ts';
 import {EngineError, isEngineError} from '../../lib/errors.ts';
 import {requestJson} from '../../lib/http.ts';
@@ -57,6 +59,11 @@ export async function callDirectorModel(input: {
       return await callOnce({...input, model, thinkingBudget, timeoutMs});
     } catch (error) {
       lastError = error;
+      if (isTimeout(error) && inStrictRun()) {
+        // Strict AI-direction run: a timed-out call may already be billed, so it is neither retried with a different body (thinking off) nor re-sent to another model.
+        log.warn({model, error, label: input.label}, 'strict run: director timed out; no retry, no model fallback');
+        throw error;
+      }
       if (isTimeout(error) && thinkingBudget !== 0) {
         thinkingBudget = 0;
         timeoutMs = Math.min(timeoutMs, 90_000);
@@ -195,7 +202,8 @@ async function callOnce(input: {
   };
 }
 
-export async function frameParts(paths: string[], limit = 8): Promise<GeminiPart[]> {
+/** Images attached by default: the same constant the frame labels use (`storyboardPlan.LEGACY_FRAME_SEND_LIMIT`). */
+export async function frameParts(paths: string[], limit: number = LEGACY_FRAME_SEND_LIMIT): Promise<GeminiPart[]> {
   const out: GeminiPart[] = [];
   for (const filePath of paths.slice(0, limit)) {
     try {

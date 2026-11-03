@@ -155,7 +155,7 @@ function isRetryableR2Error(error: unknown): boolean {
   );
 }
 
-async function uploadPublicFile(
+export async function uploadPublicFile(
   filePath: string,
   key: string,
   contentType: string,

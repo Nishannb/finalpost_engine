@@ -12,23 +12,36 @@
  * `--cutout` forces speaker-over-B-roll so you can test the cutout path.
  * `--director-v2` runs the free multi-stage director (perception/story/creative/compiler).
  * `--north-star` runs Director v2 plus plate contrast, thesis tokens, stock rerank, and SFX.
+ * `--motion-graphics` / `--no-motion-graphics` turn generated motion graphics on/off
+ * (Gemini briefs → Claude worker); the default follows MOTION_GRAPHICS_ENABLED.
  */
 
-import {existsSync} from 'node:fs';
+import {existsSync, mkdtempSync} from 'node:fs';
+import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
+import {env} from '../config/env.ts';
 import {analyzeVideo} from '../pipeline/analyzeVideo.ts';
 import {DEFAULT_RENDER_STYLE} from '../http/schemas.ts';
+import {geminiBudgetFromLimit, geminiBudgetPlanFor, withGeminiBudget} from '../lib/geminiEditBudget.ts';
+import {
+  analyzeOverridesFor,
+  normalizeEditProfile,
+  unrecognizedEditProfile,
+  profileFingerprintKey,
+} from '../lib/productEditProfile.ts';
 import {isLocalMediaPath, resolveLocalMediaPath} from '../lib/tempFiles.ts';
 import {userBrollFingerprintKey} from '../stages/broll/userBrollDescribe.ts';
 import {logger} from '../lib/logger.ts';
 import {dumpDirectorTrace} from '../lib/directorDump.ts';
 import {formatAssemblerTerminal} from '../lib/assembler/index.ts';
 import {listAvailableLuts, normalizeLutId} from '../stages/color/luts.ts';
+import {denoiseTalkingHeadAudio} from '../media/ffmpeg.ts';
 import {saveBlueprint, fingerprintSource} from '../store/engineStore.ts';
 import {renderLocally} from '../stages/render/localRender.ts';
 import {r2Configured} from '../storage/r2.ts';
+import {buildDenoiseFilter, denoiseWasApplied} from '../stages/audio/noiseFilter.ts';
 import {transcriptionConfigured} from '../stages/transcribe/groqTranscribe.ts';
 import type {LanguageCode} from '../types/blueprint.ts';
 import {SUPPORTED_LANGUAGES} from '../types/blueprint.ts';
@@ -37,6 +50,7 @@ import {
   mergeDeliveryShapingAllowlist,
   parseCaptionTemplateFlag,
   parseEditAllowlist,
+  polishRequestedEdits,
   resolvePipelineEdits,
 } from '../lib/editToolkits.ts';
 
@@ -69,7 +83,10 @@ function usage(): string {
     '--no-delivery-shaping: skip Delivery Shaping even when --edits is omitted',
     '--no-repair: skip the one director repair pass (dumps / diagnostics)',
     '--captions=<template>: kinetic caption look (karaoke, hormozi, …)',
+    '--motion-graphics / --no-motion-graphics: generated motion graphics (Gemini → Claude); default MOTION_GRAPHICS_ENABLED',
     '--list-edits: print every toolkit and caption template, then exit',
+    'PRODUCT_EDIT_PROFILE (env): DEFAULT is cuts (silence/filler/retake trim + denoise, no visual edits); set PRODUCT_EDIT_PROFILE=legacy or mvp only to opt out to the older behaviours; PRODUCT_EDIT_PROFILE=polish is an opt-in: the cuts speech path (Stage A) THEN the mvp visual editor (Stage B), never the default; the HTTP analyze path reads the same PRODUCT_EDIT_PROFILE and runs the same stack',
+    'On polish, omitting --edits (the default captions-only lean) uses POLISH_LEAN_EDITS (captions, zoom, hook, kinetic text, lockup, card, bubble, emphasis, counter, cutaway), not captions-only; --full-edits / --edits=all still mean every toolkit',
     '',
     'Default pipeline is lean: captions, auto-trim, auto-zoom, and a varied hook title.',
     'B-roll and the other visual toolkits stay in the repo; pass --edits= to use them.',
@@ -95,6 +112,7 @@ export function parseArgs(argv: string[]): {
   forceDeliveryShaping?: boolean;
   captionTemplate: ReturnType<typeof parseCaptionTemplateFlag>;
   noRepair: boolean;
+  generatedGraphicsEnabled?: boolean;
 } {
   const positional: string[] = [];
   let lutFlag = '';
@@ -108,7 +126,12 @@ export function parseArgs(argv: string[]): {
   let forceDeliveryShaping: boolean | undefined;
   let captionsFlag = '';
   let noRepair = false;
+  let generatedGraphicsEnabled: boolean | undefined;
   for (const arg of argv) {
+    if (arg === '--motion-graphics' || arg === '--no-motion-graphics') {
+      generatedGraphicsEnabled = arg === '--motion-graphics';
+      continue;
+    }
     if (arg === '--list-edits' || arg === '--list-edit' || arg === '--list_edits') {
       listEdits = true;
       continue;
@@ -222,6 +245,7 @@ export function parseArgs(argv: string[]): {
     forceDeliveryShaping,
     captionTemplate,
     noRepair,
+    ...(generatedGraphicsEnabled === undefined ? {} : {generatedGraphicsEnabled}),
   };
 }
 
@@ -239,6 +263,7 @@ async function main(): Promise<void> {
     forceDeliveryShaping,
     captionTemplate,
     noRepair,
+    generatedGraphicsEnabled,
   } = parseArgs(process.argv.slice(2));
 
   if (listEdits) {
@@ -273,23 +298,45 @@ async function main(): Promise<void> {
     );
   }
 
+  // Same profile boundary as the HTTP analyze path. WP7C: the default is cuts; PRODUCT_EDIT_PROFILE=legacy or mvp opt out; WP8A: polish (cuts speech + mvp visuals) is an opt-in.
+  const editProfile = normalizeEditProfile(env.PRODUCT_EDIT_PROFILE);
+  const unknownProfile = unrecognizedEditProfile(env.PRODUCT_EDIT_PROFILE);
+  if (unknownProfile) logger.warn({value: unknownProfile, resolved: editProfile}, 'PRODUCT_EDIT_PROFILE is not legacy, mvp, cuts or polish; using the default (cuts)');
   logger.info(
-    {videoUrl, languageCode, colorGradeLut, userBroll: userBrollUrls.length, forceSpeakerCutout, directorV2, northStar, requestedEdits, forceDeliveryShaping, captionTemplate},
+    {
+      videoUrl,
+      languageCode,
+      colorGradeLut,
+      userBroll: userBrollUrls.length,
+      forceSpeakerCutout,
+      directorV2,
+      northStar,
+      requestedEdits,
+      forceDeliveryShaping,
+      captionTemplate,
+      editProfile,
+      geminiEditMaxRequests: env.GEMINI_EDIT_MAX_REQUESTS,
+    },
     'analyzing',
   );
-  const blueprint = await analyzeVideo({
-    videoUrl,
-    languageCode,
-    userId: 'dev-user',
-    userBrollUrls,
-    forceSpeakerCutout,
-    directorV2,
-    northStar,
-    requestedEdits,
-    forceDeliveryShaping,
-    captionTemplate,
-    noRepair,
-  });
+  const blueprint = await withGeminiBudget(geminiBudgetFromLimit(env.GEMINI_EDIT_MAX_REQUESTS, geminiBudgetPlanFor(editProfile)), () =>
+    analyzeVideo({
+      videoUrl,
+      languageCode,
+      userId: 'dev-user',
+      userBrollUrls,
+      forceSpeakerCutout,
+      directorV2,
+      northStar,
+      requestedEdits,
+      forceDeliveryShaping,
+      captionTemplate,
+      noRepair,
+      generatedGraphicsEnabled,
+      ...analyzeOverridesFor(editProfile),
+      editProfile,
+    }),
+  );
   dumpDirectorTrace('04-blueprint-applied', {
     blueprintId: blueprint.blueprintId,
     sourceDurationSec: blueprint.sourceDurationSec,
@@ -356,9 +403,12 @@ async function main(): Promise<void> {
       forceSpeakerCutout,
       directorV2,
       northStar,
-      requestedEdits: (requestedEdits ?? []).slice().sort().join(','),
+      // WP8L: on polish the edits the run really used (a captions-only list is expanded), so the saved fingerprint matches the HTTP runner's.
+      requestedEdits: editProfile === 'polish' ? (polishRequestedEdits(requestedEdits, env.POLISH_DEFAULT_EDITS) ?? ['all']).slice().sort().join(',') : (requestedEdits ?? []).slice().sort().join(','),
       forceDeliveryShaping,
       captionTemplate: captionTemplate ?? '',
+      ...(generatedGraphicsEnabled === undefined ? {} : {generatedGraphicsEnabled}),
+      ...(profileFingerprintKey(editProfile) ? {editProfileKey: profileFingerprintKey(editProfile)} : {}),
     }),
   );
   logger.info(
@@ -408,6 +458,8 @@ async function main(): Promise<void> {
           }
         : null,
       motionGraphics: blueprint.motionGraphics.length,
+      generatedGraphics: (blueprint.generatedGraphics ?? []).map(graphic => `${graphic.id}@${graphic.start}-${graphic.end}:${graphic.placement.mode}`),
+      costBreakdownUsd: blueprint.stats.costBreakdownUsd,
       lut: blueprint.colorGradeLut,
       captionSample: blueprint.captionWords.slice(0, 12).map(word => word.text).join(' '),
       warnings: blueprint.stats.warnings,
@@ -415,8 +467,30 @@ async function main(): Promise<void> {
     'blueprint ready — starting local render',
   );
 
+  // Local CLI sources: prefer the on-disk file for Remotion prefetch so we do not
+  // re-download the just-uploaded R2 object (slow / timeout-prone / CDN flakes). Skip when
+  // delivery shaping rewrote the talking-head to a different asset. When WP7A denoise ran, re-mux
+  // the same denoise filter onto the local file so the render keeps cleaned audio without depending on R2.
+  let renderBlueprint = blueprint;
+  if (isLocalMediaPath(videoUrl) && !blueprint.deliveryShaping) {
+    const localPath = resolveLocalMediaPath(videoUrl);
+    if (denoiseWasApplied(blueprint.stats.warnings) && env.CUTS_DENOISE_ENABLED) {
+      const dir = mkdtempSync(path.join(tmpdir(), 'first-video-denoise-'));
+      const denoisedPath = path.join(dir, 'denoised.mp4');
+      await denoiseTalkingHeadAudio({
+        inputPath: localPath,
+        outputPath: denoisedPath,
+        filter: buildDenoiseFilter({reductionDb: env.CUTS_DENOISE_NR_DB, highPassHz: env.CUTS_DENOISE_HIGHPASS_HZ}),
+      });
+      logger.info({denoisedPath}, 'local CLI re-denoised talking-head for Remotion prefetch');
+      renderBlueprint = {...blueprint, videoUrl: denoisedPath};
+    } else {
+      renderBlueprint = {...blueprint, videoUrl: localPath};
+    }
+  }
+
   const {outputUrl} = await renderLocally({
-    blueprint,
+    blueprint: renderBlueprint,
     style: {
       ...DEFAULT_RENDER_STYLE,
       captionTemplate: blueprint.captionDirection?.template ?? DEFAULT_RENDER_STYLE.captionTemplate,

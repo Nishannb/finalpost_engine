@@ -23,10 +23,13 @@ import type {TimelineBlueprint, VisualOverlay} from '../../types/blueprint.ts';
 
 const log = stageLogger('prefetch-assets');
 
-const MAX_BYTES = 80 * 1024 * 1024;
-const DOWNLOAD_TIMEOUT_MS = 90_000;
+/** Match analyze ingest (`MAX_SOURCE_BYTES` in analyzeVideo.ts): a talking-head file can exceed the old 80 MB prefetch cap. */
+const MAX_BYTES = 400 * 1024 * 1024;
+/** Large source pulls (80–400 MB) routinely exceed 90 s on consumer uplinks; abort was surfacing as a generic download failure. */
+const DOWNLOAD_TIMEOUT_MS = 300_000;
 
 const MEDIA_EXTS = new Set([
+  '.js',
   '.mp4',
   '.mov',
   '.webm',
@@ -46,6 +49,14 @@ const TEXT_LAYOUTS = new Set<VisualOverlay['layout']>([
   'bubble',
 ]);
 
+/** WP54: the video a backend graphic (riso cache mp4) asks Remotion to play full-screen, or ''. Only .mp4 / .mov / .webm / .m4v on graphics that name a backend. */
+export function backendVideoUrlOf(graphic: {props?: Record<string, unknown>}): string {
+  const props = graphic.props ?? {};
+  const url = typeof props.assetUrl === 'string' ? props.assetUrl.trim() : '';
+  if (!url || (props.backend !== 'riso' && props.backend !== 'anidoodle' && props.backend !== 'collage_gbro')) return '';
+  return /\.(mp4|mov|webm|m4v)(\?.*)?$/i.test(url) ? url : '';
+}
+
 export function collectBlueprintMediaUrls(blueprint: TimelineBlueprint): string[] {
   const urls = new Set<string>();
   const add = (value?: string) => {
@@ -58,6 +69,7 @@ export function collectBlueprintMediaUrls(blueprint: TimelineBlueprint): string[
     add(blueprint.videoUrl);
   }
   add(blueprint.speakerCutout?.videoUrl);
+  add(blueprint.subjectForeground?.videoUrl); // WP55 phase 2: the range-limited person foreground travels like the keyed cutout
   for (const clip of blueprint.brollClips ?? []) {
     add(clip.assetUrl);
   }
@@ -74,6 +86,10 @@ export function collectBlueprintMediaUrls(blueprint: TimelineBlueprint): string[
   }
   for (const clip of blueprint.transitions ?? []) {
     add(clip.assetUrl);
+  }
+  for (const graphic of blueprint.generatedGraphics ?? []) {
+    add(graphic.module.url);
+    add(backendVideoUrlOf(graphic)); // WP54: a riso / backend graphic's cached mp4 is prefetched like any overlay clip
   }
   return [...urls];
 }
@@ -97,9 +113,17 @@ export function rewriteBlueprintMediaUrls(
     .map(overlay => ({...overlay, assetUrl: swap(overlay.assetUrl)}))
     .filter(overlay => overlayKeepsAfterPrefetch(overlay));
 
+  // WP55 phase 2: a hero whose person foreground did not survive prefetch must NOT render (type drawn over the presenter's face is the one result this feature exists to prevent): drop the foreground
+  // AND every host-composited graphic together.
+  const foregroundUrl = blueprint.subjectForeground ? swap(blueprint.subjectForeground.videoUrl) : '';
+  const foregroundLost = Boolean(blueprint.subjectForeground) && !foregroundUrl;
+  const hostComposited = (graphic: {props?: unknown}) => (graphic.props as {content?: {hostComposited?: unknown}} | undefined)?.content?.hostComposited === true;
+
   return {
     ...blueprint,
     videoUrl: swap(blueprint.videoUrl),
+    ...(blueprint.subjectForeground && !foregroundLost ? {subjectForeground: {...blueprint.subjectForeground, videoUrl: foregroundUrl}} : {}),
+    ...(foregroundLost ? {subjectForeground: undefined} : {}),
     speakerCutout: blueprint.speakerCutout
       ? {
           ...blueprint.speakerCutout,
@@ -129,9 +153,21 @@ export function rewriteBlueprintMediaUrls(
         : clip,
     ),
     visualOverlays,
+    // A generated sweep (GENERATED_TRANSITIONS_ENABLED) has no asset to fetch and must survive; asset-less transitions
+    // without `renderGenerated` are not drawn by TransitionTrack and are dropped here as before.
     transitions: (blueprint.transitions ?? [])
       .map(clip => ({...clip, assetUrl: swap(clip.assetUrl)}))
-      .filter(clip => Boolean(clip.assetUrl)),
+      .filter(clip => Boolean(clip.assetUrl) || clip.renderGenerated === true),
+    // Same-origin module copies: no CORS, and a failed download drops the graphic like failed B-roll.
+    generatedGraphics: (blueprint.generatedGraphics ?? [])
+      .map(graphic => {
+        const video = backendVideoUrlOf(graphic);
+        // a backend mp4 that failed to prefetch is blanked, so the graphic keeps its native picture
+        const props = video ? {...graphic.props, assetUrl: swap(video)} : graphic.props;
+        return {...graphic, props, module: {...graphic.module, url: swap(graphic.module.url)}};
+      })
+      .filter(graphic => Boolean(graphic.module.url))
+      .filter(graphic => !(foregroundLost && hostComposited(graphic))),
     stats: {
       ...blueprint.stats,
       brollClipCount: (blueprint.brollClips ?? []).filter(clip =>
@@ -143,7 +179,7 @@ export function rewriteBlueprintMediaUrls(
       visualOverlayCount: visualOverlays.length,
       splitCount: visualOverlays.filter(overlay => overlay.layout === 'split').length,
       transitionCount: (blueprint.transitions ?? []).filter(clip =>
-        Boolean(swap(clip.assetUrl)),
+        Boolean(swap(clip.assetUrl)) || clip.renderGenerated === true,
       ).length,
     },
   };
@@ -178,7 +214,8 @@ export async function prefetchBlueprintMedia(
         dest,
         name,
         url === blueprint.videoUrl,
-        url === blueprint.speakerCutout?.videoUrl,
+        url === blueprint.speakerCutout?.videoUrl ||
+        url === blueprint.subjectForeground?.videoUrl,
       );
       urlMap.set(url, `${publicPrefix}/${publicName}`);
       log.info({name: publicName, bytesHint: url.slice(0, 96)}, 'prefetched');

@@ -1,0 +1,462 @@
+[
+  {
+    "id": "ne_sales_pip",
+    "ok": true,
+    "reused": false,
+    "ms": 22372,
+    "model": "claude-sonnet-5-5",
+    "url": "https://media.kinmel.shop/ai-video/motion-graphics/v0/5071d94396d532c0f3cc03109d5f9200fae3772c54cfb9f996f93d50413dd47f.js",
+    "bytes": 2105,
+    "gzipBytes": 1093,
+    "sourceBytes": 3238,
+    "toolkitImports": [
+      "Background",
+      "Box",
+      "Card",
+      "FitText",
+      "Progress",
+      "Reveal",
+      "contentBox",
+      "fitTextGroup",
+      "progress",
+      "sliceTop",
+      "withAlpha",
+      "GraphicProps"
+    ],
+    "attempts": [
+      {
+        "attempt": 1,
+        "kind": "generate",
+        "ok": true,
+        "ms": 21935,
+        "model": "claude-sonnet-5-5",
+        "inputTokens": 486,
+        "outputTokens": 2477,
+        "cacheCreationInputTokens": 0,
+        "cacheReadInputTokens": 12811,
+        "cache": "read",
+        "costUsd": 0.028304,
+        "runtime": {
+          "ok": true,
+          "frame": 69,
+          "ms": 4222,
+          "stillPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase5-multilingual.sonnet/ne_sales_pip.attempt1.png"
+        },
+        "report": {
+          "safety": [],
+          "typecheck": [],
+          "compile": [],
+          "runtime": []
+        }
+      }
+    ],
+    "usage": {
+      "inputTokens": 486,
+      "outputTokens": 2477,
+      "cacheReadInputTokens": 12811,
+      "cacheCreationInputTokens": 0,
+      "cacheCreation5mInputTokens": 0,
+      "cacheCreation1hInputTokens": 0
+    },
+    "costUsd": 0.028304,
+    "previewPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase5-multilingual.sonnet/ne_sales_pip.attempt1.png",
+    "warnings": []
+  },
+  {
+    "id": "ne_steps_split",
+    "ok": true,
+    "reused": false,
+    "ms": 11786,
+    "model": "claude-sonnet-5-5",
+    "url": "https://media.kinmel.shop/ai-video/motion-graphics/v0/30958338310befc6fdce9fff1d41b241a4e94932d622bc217bd56b5c219eae03.js",
+    "bytes": 2986,
+    "gzipBytes": 1459,
+    "sourceBytes": 5062,
+    "toolkitImports": [
+      "Arrow",
+      "Background",
+      "Box",
+      "FitText",
+      "Reveal",
+      "contentBox",
+      "fitTextGroup",
+      "isWide",
+      "progress",
+      "sliceTop",
+      "splitColumn",
+      "splitRow",
+      "springIn",
+      "withAlpha",
+      "GraphicProps"
+    ],
+    "attempts": [
+      {
+        "attempt": 1,
+        "kind": "generate",
+        "ok": true,
+        "ms": 11301,
+        "model": "claude-sonnet-5-5",
+        "inputTokens": 515,
+        "outputTokens": 2050,
+        "cacheCreationInputTokens": 0,
+        "cacheReadInputTokens": 12811,
+        "cache": "read",
+        "costUsd": 0.024092,
+        "runtime": {
+          "ok": true,
+          "frame": 80,
+          "ms": 632,
+          "stillPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase5-multilingual.sonnet/ne_steps_split.attempt1.png"
+        },
+        "report": {
+          "safety": [],
+          "typecheck": [],
+          "compile": [],
+          "runtime": []
+        }
+      }
+    ],
+    "usage": {
+      "inputTokens": 515,
+      "outputTokens": 2050,
+      "cacheReadInputTokens": 12811,
+      "cacheCreationInputTokens": 0,
+      "cacheCreation5mInputTokens": 0,
+      "cacheCreation1hInputTokens": 0
+    },
+    "costUsd": 0.024092,
+    "previewPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase5-multilingual.sonnet/ne_steps_split.attempt1.png",
+    "warnings": []
+  },
+  {
+    "id": "ja_revenue_full",
+    "ok": true,
+    "reused": false,
+    "ms": 20305,
+    "model": "claude-sonnet-5-5",
+    "url": "https://media.kinmel.shop/ai-video/motion-graphics/v0/ab698e71f68e7a8eac4cf872f2435d7dd0f145abd6439a9c6edc520e39048b5c.js",
+    "bytes": 2974,
+    "gzipBytes": 1327,
+    "sourceBytes": 4503,
+    "toolkitImports": [
+      "Background",
+      "Box",
+      "Counter",
+      "FitText",
+      "Icon",
+      "KineticText",
+      "LineChart",
+      "Reveal",
+      "contentBox",
+      "isWide",
+      "sliceTop",
+      "GraphicProps"
+    ],
+    "attempts": [
+      {
+        "attempt": 1,
+        "kind": "generate",
+        "ok": true,
+        "ms": 19710,
+        "model": "claude-sonnet-5-5",
+        "inputTokens": 524,
+        "outputTokens": 3037,
+        "cacheCreationInputTokens": 0,
+        "cacheReadInputTokens": 12811,
+        "cache": "read",
+        "costUsd": 0.03398,
+        "runtime": {
+          "ok": true,
+          "frame": 76,
+          "ms": 534,
+          "stillPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase5-multilingual.sonnet/ja_revenue_full.attempt1.png"
+        },
+        "report": {
+          "safety": [],
+          "typecheck": [],
+          "compile": [],
+          "runtime": []
+        }
+      }
+    ],
+    "usage": {
+      "inputTokens": 524,
+      "outputTokens": 3037,
+      "cacheReadInputTokens": 12811,
+      "cacheCreationInputTokens": 0,
+      "cacheCreation5mInputTokens": 0,
+      "cacheCreation1hInputTokens": 0
+    },
+    "costUsd": 0.03398,
+    "previewPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase5-multilingual.sonnet/ja_revenue_full.attempt1.png",
+    "warnings": []
+  },
+  {
+    "id": "ja_tools_split",
+    "ok": true,
+    "reused": false,
+    "ms": 21753,
+    "model": "claude-sonnet-5-5",
+    "url": "https://media.kinmel.shop/ai-video/motion-graphics/v0/8aa5ec99d5d77ee467a49edfcc67657cfc082ccb8d40ae9e6ea4c1ec33197faa.js",
+    "bytes": 3191,
+    "gzipBytes": 1399,
+    "sourceBytes": 4661,
+    "toolkitImports": [
+      "Background",
+      "Box",
+      "Card",
+      "FitText",
+      "Icon",
+      "Reveal",
+      "contentBox",
+      "fitTextGroup",
+      "isWide",
+      "progress",
+      "sliceTop",
+      "splitColumn",
+      "splitRow",
+      "withAlpha",
+      "GraphicProps"
+    ],
+    "attempts": [
+      {
+        "attempt": 1,
+        "kind": "generate",
+        "ok": false,
+        "ms": 10596,
+        "model": "claude-sonnet-5-5",
+        "inputTokens": 414,
+        "outputTokens": 1933,
+        "cacheCreationInputTokens": 0,
+        "cacheReadInputTokens": 12811,
+        "cache": "read",
+        "costUsd": 0.02272,
+        "report": {
+          "safety": [],
+          "typecheck": [
+            "line 86:27 TS2322: Type 'string' is not assignable to type '\"sparkles\" | \"film\" | \"scissors\" | \"video\" | \"wand\" | \"search\" | \"repeat\" | \"link\" | \"arrow-down\" | \"arrow-left-right\" | \"arrow-right\" | \"arrow-up\" | \"arrow-up-right\" | \"award\" | ... 84 more ... | \"zap\"'.",
+            "line 94:27 TS2322: Type 'string' is not assignable to type '\"sparkles\" | \"film\" | \"scissors\" | \"video\" | \"wand\" | \"search\" | \"repeat\" | \"link\" | \"arrow-down\" | \"arrow-left-right\" | \"arrow-right\" | \"arrow-up\" | \"arrow-up-right\" | \"award\" | ... 84 more ... | \"zap\"'."
+          ],
+          "compile": [],
+          "runtime": []
+        }
+      },
+      {
+        "attempt": 2,
+        "kind": "repair",
+        "ok": true,
+        "ms": 10703,
+        "model": "claude-sonnet-5-5",
+        "inputTokens": 2723,
+        "outputTokens": 2062,
+        "cacheCreationInputTokens": 0,
+        "cacheReadInputTokens": 12811,
+        "cache": "read",
+        "costUsd": 0.028628,
+        "runtime": {
+          "ok": true,
+          "frame": 71,
+          "ms": 459,
+          "stillPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase5-multilingual.sonnet/ja_tools_split.attempt2.png"
+        },
+        "report": {
+          "safety": [],
+          "typecheck": [],
+          "compile": [],
+          "runtime": []
+        }
+      }
+    ],
+    "usage": {
+      "inputTokens": 3137,
+      "outputTokens": 3995,
+      "cacheReadInputTokens": 25622,
+      "cacheCreationInputTokens": 0,
+      "cacheCreation5mInputTokens": 0,
+      "cacheCreation1hInputTokens": 0
+    },
+    "costUsd": 0.051348,
+    "previewPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase5-multilingual.sonnet/ja_tools_split.attempt2.png",
+    "warnings": []
+  },
+  {
+    "id": "mixed_overlay",
+    "ok": true,
+    "reused": false,
+    "ms": 22442,
+    "model": "claude-sonnet-5-5",
+    "url": "https://media.kinmel.shop/ai-video/motion-graphics/v0/d47371769209a51904f8061f13481039296206a0f68ed52a1aa6ec000113d3f3.js",
+    "bytes": 2640,
+    "gzipBytes": 1335,
+    "sourceBytes": 4571,
+    "toolkitImports": [
+      "Arrow",
+      "Badge",
+      "Box",
+      "Card",
+      "FitText",
+      "FocusRing",
+      "Reveal",
+      "contentBox",
+      "exitProgress",
+      "fitTextGroup",
+      "measureLine",
+      "GraphicProps"
+    ],
+    "attempts": [
+      {
+        "attempt": 1,
+        "kind": "generate",
+        "ok": true,
+        "ms": 22134,
+        "model": "claude-sonnet-5-5",
+        "inputTokens": 495,
+        "outputTokens": 3322,
+        "cacheCreationInputTokens": 0,
+        "cacheReadInputTokens": 12811,
+        "cache": "read",
+        "costUsd": 0.036772,
+        "runtime": {
+          "ok": true,
+          "frame": 65,
+          "ms": 590,
+          "stillPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase5-multilingual.sonnet/mixed_overlay.attempt1.png"
+        },
+        "report": {
+          "safety": [],
+          "typecheck": [],
+          "compile": [],
+          "runtime": []
+        }
+      }
+    ],
+    "usage": {
+      "inputTokens": 495,
+      "outputTokens": 3322,
+      "cacheReadInputTokens": 12811,
+      "cacheCreationInputTokens": 0,
+      "cacheCreation5mInputTokens": 0,
+      "cacheCreation1hInputTokens": 0
+    },
+    "costUsd": 0.036772,
+    "previewPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase5-multilingual.sonnet/mixed_overlay.attempt1.png",
+    "warnings": []
+  },
+  {
+    "id": "adversarial_pip",
+    "ok": true,
+    "reused": false,
+    "ms": 11966,
+    "model": "claude-sonnet-5-5",
+    "url": "https://media.kinmel.shop/ai-video/motion-graphics/v0/05c5b9a4682485c2dbe4940d8f28d6d1d3118acc3acb2cd92f5af0c3eeda60c9.js",
+    "bytes": 1819,
+    "gzipBytes": 861,
+    "sourceBytes": 2282,
+    "toolkitImports": [
+      "Box",
+      "Card",
+      "FitText",
+      "Reveal",
+      "contentBox",
+      "sliceTop",
+      "GraphicProps"
+    ],
+    "attempts": [
+      {
+        "attempt": 1,
+        "kind": "generate",
+        "ok": true,
+        "ms": 11463,
+        "model": "claude-sonnet-5-5",
+        "inputTokens": 515,
+        "outputTokens": 1557,
+        "cacheCreationInputTokens": 0,
+        "cacheReadInputTokens": 12811,
+        "cache": "read",
+        "costUsd": 0.019162,
+        "runtime": {
+          "ok": true,
+          "frame": 57,
+          "ms": 486,
+          "stillPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase5-multilingual.sonnet/adversarial_pip.attempt1.png"
+        },
+        "report": {
+          "safety": [],
+          "typecheck": [],
+          "compile": [],
+          "runtime": []
+        }
+      }
+    ],
+    "usage": {
+      "inputTokens": 515,
+      "outputTokens": 1557,
+      "cacheReadInputTokens": 12811,
+      "cacheCreationInputTokens": 0,
+      "cacheCreation5mInputTokens": 0,
+      "cacheCreation1hInputTokens": 0
+    },
+    "costUsd": 0.019162,
+    "previewPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase5-multilingual.sonnet/adversarial_pip.attempt1.png",
+    "warnings": []
+  },
+  {
+    "id": "long_text_full",
+    "ok": true,
+    "reused": false,
+    "ms": 6242,
+    "model": "claude-sonnet-5-5",
+    "url": "https://media.kinmel.shop/ai-video/motion-graphics/v0/d90fd223172a4a4f6906b7bae0400d76ec3813d9db0dd491e02ae9146dc01950.js",
+    "bytes": 1808,
+    "gzipBytes": 973,
+    "sourceBytes": 2229,
+    "toolkitImports": [
+      "Background",
+      "Box",
+      "KineticText",
+      "Reveal",
+      "contentBox",
+      "progress",
+      "useSvgId",
+      "GraphicProps"
+    ],
+    "attempts": [
+      {
+        "attempt": 1,
+        "kind": "generate",
+        "ok": true,
+        "ms": 5885,
+        "model": "claude-sonnet-5-5",
+        "inputTokens": 413,
+        "outputTokens": 904,
+        "cacheCreationInputTokens": 0,
+        "cacheReadInputTokens": 12811,
+        "cache": "read",
+        "costUsd": 0.012428,
+        "runtime": {
+          "ok": true,
+          "frame": 50,
+          "ms": 487,
+          "stillPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase5-multilingual.sonnet/long_text_full.attempt1.png"
+        },
+        "report": {
+          "safety": [],
+          "typecheck": [],
+          "compile": [],
+          "runtime": []
+        }
+      }
+    ],
+    "usage": {
+      "inputTokens": 413,
+      "outputTokens": 904,
+      "cacheReadInputTokens": 12811,
+      "cacheCreationInputTokens": 0,
+      "cacheCreation5mInputTokens": 0,
+      "cacheCreation1hInputTokens": 0
+    },
+    "costUsd": 0.012428,
+    "previewPath": "/Users/nishanbaral/Desktop/apps/finalpost_engine/remotion/mg-fixtures/generated/phase5-multilingual.sonnet/long_text_full.attempt1.png",
+    "warnings": []
+  }
+]

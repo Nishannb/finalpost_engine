@@ -1,0 +1,252 @@
+{
+  "name": "phase2-stress",
+  "durationSec": 8,
+  "videoUrl": "https://media.kinmel.shop/ai-video/source/2026-10-07/9fa92eb3-2146-49b2-be9d-82e97a4e9faf.mp4",
+  "blueprint": {
+    "captionWords": [
+      {
+        "text": "captions",
+        "start": 0.25,
+        "end": 0.7,
+        "sentenceIndex": 0
+      },
+      {
+        "text": "stay",
+        "start": 0.75,
+        "end": 1.2,
+        "sentenceIndex": 0
+      },
+      {
+        "text": "readable",
+        "start": 1.25,
+        "end": 1.7,
+        "sentenceIndex": 0
+      },
+      {
+        "text": "here",
+        "start": 1.75,
+        "end": 2.2,
+        "sentenceIndex": 0
+      },
+      {
+        "text": "captions",
+        "start": 2.25,
+        "end": 2.7,
+        "sentenceIndex": 1
+      },
+      {
+        "text": "stay",
+        "start": 2.75,
+        "end": 3.2,
+        "sentenceIndex": 1
+      },
+      {
+        "text": "readable",
+        "start": 3.25,
+        "end": 3.7,
+        "sentenceIndex": 1
+      },
+      {
+        "text": "here",
+        "start": 3.75,
+        "end": 4.2,
+        "sentenceIndex": 1
+      },
+      {
+        "text": "captions",
+        "start": 4.25,
+        "end": 4.7,
+        "sentenceIndex": 2
+      },
+      {
+        "text": "stay",
+        "start": 4.75,
+        "end": 5.2,
+        "sentenceIndex": 2
+      },
+      {
+        "text": "readable",
+        "start": 5.25,
+        "end": 5.7,
+        "sentenceIndex": 2
+      },
+      {
+        "text": "here",
+        "start": 5.75,
+        "end": 6.2,
+        "sentenceIndex": 2
+      },
+      {
+        "text": "captions",
+        "start": 6.25,
+        "end": 6.7,
+        "sentenceIndex": 3
+      },
+      {
+        "text": "stay",
+        "start": 6.75,
+        "end": 7.2,
+        "sentenceIndex": 3
+      },
+      {
+        "text": "readable",
+        "start": 7.25,
+        "end": 7.7,
+        "sentenceIndex": 3
+      }
+    ]
+  },
+  "graphics": [
+    {
+      "id": "stress_full",
+      "graphic": "text_stress",
+      "start": 0,
+      "end": 2,
+      "placement": {
+        "mode": "full_screen"
+      },
+      "props": {
+        "content": {
+          "samples": [
+            "Customer",
+            "Pneumonoultramicroscopic",
+            "A much longer sentence that has to wrap across several lines without clipping",
+            "$1,250,000",
+            "Short"
+          ],
+          "kinetic": "Follow these three steps and double your reach",
+          "badges": [
+            "Customer",
+            "Platform",
+            "Creator"
+          ]
+        }
+      }
+    },
+    {
+      "id": "stress_split",
+      "graphic": "text_stress",
+      "start": 2,
+      "end": 4,
+      "placement": {
+        "mode": "split_screen",
+        "graphicSide": "bottom"
+      },
+      "props": {
+        "content": {
+          "samples": [
+            "Customer",
+            "Pneumonoultramicroscopic",
+            "A much longer sentence that has to wrap across several lines without clipping",
+            "$1,250,000",
+            "Short"
+          ],
+          "kinetic": "Follow these three steps and double your reach",
+          "badges": [
+            "Customer",
+            "Platform",
+            "Creator"
+          ]
+        }
+      }
+    },
+    {
+      "id": "stress_pip",
+      "graphic": "text_stress",
+      "start": 4,
+      "end": 6,
+      "placement": {
+        "mode": "pip",
+        "box": {
+          "x": 0.05,
+          "y": 0.05,
+          "w": 0.5,
+          "h": 0.4
+        }
+      },
+      "props": {
+        "content": {
+          "samples": [
+            "Customer",
+            "Pneumonoultramicroscopic",
+            "A much longer sentence that has to wrap across several lines without clipping",
+            "$1,250,000",
+            "Short"
+          ],
+          "kinetic": "Follow these three steps and double your reach",
+          "badges": [
+            "Customer",
+            "Platform",
+            "Creator"
+          ]
+        }
+      }
+    },
+    {
+      "id": "ids_a",
+      "graphic": "svg_ids",
+      "start": 6,
+      "end": 8,
+      "placement": {
+        "mode": "pip",
+        "box": {
+          "x": 0.05,
+          "y": 0.1,
+          "w": 0.42,
+          "h": 0.2
+        }
+      },
+      "props": {
+        "content": {
+          "from": "#EF4444",
+          "to": "#7F1D1D",
+          "label": "RED"
+        }
+      }
+    },
+    {
+      "id": "ids_b",
+      "graphic": "svg_ids",
+      "start": 6,
+      "end": 8,
+      "placement": {
+        "mode": "pip",
+        "box": {
+          "x": 0.53,
+          "y": 0.1,
+          "w": 0.42,
+          "h": 0.2
+        }
+      },
+      "props": {
+        "content": {
+          "from": "#3B82F6",
+          "to": "#1E3A8A",
+          "label": "BLUE"
+        }
+      }
+    },
+    {
+      "id": "ids_c",
+      "graphic": "svg_ids",
+      "start": 6,
+      "end": 8,
+      "placement": {
+        "mode": "pip",
+        "box": {
+          "x": 0.29,
+          "y": 0.34,
+          "w": 0.42,
+          "h": 0.2
+        }
+      },
+      "props": {
+        "content": {
+          "from": "#22C55E",
+          "to": "#14532D",
+          "label": "GREEN"
+        }
+      }
+    }
+  ]
+}

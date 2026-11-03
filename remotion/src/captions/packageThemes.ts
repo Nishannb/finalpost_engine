@@ -17,6 +17,9 @@ export const PACKAGE_CAPTION_THEME_IDS = [
   'kinetic-01-theme',
 ] as const;
 
+/** Font size (px) the package themes use when the blueprint gives none. */
+export const PACKAGE_THEME_DEFAULT_FONT_SIZE = 72;
+
 export type PackageCaptionThemeId = (typeof PACKAGE_CAPTION_THEME_IDS)[number];
 
 /** Catalog id → package `theme` prop (without the `-theme` suffix). */

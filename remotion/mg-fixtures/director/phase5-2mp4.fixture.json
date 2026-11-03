@@ -1,0 +1,50 @@
+{
+  "notes": "Controlled Director output for ~/Downloads/2.mp4 (word indices from the Groq transcript). rule-one-emotions and editing-software-list are Gemini's own briefs from the real runs (run 1); hashtag-formula (full_screen) and viral-bonus (pip, clear of the captions) are added so every placement is exercised.",
+  "graphics": [
+    {
+      "id": "rule-one-emotions",
+      "anchorWordIndex": 50,
+      "durationSeconds": 4,
+      "reason": "The speaker delivers the first key rule of editing, emphasizing emotional control from start to finish.",
+      "goal": "Highlight Rule #1 so the viewer retains the primary editing objective.",
+      "visualDescription": "A sleek modern card slides up displaying 'RULE 1: Control Viewer Emotions' with a subtle progress bar extending from start to end.",
+      "placement": "split_screen",
+      "graphicSide": "bottom",
+      "contentJson": "{\"rule\":1,\"title\":\"Control Viewer Emotions\",\"detail\":\"From beginning to end\"}"
+    },
+    {
+      "id": "hashtag-formula",
+      "anchorWordIndex": 71,
+      "durationSeconds": 3,
+      "reason": "A concrete formula (9 hashtags in 3 sections) is easiest to grasp as a diagram.",
+      "goal": "Make the 9 = 3 × 3 hashtag structure instantly clear.",
+      "visualDescription": "Full-screen diagram: a big '9 hashtags' counts up, then splits into three labelled groups of three '#' chips that drop into place one group at a time.",
+      "placement": "full_screen",
+      "contentJson": "{\"total\":9,\"label\":\"hashtags\",\"groups\":[\"Section 1\",\"Section 2\",\"Section 3\"],\"perGroup\":3}",
+      "designIntent": {"emphasis": ["9", "3 sections"], "tone": "clear, punchy", "hierarchy": "number first, groups second"}
+    },
+    {
+      "id": "editing-software-list",
+      "anchorWordIndex": 118,
+      "durationSeconds": 3.2,
+      "reason": "The creator names three required editing software applications.",
+      "goal": "Clearly present the three key editing software tools requested.",
+      "visualDescription": "A sleek panel listing the three software names one after another with crisp minimalist icons.",
+      "placement": "split_screen",
+      "graphicSide": "top",
+      "contentJson": "{\"title\":\"Preferred Editing Software\",\"tools\":[\"After Effects\",\"Premiere Pro\",\"DaVinci Resolve\"]}"
+    },
+    {
+      "id": "viral-bonus",
+      "anchorWordIndex": 143,
+      "durationSeconds": 2.8,
+      "reason": "The incentive (viral video means a bonus) is the payoff of the pitch.",
+      "goal": "Make the viral-equals-bonus incentive pop.",
+      "visualDescription": "Compact corner card: a rocket icon with 'Goes viral', an arrow, and a 'Bonus' badge that pops in.",
+      "placement": "pip",
+      "box": {"x": 0.52, "y": 0.08, "w": 0.42, "h": 0.18},
+      "contentJson": "{\"trigger\":\"Goes viral\",\"reward\":\"Bonus\"}",
+      "designIntent": {"emphasis": ["Bonus"], "tone": "upbeat"}
+    }
+  ]
+}

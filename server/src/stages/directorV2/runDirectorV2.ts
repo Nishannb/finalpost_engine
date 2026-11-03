@@ -5,6 +5,8 @@ import type {Timeline} from '../filters/timeline.ts';
 import type {Occupancy} from '../layout/occupancy.ts';
 import type {VisualDirection} from '../broll/geminiDirector.ts';
 import {fallbackVisualDirection} from '../broll/geminiDirector.ts';
+import {startMusicPlan, type MusicPlan} from '../music/musicSpecialist.ts';
+import {sfxEnabled} from '../music/flags.ts';
 import {buildPerceptionPack} from './perception.ts';
 import {analyzeStory} from './storyAnalyst.ts';
 import {designEdit} from './creativeDirector.ts';
@@ -20,6 +22,11 @@ export type DirectorV2Result = {
   story?: StoryAnalysis;
   plan?: CreativePlan;
   report: DirectorRunReport;
+  /**
+   * In flight as soon as caption words and mood exist, so generation overlaps
+   * the rest of analyze. Resolved at blueprint finalization — not awaited here.
+   */
+  musicPending: Promise<MusicPlan | null>;
 };
 
 export async function runDirectorV2(input: {
@@ -40,7 +47,28 @@ export async function runDirectorV2(input: {
   requestedEdits?: string[] | null;
   themeColors?: string[];
   noRepair?: boolean;
+  /** Duration of the decoded source file (shaped, untrimmed); lets the main occupancy sample be placed on the timeline. */
+  activeSourceDurationSec?: number;
+  /** WP8B: work inside one Edit Look (polish only). */
+  editLooks?: boolean;
+  /** WP8C: the planning matte gate's answer (lib/matteGate.ts); passed to the Edit Look enforcement. */
+  matteUsable?: boolean;
+  /** WP8P: content-profile facts for the Edit Look density bias (polish only). */
+  lookBias?: {contentType?: string; density?: string; structure?: string; mood?: string};
+  /** Stable per source video. Threaded into the music job; never the blueprint id. */
+  videoId?: string;
+  /** WP55 phase 2: offer the KINETIC_TYPE_STORYTELLING family (prompt block from formatKineticTypeForDirector). Absent = byte-for-byte the previous request / compile. */
+  kineticType?: {prompt: string};
 }): Promise<DirectorV2Result> {
+  const ms = (sec: number) => Math.round(sec * 1000);
+  const musicPending = input.editLooks ? startMusicPlan({
+    transcript_segments: input.captionWords.map(word => ({text: word.text, start_ms: ms(word.start), end_ms: ms(word.end)})),
+    visual_cuts: [],
+    emotional_tone: input.lookBias?.mood || 'neutral talking-head',
+    canvas_sec: Math.min(input.timeline.outputDurationSec, 180),
+    include_sfx: sfxEnabled(),
+    ...(input.videoId ? {video_id: input.videoId} : {}),
+  }) : Promise.resolve(null);
   const timings: Record<string, number> = {};
   const costs: Record<string, number> = {};
   let mark = Date.now();
@@ -54,6 +82,7 @@ export async function runDirectorV2(input: {
     userAssets: input.userAssets,
     captionStyleGuide: input.captionStyleGuide,
     primaryOccupancy: input.occupancy,
+    activeSourceDurationSec: input.activeSourceDurationSec,
     language: input.language,
     creatorProfile: input.creatorProfile,
     speakerCutoutAvailable: Boolean(input.speakerCutoutAvailable),
@@ -70,7 +99,7 @@ export async function runDirectorV2(input: {
     costs.story = story.estimatedCostUsd;
 
     mark = Date.now();
-    const plan = await designEdit(pack, story, input.forceSpeakerCutout, input.requestedEdits ? new Set(input.requestedEdits) : null);
+    const plan = await designEdit(pack, story, input.forceSpeakerCutout, input.requestedEdits ? new Set(input.requestedEdits) : null, {editLooks: input.editLooks, matteUsable: input.matteUsable, lookBias: input.lookBias, kineticTypePrompt: input.kineticType?.prompt});
     timings.creative = Date.now() - mark;
     costs.creative = plan.estimatedCostUsd;
 
@@ -81,6 +110,7 @@ export async function runDirectorV2(input: {
       story,
       forceSpeakerCutout: input.forceSpeakerCutout,
       noRepair: input.noRepair,
+      kineticType: Boolean(input.kineticType),
     });
     timings.compiler = Date.now() - mark;
     compiled.report.perStageCostUsd = {...costs, ...compiled.report.perStageCostUsd};
@@ -117,6 +147,7 @@ export async function runDirectorV2(input: {
         motionGraphics: compiled.direction.motionGraphics,
         mediaContainers: compiled.direction.mediaContainers,
         semanticEmphasis: compiled.direction.semanticEmphasis,
+        ...(compiled.direction.kineticType ? {kineticType: compiled.direction.kineticType} : {}),
       },
     });
     return {
@@ -125,6 +156,7 @@ export async function runDirectorV2(input: {
       story,
       plan: compiled.plan,
       report: compiled.report,
+      musicPending,
     };
   } catch (error) {
     log.warn({error}, 'director v2 failed; using deterministic fallback');
@@ -145,6 +177,7 @@ export async function runDirectorV2(input: {
         perStageLatencyMs: timings,
         promptVersions: {story: STAGE1_PROMPT_VERSION, creative: STAGE2_PROMPT_VERSION},
       },
+      musicPending,
     };
   }
 }

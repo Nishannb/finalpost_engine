@@ -13,7 +13,7 @@
 import React from 'react';
 import {AbsoluteFill, useCurrentFrame, useVideoConfig, Video} from 'remotion';
 
-import type {InsetRevealClip, NorthStarDesign} from '../blueprintSchema';
+import type {InsetRevealClip, DesignTokens} from '../blueprintSchema';
 import {renderInsetGraphic} from '../insetReveal/templates';
 import {resolveMediaSrc} from '../lib/mediaSrc';
 import {
@@ -36,13 +36,16 @@ export function activeInsetRevealAt(
 type InsetRevealTrackProps = {
   clips: InsetRevealClip[] | undefined;
   talkingHead: React.ReactNode;
-  design?: NorthStarDesign;
+  design?: DesignTokens;
+  /** WP4G: the blueprint carries `legibility` (mvp). An empty inset text then draws no words instead of KEY POINT / an em dash. */
+  legible?: boolean;
 };
 
 export const InsetRevealTrack: React.FC<InsetRevealTrackProps> = ({
   clips,
   talkingHead,
   design,
+  legible,
 }) => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
@@ -52,15 +55,16 @@ export const InsetRevealTrack: React.FC<InsetRevealTrackProps> = ({
     return <>{talkingHead}</>;
   }
   return (
-    <InsetRevealComposite clip={clip} talkingHead={talkingHead} design={design} />
+    <InsetRevealComposite clip={clip} talkingHead={talkingHead} design={design} legible={legible} />
   );
 };
 
 const InsetRevealComposite: React.FC<{
   clip: InsetRevealClip;
   talkingHead: React.ReactNode;
-  design?: NorthStarDesign;
-}> = ({clip, talkingHead, design}) => {
+  design?: DesignTokens;
+  legible?: boolean;
+}> = ({clip, talkingHead, design, legible}) => {
   const frame = useCurrentFrame();
   const {fps, width, height} = useVideoConfig();
   const timeSec = frame / fps;
@@ -137,6 +141,7 @@ const InsetRevealComposite: React.FC<{
             height: zoneHeight,
             accent,
             ink,
+            legible,
           })}
         </div>
       ) : null}

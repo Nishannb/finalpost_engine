@@ -21,6 +21,8 @@ import {
   MOTION_SHAPES,
   VISUAL_ANCHORS,
 } from '../../types/blueprint.ts';
+import {env} from '../../config/env.ts';
+import {colorOrigin, stampProvenance} from '../../lib/provenance.ts';
 import {holdFromPhrase} from './speechAlign.ts';
 import {isHugeSpokenNumber, parseSpokenMagnitude} from './fastCounter.ts';
 import {keyPhrasesFromTranscript} from './visualQuery.ts';
@@ -33,6 +35,19 @@ export type DirectedMotionPlan = {
   frameInsets: FrameInset[];
   semanticEmphasis: SemanticEmphasis[];
 };
+
+/**
+ * Phase 36I: how many items the DIRECTOR itself supplied per motion list, counted by the same parsers but BEFORE `ensureMotionCoverage` substitutes the fallback.
+ * Pure observation: `parseMotionPlanFromDirector` is unchanged and still returns the completed plan.
+ */
+export function directorMotionCounts(record: Record<string, unknown>, durationSec: number): {motionGraphics: number; semanticEmphasis: number; mediaContainers: number; frameInsets: number} {
+  return {
+    motionGraphics: parseMotionGraphics(record.motion_graphics ?? record.motionGraphics, durationSec).length,
+    semanticEmphasis: parseSemanticEmphasis(record.semantic_emphasis ?? record.semanticEmphasis, durationSec).length,
+    mediaContainers: parseMediaContainers(record.media_containers ?? record.mediaContainers, durationSec).length,
+    frameInsets: parseFrameInsets(record.frame_insets ?? record.frameInsets, durationSec).length,
+  };
+}
 
 export function parseMotionPlanFromDirector(
   record: Record<string, unknown>,
@@ -73,7 +88,10 @@ export function fallbackMotionPlan(input: {
 }): DirectedMotionPlan {
   const span = Math.max(8, input.durationSec);
   const phrases = keyPhrasesFromTranscript(input.transcript, 3);
-  const primary = (phrases[0] || input.hookTitle || 'WATCH THIS')
+  const source = phrases[0] || input.hookTitle;
+  // optional hook policy: with no phrase and no title there is nothing to show; do not invent "WATCH THIS" text.
+  const noText = !source && env.HOOK_TITLE_POLICY === 'optional';
+  const primary = (source || 'WATCH THIS')
     .slice(0, 28)
     .toUpperCase();
   const numberHit = [...input.transcript.matchAll(
@@ -89,8 +107,10 @@ export function fallbackMotionPlan(input: {
   const secondText = (phrases[1] || primary).slice(0, 24).toUpperCase();
   const secondHold = holdFromPhrase(secondText, 1.8);
   const secondStart = Math.min(Math.max(firstStart + firstHold + 1.2, span * 0.52), span - secondHold);
-  const motionGraphics: MotionGraphic[] = [
-    {
+  // Every colour below is a constant the engine substitutes when the Director gave nothing: provenance `fallback`.
+  const fromFallback = <T extends object>(item: T, fields: string[]): T => stampProvenance(item, Object.fromEntries(fields.map(field => [field, 'fallback' as const])));
+  const motionGraphics: MotionGraphic[] = noText ? [] : [
+    fromFallback({
       start: firstStart,
       end: Math.min(span, firstStart + firstHold),
       text: primary,
@@ -103,8 +123,8 @@ export function fallbackMotionPlan(input: {
       exit: 'spring_out',
       fontScale: 1.18,
       italic: false,
-    },
-    {
+    }, ['accentColor', 'textColor']),
+    fromFallback({
       start: secondStart,
       end: Math.min(span, secondStart + secondHold),
       text: secondText,
@@ -117,7 +137,7 @@ export function fallbackMotionPlan(input: {
       exit: 'slide_away',
       fontScale: 0.98,
       italic: false,
-    },
+    }, ['accentColor', 'textColor']),
   ];
 
   const mediaContainers: MediaContainerMoment[] = [];
@@ -128,7 +148,7 @@ export function fallbackMotionPlan(input: {
     const at = Math.min(span * 0.55, span - 3.2);
     const magnitude = parseSpokenMagnitude(numberHit);
     const huge = Boolean(magnitude && isHugeSpokenNumber(magnitude));
-    semanticEmphasis.push({
+    semanticEmphasis.push(fromFallback({
       start: at,
       end: at + 2.8,
       text: numberHit,
@@ -139,10 +159,10 @@ export function fallbackMotionPlan(input: {
       countFrom: huge ? magnitude?.countFrom : undefined,
       countTo: huge ? magnitude?.countTo : undefined,
       countSuffix: huge ? magnitude?.suffix : undefined,
-    });
+    }, ['accentColor']));
   } else if (phrases[2]) {
     const at = Math.min(span * 0.58, span - 3.0);
-    semanticEmphasis.push({
+    semanticEmphasis.push(fromFallback({
       start: at,
       end: at + 2.6,
       text: phrases[2].slice(0, 24),
@@ -150,7 +170,7 @@ export function fallbackMotionPlan(input: {
       treatment: 'type_reveal',
       accentColor: '#4ADE80',
       anchor: 'top_left',
-    });
+    }, ['accentColor']));
   }
 
   return {motionGraphics, mediaContainers, frameInsets, semanticEmphasis};
@@ -208,20 +228,22 @@ function parseMotionGraphics(
     }
     const requested = Number.isFinite(end) ? end : start + hold;
     const safeEnd = Math.min(durationSec, Math.max(start + 0.9, requested));
-    out.push({
+    const accentRaw = String(item.accent_color ?? item.accentColor ?? '');
+    const textRaw = String(item.text_color ?? item.textColor ?? '');
+    out.push(stampProvenance({
       start,
       end: safeEnd,
       text,
       role,
       shape: coerceEnum(item.shape, MOTION_SHAPES, 'block'),
-      accentColor: sanitizeHex(String(item.accent_color ?? item.accentColor ?? ''), '#FACC15'),
-      textColor: sanitizeHex(String(item.text_color ?? item.textColor ?? ''), '#FFFFFF'),
+      accentColor: sanitizeHex(accentRaw, '#FACC15'),
+      textColor: sanitizeHex(textRaw, '#FFFFFF'),
       anchor: coerceEnum(item.anchor, MOTION_ANCHORS, 'top_right'),
       entrance: coerceEnum(item.entrance, MOTION_ENTRANCES, 'type_stagger'),
       exit: coerceEnum(item.exit, MOTION_EXITS, 'spring_out'),
       fontScale: clamp(Number(item.font_scale ?? item.fontScale ?? 1), 0.7, 1.8),
       italic: Boolean(item.italic ?? true),
-    });
+    }, {accentColor: colorOrigin(accentRaw), textColor: colorOrigin(textRaw)}));
   }
   return out.slice(0, 10);
 }
@@ -241,19 +263,22 @@ function parseMediaContainers(
     const item = row as Record<string, unknown>;
     const start = Number(item.start ?? item.timestamp);
     const end = Number(item.end ?? start + 4.5);
-    if (!Number.isFinite(start) || start < 3 || start > durationSec) {
+    // The hook guard (HOOK_GUARD_SEC) is enforced once, in brollPlanner's remap, where the ledger records it.
+    if (!Number.isFinite(start) || start < 0 || start > durationSec) {
       continue;
     }
     const safeEnd = Math.min(
       durationSec,
       Math.max(start + 4, Number.isFinite(end) ? end : start + 4.5),
     );
-    out.push({
+    const canvasRaw = String(item.canvas_color ?? item.canvasColor ?? '');
+    const titleColorRaw = String(item.canvas_title_color ?? item.canvasTitleColor ?? '');
+    out.push(stampProvenance({
       start,
       end: safeEnd,
       mode: coerceEnum(item.mode, MEDIA_CONTAINER_MODES, 'inset'),
       canvasColor: sanitizeHex(
-        String(item.canvas_color ?? item.canvasColor ?? ''),
+        canvasRaw,
         '#F8FAFC',
       ),
       cornerRadius: clamp(Number(item.corner_radius ?? item.cornerRadius ?? 36), 12, 64),
@@ -267,11 +292,11 @@ function parseMediaContainers(
         .trim()
         .slice(0, 40),
       canvasTitleColor: sanitizeHex(
-        String(item.canvas_title_color ?? item.canvasTitleColor ?? ''),
+        titleColorRaw,
         '#0F172A',
       ),
       pipAnchor: coercePipAnchor(item.pip_anchor ?? item.pipAnchor),
-    });
+    }, {canvasColor: colorOrigin(canvasRaw), canvasTitleColor: colorOrigin(titleColorRaw)}));
   }
   return out.slice(0, 3);
 }
@@ -288,19 +313,22 @@ function parseFrameInsets(raw: unknown, durationSec: number): FrameInset[] {
     const item = row as Record<string, unknown>;
     const start = Number(item.start ?? item.timestamp);
     const end = Number(item.end ?? start + 4.2);
-    if (!Number.isFinite(start) || start < 2.2 || start > durationSec) {
+    if (!Number.isFinite(start) || start < 0 || start > durationSec) {
       continue;
     }
     const safeEnd = Math.min(
       durationSec,
       Math.max(start + 3.8, Number.isFinite(end) ? end : start + 4.2),
     );
-    out.push({
+    const marginRaw = String(item.margin_color ?? item.marginColor ?? item.canvas_color ?? '');
+    // Only an explicit margin colour is the Director's choice of margin; `canvas_color` is a convenience fallback the parser borrows.
+    const marginExplicit = String(item.margin_color ?? item.marginColor ?? '');
+    out.push(stampProvenance({
       start,
       end: safeEnd,
       scale: clamp(Number(item.scale ?? 0.86), 0.7, 0.94),
       marginColor: sanitizeHex(
-        String(item.margin_color ?? item.marginColor ?? item.canvas_color ?? ''),
+        marginRaw,
         '#000000',
       ),
       cornerRadius: clamp(Number(item.corner_radius ?? item.cornerRadius ?? 18), 0, 48),
@@ -309,7 +337,7 @@ function parseFrameInsets(raw: unknown, durationSec: number): FrameInset[] {
         0.55,
         1.4,
       ),
-    });
+    }, {marginColor: colorOrigin(marginExplicit)}));
   }
   return out.slice(0, 2);
 }
@@ -337,7 +365,8 @@ function parseSemanticEmphasis(
     }
     const magnitude = parseSpokenMagnitude(text);
     const treatment = coerceEnum(item.treatment, EMPHASIS_TREATMENTS, 'scale');
-    out.push({
+    const accentRaw = String(item.accent_color ?? item.accentColor ?? '');
+    out.push(stampProvenance({
       start,
       end: Math.min(
         durationSec,
@@ -348,7 +377,7 @@ function parseSemanticEmphasis(
       treatment:
         treatment === 'highlight_shape' && magnitude ? 'count' : treatment,
       accentColor: sanitizeHex(
-        String(item.accent_color ?? item.accentColor ?? ''),
+        accentRaw,
         '#FACC15',
       ),
       anchor: coercePipAnchor(item.anchor) ?? undefined,
@@ -361,7 +390,7 @@ function parseSemanticEmphasis(
       countSuffix: String(item.count_suffix ?? item.countSuffix ?? magnitude?.suffix ?? '')
         .trim()
         .slice(0, 16),
-    });
+    }, {accentColor: colorOrigin(accentRaw)}));
   }
   return out.slice(0, 5);
 }

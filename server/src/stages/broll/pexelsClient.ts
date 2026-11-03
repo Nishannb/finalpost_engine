@@ -213,6 +213,7 @@ type PexelsPhoto = {
   photographer?: string;
   photographer_url?: string;
   url?: string;
+  alt?: string;
   src?: {
     original?: string;
     large2x?: string;
@@ -281,6 +282,8 @@ async function searchPhotos(
       durationSec: 0,
       credit: String(photo.photographer ?? 'Pexels'),
       creditUrl: String(photo.photographer_url ?? photo.url ?? 'https://www.pexels.com'),
+      ...(photo.alt ? {alt: String(photo.alt)} : {}),
+      ...(photo.url ? {pageUrl: String(photo.url)} : {}),
     };
   }
   return null;

@@ -150,7 +150,7 @@ describe('assembler legality', () => {
             id: 'e9',
             beatId: 'b1',
             intent: 'legacy',
-            kind: 'lockup',
+            kind: 'custom_scene' as never,
             wordRange: {startWordId: 'w0', endWordId: 'w9'},
             text: 'hello',
           },

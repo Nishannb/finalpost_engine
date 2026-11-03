@@ -1,0 +1,320 @@
+{
+ "note": "WP21 fixture: a ~19 s Metromedia-style open. Fake https URLs on a fake CDN; nothing is fetched.",
+ "outputDurationSec": 19,
+ "words": [
+  {
+   "text": "Then",
+   "start": 0.5,
+   "end": 0.77
+  },
+  {
+   "text": "everything",
+   "start": 0.8,
+   "end": 1.07
+  },
+  {
+   "text": "broke.",
+   "start": 1.1,
+   "end": 1.37
+  },
+  {
+   "text": "We",
+   "start": 2.0,
+   "end": 2.27
+  },
+  {
+   "text": "were",
+   "start": 2.3,
+   "end": 2.57
+  },
+  {
+   "text": "backed",
+   "start": 2.6,
+   "end": 2.87
+  },
+  {
+   "text": "by",
+   "start": 2.9,
+   "end": 3.17
+  },
+  {
+   "text": "Acme",
+   "start": 3.2,
+   "end": 3.47
+  },
+  {
+   "text": "and",
+   "start": 3.5,
+   "end": 3.77
+  },
+  {
+   "text": "Globex",
+   "start": 3.8,
+   "end": 4.07
+  },
+  {
+   "text": "and",
+   "start": 4.1,
+   "end": 4.37
+  },
+  {
+   "text": "Initech.",
+   "start": 4.4,
+   "end": 4.67
+  },
+  {
+   "text": "Every",
+   "start": 5.2,
+   "end": 5.47
+  },
+  {
+   "text": "dashboard",
+   "start": 5.5,
+   "end": 5.77
+  },
+  {
+   "text": "said",
+   "start": 5.8,
+   "end": 6.07
+  },
+  {
+   "text": "we",
+   "start": 6.1,
+   "end": 6.37
+  },
+  {
+   "text": "were",
+   "start": 6.4,
+   "end": 6.67
+  },
+  {
+   "text": "winning.",
+   "start": 6.7,
+   "end": 6.97
+  },
+  {
+   "text": "But",
+   "start": 7.6,
+   "end": 7.87
+  },
+  {
+   "text": "the",
+   "start": 7.9,
+   "end": 8.17
+  },
+  {
+   "text": "real",
+   "start": 8.2,
+   "end": 8.47
+  },
+  {
+   "text": "numbers",
+   "start": 8.5,
+   "end": 8.77
+  },
+  {
+   "text": "told",
+   "start": 8.8,
+   "end": 9.07
+  },
+  {
+   "text": "a",
+   "start": 9.1,
+   "end": 9.37
+  },
+  {
+   "text": "different",
+   "start": 9.4,
+   "end": 9.67
+  },
+  {
+   "text": "story",
+   "start": 9.7,
+   "end": 9.97
+  },
+  {
+   "text": "about",
+   "start": 10.0,
+   "end": 10.27
+  },
+  {
+   "text": "customers.",
+   "start": 10.3,
+   "end": 10.57
+  },
+  {
+   "text": "So",
+   "start": 10.8,
+   "end": 11.07
+  },
+  {
+   "text": "we",
+   "start": 11.1,
+   "end": 11.37
+  },
+  {
+   "text": "rebuilt",
+   "start": 11.4,
+   "end": 11.67
+  },
+  {
+   "text": "the",
+   "start": 11.7,
+   "end": 11.97
+  },
+  {
+   "text": "whole",
+   "start": 12.0,
+   "end": 12.27
+  },
+  {
+   "text": "product",
+   "start": 12.3,
+   "end": 12.57
+  },
+  {
+   "text": "from",
+   "start": 12.6,
+   "end": 12.87
+  },
+  {
+   "text": "scratch.",
+   "start": 12.9,
+   "end": 13.17
+  },
+  {
+   "text": "That",
+   "start": 13.7,
+   "end": 13.97
+  },
+  {
+   "text": "office",
+   "start": 14.0,
+   "end": 14.27
+  },
+  {
+   "text": "became",
+   "start": 14.3,
+   "end": 14.57
+  },
+  {
+   "text": "our",
+   "start": 14.6,
+   "end": 14.87
+  },
+  {
+   "text": "entire",
+   "start": 14.9,
+   "end": 15.17
+  },
+  {
+   "text": "world.",
+   "start": 15.2,
+   "end": 15.47
+  },
+  {
+   "text": "And",
+   "start": 16.0,
+   "end": 16.27
+  },
+  {
+   "text": "the",
+   "start": 16.3,
+   "end": 16.57
+  },
+  {
+   "text": "launch",
+   "start": 16.6,
+   "end": 16.87
+  },
+  {
+   "text": "day",
+   "start": 16.9,
+   "end": 17.17
+  },
+  {
+   "text": "footage",
+   "start": 17.2,
+   "end": 17.47
+  },
+  {
+   "text": "proves",
+   "start": 17.5,
+   "end": 17.77
+  },
+  {
+   "text": "it.",
+   "start": 17.8,
+   "end": 18.07
+  }
+ ],
+ "assetBrief": {
+  "version": 1,
+  "outputDurationSec": 19,
+  "slots": [
+   {
+    "id": "asset_logo_1",
+    "label": "Acme logo",
+    "kind": "logo",
+    "reason": "fixture",
+    "startSec": 2.0,
+    "endSec": 3.6,
+    "accept": [
+     "image"
+    ],
+    "spokenHint": "",
+    "status": "uploaded",
+    "userAssetId": "ub_1"
+   },
+   {
+    "id": "asset_logo_2",
+    "label": "Globex logo",
+    "kind": "logo",
+    "reason": "fixture",
+    "startSec": 3.9,
+    "endSec": 5.4,
+    "accept": [
+     "image"
+    ],
+    "spokenHint": "",
+    "status": "uploaded",
+    "userAssetId": "ub_2"
+   },
+   {
+    "id": "asset_screen_1",
+    "label": "Dashboard screenshot",
+    "kind": "screenshot",
+    "reason": "fixture",
+    "startSec": 7.6,
+    "endSec": 9.6,
+    "accept": [
+     "image"
+    ],
+    "spokenHint": "",
+    "status": "uploaded",
+    "userAssetId": "ub_3"
+   },
+   {
+    "id": "asset_broll_1",
+    "label": "Office clip",
+    "kind": "broll_clip",
+    "reason": "fixture",
+    "startSec": 16.0,
+    "endSec": 18.5,
+    "accept": [
+     "video",
+     "image"
+    ],
+    "spokenHint": "",
+    "status": "uploaded",
+    "userAssetId": "ub_4"
+   }
+  ]
+ },
+ "assets": {
+  "ub_1": "https://assets.fixture.test/acme-logo.png",
+  "ub_2": "https://assets.fixture.test/globex-logo.png",
+  "ub_3": "https://assets.fixture.test/dashboard.png",
+  "ub_4": "https://assets.fixture.test/office.mp4"
+ }
+}

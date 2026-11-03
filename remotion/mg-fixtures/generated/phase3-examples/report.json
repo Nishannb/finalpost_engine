@@ -1,0 +1,272 @@
+[
+  {
+    "id": "g_revenue_growth",
+    "ok": true,
+    "reused": false,
+    "ms": 38270,
+    "model": "claude-opus-5-5",
+    "url": "https://media.kinmel.shop/ai-video/motion-graphics/v0/1e6eaeca4512dd5d3ccd319a86fbbabe2e35ccb1c3c670e0b764bd7679094ac8.js",
+    "bytes": 3286,
+    "gzipBytes": 1523,
+    "sourceBytes": 5821,
+    "toolkitImports": [
+      "Background",
+      "Box",
+      "Counter",
+      "FitText",
+      "KineticText",
+      "Line",
+      "LineChart",
+      "Reveal",
+      "contentBox",
+      "fitTextBlock",
+      "isWide",
+      "keyframes",
+      "progress",
+      "sliceTop",
+      "GraphicProps"
+    ],
+    "attempts": [
+      {
+        "attempt": 1,
+        "kind": "generate",
+        "ok": true,
+        "report": {
+          "safety": [],
+          "typecheck": [],
+          "compile": []
+        },
+        "usage": {
+          "inputTokens": 628,
+          "outputTokens": 4276,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 12517
+        }
+      }
+    ],
+    "usage": {
+      "inputTokens": 628,
+      "outputTokens": 4276,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 12517
+    },
+    "costUsd": 0.1506,
+    "warnings": [],
+    "note": "rebuilt from the generation run console output"
+  },
+  {
+    "id": "g_three_steps",
+    "ok": true,
+    "reused": false,
+    "ms": 49833,
+    "model": "claude-opus-5-5",
+    "url": "https://media.kinmel.shop/ai-video/motion-graphics/v0/3f3a3151b71850f7dbba101b9d05bf4710fbe3c75b3fff2fe3d3165314943d45.js",
+    "bytes": 3735,
+    "gzipBytes": 1784,
+    "sourceBytes": 7154,
+    "toolkitImports": [
+      "Arrow",
+      "Background",
+      "Box",
+      "Card",
+      "FitText",
+      "Icon",
+      "Reveal",
+      "contentBox",
+      "fitTextGroup",
+      "isWide",
+      "progress",
+      "sliceTop",
+      "splitColumn",
+      "splitRow",
+      "springIn",
+      "withAlpha",
+      "GraphicProps"
+    ],
+    "attempts": [
+      {
+        "attempt": 1,
+        "kind": "generate",
+        "ok": true,
+        "report": {
+          "safety": [],
+          "typecheck": [],
+          "compile": []
+        },
+        "usage": {
+          "inputTokens": 561,
+          "outputTokens": 5472,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 12517
+        }
+      }
+    ],
+    "usage": {
+      "inputTokens": 561,
+      "outputTokens": 5472,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 12517
+    },
+    "costUsd": 0.1743,
+    "warnings": [],
+    "note": "rebuilt from the generation run console output"
+  },
+  {
+    "id": "g_feature_pointer",
+    "ok": true,
+    "reused": false,
+    "ms": 29265,
+    "model": "claude-opus-5-5",
+    "url": "https://media.kinmel.shop/ai-video/motion-graphics/v0/b298441c3502b14bbc9e7ce36964fb611239d92e50cd019d1642591d2efe25e4.js",
+    "bytes": 2246,
+    "gzipBytes": 1164,
+    "sourceBytes": 4259,
+    "toolkitImports": [
+      "Arrow",
+      "Badge",
+      "Box",
+      "FocusRing",
+      "Reveal",
+      "contentBox",
+      "measureLine",
+      "withAlpha",
+      "GraphicProps"
+    ],
+    "attempts": [
+      {
+        "attempt": 1,
+        "kind": "generate",
+        "ok": true,
+        "report": {
+          "safety": [],
+          "typecheck": [],
+          "compile": []
+        },
+        "usage": {
+          "inputTokens": 520,
+          "outputTokens": 3020,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 12517
+        }
+      }
+    ],
+    "usage": {
+      "inputTokens": 520,
+      "outputTokens": 3020,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 12517
+    },
+    "costUsd": 0.1251,
+    "warnings": [],
+    "note": "rebuilt from the generation run console output"
+  },
+  {
+    "id": "g_sound_off_stat",
+    "ok": true,
+    "reused": false,
+    "ms": 29721,
+    "model": "claude-opus-5-5",
+    "url": "https://media.kinmel.shop/ai-video/motion-graphics/v0/bbeb33106b9a618bdd8d0b21d94d0f81d25550acc5e3a30d5d693f80d3057fcf.js",
+    "bytes": 2493,
+    "gzipBytes": 1195,
+    "sourceBytes": 4188,
+    "toolkitImports": [
+      "Box",
+      "Card",
+      "Counter",
+      "FitText",
+      "Progress",
+      "Reveal",
+      "contentBox",
+      "isWide",
+      "keyframes",
+      "progress",
+      "sliceTop",
+      "withAlpha",
+      "GraphicProps"
+    ],
+    "attempts": [
+      {
+        "attempt": 1,
+        "kind": "generate",
+        "ok": true,
+        "report": {
+          "safety": [],
+          "typecheck": [],
+          "compile": []
+        },
+        "usage": {
+          "inputTokens": 477,
+          "outputTokens": 2899,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 12517
+        }
+      }
+    ],
+    "usage": {
+      "inputTokens": 477,
+      "outputTokens": 2899,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 12517
+    },
+    "costUsd": 0.1225,
+    "warnings": [],
+    "note": "rebuilt from the generation run console output"
+  },
+  {
+    "id": "g_creator_funnel",
+    "ok": true,
+    "reused": false,
+    "ms": 62383,
+    "model": "claude-opus-5-5",
+    "url": "https://media.kinmel.shop/ai-video/motion-graphics/v0/4cf861594b1ef5562da39cb503677af0411ccec80b8e2ea0e7da76d15c855600.js",
+    "bytes": 4172,
+    "gzipBytes": 1884,
+    "sourceBytes": 7345,
+    "toolkitImports": [
+      "Background",
+      "Badge",
+      "Box",
+      "FitText",
+      "KineticText",
+      "Reveal",
+      "contentBox",
+      "fitTextGroup",
+      "formatNumber",
+      "measureLine",
+      "progress",
+      "pulse",
+      "sliceTop",
+      "springIn",
+      "withAlpha",
+      "GraphicProps"
+    ],
+    "attempts": [
+      {
+        "attempt": 1,
+        "kind": "generate",
+        "ok": true,
+        "report": {
+          "safety": [],
+          "typecheck": [],
+          "compile": []
+        },
+        "usage": {
+          "inputTokens": 685,
+          "outputTokens": 6756,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 12517
+        }
+      }
+    ],
+    "usage": {
+      "inputTokens": 685,
+      "outputTokens": 6756,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 12517
+    },
+    "costUsd": 0.2004,
+    "warnings": [],
+    "note": "rebuilt from the generation run console output"
+  }
+]

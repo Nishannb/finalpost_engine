@@ -14,9 +14,12 @@ import type {
   CaptionDirection,
   CaptionWord,
   LanguageCode,
-  NorthStarDesign,
+  DesignTokens,
   RenderStyle,
 } from '../blueprintSchema';
+import {ACCUMULATE_MODE} from '../lib/accumulateCaptions';
+import {CHUNK_SWAP_MODE} from '../lib/chunkSwapCaptions';
+import {captionRailWidthFrac} from '../lib/captionRail';
 import {activeLineAt, groupCaptionLines} from '../lib/timeline';
 import {
   captionTemplateFor,
@@ -24,23 +27,57 @@ import {
   type CaptionTemplate,
 } from '../styles/captionTemplates';
 import {fontFamilyFor, fontWeightFor} from '../styles/fonts';
+import {captionWordRecipeState} from '../motion/recipes/motionRecipes';
+import {AccumulateCaptions} from './AccumulateCaptions';
+import {ChunkSwapCaptions} from './ChunkSwapCaptions';
 
 type KineticCaptionsProps = {
   words: CaptionWord[];
   style: RenderStyle;
   language: LanguageCode;
   direction?: CaptionDirection;
-  design?: NorthStarDesign;
+  design?: DesignTokens;
   fontFamily?: string;
+  /** WP4J: keep the block's right edge at or before the platform button rail (blueprints with `legibility.captions` only). */
+  railClear?: boolean;
 };
 
-export const KineticCaptions: React.FC<KineticCaptionsProps> = ({
+/**
+ * WP34: `direction.mode === 'word_by_word_accumulate'` draws the Metromedia accumulate captions (blur-fade words build up, hard clear on the cut); every other direction is the template captions below, unchanged.
+ * The mode is fixed for a render, so choosing the branch here (outside the hook-using bodies) is safe.
+ */
+export const KineticCaptions: React.FC<KineticCaptionsProps> = props =>
+  props.direction?.mode === CHUNK_SWAP_MODE ? (
+    // WP41: Skill B (Explainer) chunk-swap captions: 1-3 word chunks replace each other, thick black stroke (a different mode from the accumulate grammar above / below)
+    <ChunkSwapCaptions
+      words={props.words}
+      language={props.language}
+      direction={props.direction}
+      design={props.design}
+      fontFamily={props.fontFamily}
+      railClear={props.railClear}
+    />
+  ) : props.direction?.mode === ACCUMULATE_MODE ? (
+    <AccumulateCaptions
+      words={props.words}
+      language={props.language}
+      direction={props.direction}
+      design={props.design}
+      fontFamily={props.fontFamily}
+      railClear={props.railClear}
+    />
+  ) : (
+    <TemplateKineticCaptions {...props} />
+  );
+
+const TemplateKineticCaptions: React.FC<KineticCaptionsProps> = ({
   words,
   style,
   language,
   direction,
   design,
   fontFamily,
+  railClear,
 }) => {
   const frame = useCurrentFrame();
   const {fps, width, height} = useVideoConfig();
@@ -64,12 +101,14 @@ export const KineticCaptions: React.FC<KineticCaptionsProps> = ({
   const lines = React.useMemo(
     () =>
       groupCaptionLines(words, {
+        // WP32: the direction's own cap (polish bare type: 2 big words) wins over the content-type default.
         maxWords:
-          design?.contentType === 'story' || design?.contentType === 'testimonial'
+          direction?.maxWords ??
+          (design?.contentType === 'story' || design?.contentType === 'testimonial'
             ? 4
-            : 3,
+            : 3),
       }),
-    [words, design?.contentType],
+    [words, design?.contentType, direction?.maxWords],
   );
   const timeSec = frame / fps;
   const line = activeLineAt(lines, timeSec);
@@ -77,9 +116,21 @@ export const KineticCaptions: React.FC<KineticCaptionsProps> = ({
     return null;
   }
 
+  // WP4J: with the rail flag (blueprints with `legibility.captions`) the block's right edge ends at or before the platform button rail; flag off: the template's own width.
+  const railWidthFrac = captionRailWidthFrac(template.maxWidthFrac, style.captionCenterXFrac, Boolean(railClear));
   const fontSize = scaleFromPreview(template.fontSizePt, width) * (direction?.fontScale || 1);
   const outlineWidth = scaleFromPreview(Math.min(template.outlineWidthPt, 3.5), width);
   const topMode = direction?.position === 'top';
+  // WP13C: a short-form look's type treatment (heavy stroke, no coloured glow, active word as plain fill or as ink on a marker bar) replaces the template's glowing-pill / neon-fill treatment.
+  const typed: TypedCaption | undefined = direction?.activeStyle
+    ? {
+        strokeColor: direction.strokeColor ?? template.outlineColor,
+        strokeWidth: fontSize * (direction.strokeWidthEm ?? 0.08),
+        activeStyle: direction.activeStyle,
+        activeInk: direction.activeInk ?? '#0B0B0B',
+        glow: direction.glow === true,
+      }
+    : undefined;
 
   return (
     <AbsoluteFill>
@@ -99,7 +150,7 @@ export const KineticCaptions: React.FC<KineticCaptionsProps> = ({
                 }),
           left: `${style.captionCenterXFrac * 100}%`,
           zIndex: 30,
-          width: width * template.maxWidthFrac,
+          width: width * railWidthFrac,
           display: 'flex',
           flexWrap: 'wrap',
           justifyContent: 'center',
@@ -111,7 +162,7 @@ export const KineticCaptions: React.FC<KineticCaptionsProps> = ({
                 borderRadius: fontSize * 0.35,
                 padding: `${fontSize * 0.24}px ${fontSize * 0.42}px`,
                 width: 'auto',
-                maxWidth: width * template.maxWidthFrac,
+                maxWidth: width * railWidthFrac,
               }
             : {}),
         }}>
@@ -125,6 +176,7 @@ export const KineticCaptions: React.FC<KineticCaptionsProps> = ({
             fps={fps}
             fontSize={fontSize}
             outlineWidth={outlineWidth}
+            typed={typed}
             design={design}
             fontFamily={fontFamily}
           />
@@ -142,9 +194,13 @@ type CaptionWordViewProps = {
   fps: number;
   fontSize: number;
   outlineWidth: number;
-  design?: NorthStarDesign;
+  typed?: TypedCaption;
+  design?: DesignTokens;
   fontFamily?: string;
 };
+
+/** WP13C: see `typed` above. */
+export type TypedCaption = {strokeColor: string; strokeWidth: number; activeStyle: 'fill' | 'marker'; activeInk: string; glow: boolean};
 
 const CaptionWordView: React.FC<CaptionWordViewProps> = ({
   word,
@@ -154,6 +210,7 @@ const CaptionWordView: React.FC<CaptionWordViewProps> = ({
   fps,
   fontSize,
   outlineWidth,
+  typed,
   design,
   fontFamily,
 }) => {
@@ -166,11 +223,14 @@ const CaptionWordView: React.FC<CaptionWordViewProps> = ({
     config: {damping: 11, mass: 0.42, stiffness: 240},
     durationInFrames: Math.round(fps * 0.26),
   });
-  const useShine = template.animation === 'highlight';
-  const pop = isActive
+  const useShine = template.animation === 'highlight' && !typed;
+  // WP14D: the ACTIVE word's entrance is a motion recipe (bounce -> stretch_squash_pop, scale / pop / type -> elastic_type_snap; a short-form typed look -> elastic_type_snap), settling within
+  // CAPTION_WORD_SETTLE_FRAMES. The karaoke fill, the marker bar and the stroke (WP13C) keep their own timing; other animations keep the spring pop below.
+  const recipe = isActive ? captionWordRecipeState(template.animation, sinceOnset, fps, Boolean(typed)) : null;
+  const pop = recipe ? 1 : isActive
     ? 1 + entrance * (template.animation === 'bounce' ? 0.22 : 0.1)
     : 1;
-  const lift = isActive && template.animation === 'bounce' ? entrance * fontSize * 0.14 : 0;
+  const lift = !recipe && isActive && template.animation === 'bounce' ? entrance * fontSize * 0.14 : 0;
   const shineTravel =
     useShine && isActive
       ? interpolate(timeSec, [word.start, Math.min(word.end, word.start + 0.42)], [-20, 108], {
@@ -191,7 +251,7 @@ const CaptionWordView: React.FC<CaptionWordViewProps> = ({
   const color = isActive ? template.highlightColor : template.primaryColor;
   const padX = useShine ? fontSize * 0.32 : fontSize * 0.16;
   const padY = useShine ? fontSize * 0.16 : fontSize * 0.08;
-  const useKaraokeFill = template.animation === 'karaoke';
+  const useKaraokeFill = template.animation === 'karaoke' && !typed;
 
   const textStyle: React.CSSProperties = {
     fontFamily: fontFamily || fontFamilyFor(language, template.weight, design),
@@ -216,6 +276,20 @@ const CaptionWordView: React.FC<CaptionWordViewProps> = ({
     textStyle.textShadow = isActive
       ? `0 0 ${fontSize * 0.2}px ${hexToRgba(template.highlightColor, 0.8)}`
       : `0 ${fontSize * 0.04}px ${fontSize * 0.08}px rgba(0,0,0,0.4)`;
+    if (!isActive && outlineWidth > 0) {
+      // Words waiting for their turn have no dark plate (only the active word does): give them the template's outline too.
+      textStyle.WebkitTextStroke = `${outlineWidth}px ${template.outlineColor}`;
+      textStyle.paintOrder = 'stroke fill';
+    }
+  } else if (typed) {
+    // Short-form type: the whole line carries a heavy dark stroke and a soft drop shadow; the active word is the same fill, or dark ink on the marker bar.
+    const onBar = typed.activeStyle === 'marker' && isActive;
+    textStyle.color = onBar ? typed.activeInk : color;
+    if (!onBar) {
+      textStyle.WebkitTextStroke = `${typed.strokeWidth}px ${typed.strokeColor}`;
+      textStyle.paintOrder = 'stroke fill';
+    }
+    textStyle.textShadow = onBar ? 'none' : `0 ${fontSize * 0.04}px ${fontSize * 0.1}px rgba(0,0,0,0.5)${typed.glow ? `, 0 0 ${fontSize * 0.22}px ${hexToRgba(template.highlightColor, 0.55)}` : ''}`;
   } else {
     textStyle.color = color;
     if (outlineWidth > 0) {
@@ -227,14 +301,41 @@ const CaptionWordView: React.FC<CaptionWordViewProps> = ({
     }
   }
 
+  // The karaoke fill is painted with `background-clip: text` and a transparent text fill, so the stroke/shadow the other animations draw
+  // would be lost (and with it the template's outline: the captions sat directly on the footage). Draw the template's own outline as a
+  // second copy of the word UNDER the fill. It is absolutely positioned at the text origin, so layout, timing and placement do not change.
+  const karaokeOutline: React.CSSProperties | null =
+    useKaraokeFill && outlineWidth > 0
+      ? {
+          position: 'absolute',
+          left: padX,
+          top: padY,
+          fontFamily: textStyle.fontFamily,
+          fontWeight: textStyle.fontWeight,
+          fontSize,
+          lineHeight: textStyle.lineHeight,
+          letterSpacing: textStyle.letterSpacing,
+          whiteSpace: 'pre',
+          color: template.outlineColor,
+          WebkitTextStroke: `${outlineWidth}px ${template.outlineColor}`,
+          paintOrder: 'stroke fill',
+          textShadow: `0 ${outlineWidth * 0.4}px ${outlineWidth * 0.8}px rgba(0,0,0,0.4)`,
+          opacity: textStyle.opacity,
+          pointerEvents: 'none',
+          zIndex: 0,
+        }
+      : null;
+
   return (
     <span
       style={{
         position: 'relative',
         display: 'inline-block',
-        transform: `translateY(${-lift}px) scale(${pop})`,
+        transform: recipe ? `translate(${recipe.translateX}px, ${recipe.translateY}px) rotate(${recipe.rotateDeg}deg) scale(${recipe.scaleX}, ${recipe.scaleY})` : `translateY(${-lift}px) scale(${pop})`,
+        ...(recipe ? {opacity: recipe.opacity, filter: recipe.blurPx > 0 ? `blur(${recipe.blurPx}px)` : undefined} : {}),
         transformOrigin: 'center bottom',
         padding: `${padY}px ${padX}px`,
+        ...(typed?.activeStyle === 'marker' && isActive ? {backgroundColor: template.highlightColor, borderRadius: fontSize * 0.22} : {}),
       }}>
       {useShine && isActive ? (
         <>
@@ -273,6 +374,7 @@ const CaptionWordView: React.FC<CaptionWordViewProps> = ({
           </span>
         </>
       ) : null}
+      {karaokeOutline ? <span aria-hidden style={karaokeOutline}>{text}</span> : null}
       <span style={textStyle}>{text}</span>
     </span>
   );

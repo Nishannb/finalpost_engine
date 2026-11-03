@@ -84,13 +84,13 @@ export function jaccardSimilarity(a: string[], b: string[]): number {
   return union > 0 ? inter / union : 0;
 }
 
-type Utterance = {
+export type Utterance = {
   start: number;
   end: number;
   norms: string[];
 };
 
-function utterancesFromWords(
+export function utterancesFromWords(
   words: WordToken[],
   gapSec: number,
 ): Utterance[] {

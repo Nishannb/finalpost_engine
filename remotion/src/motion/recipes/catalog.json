@@ -1,0 +1,196 @@
+{
+  "note": "Internal motion vernacular of FinalPost. Not Jitter assets. Mirrors MOTION_RECIPES (a test keeps it equal).",
+  "recipes": [
+    {
+      "id": "elastic_type_snap",
+      "family": "type_physics",
+      "intents": [
+        "hook",
+        "punchline"
+      ],
+      "driver": "transform",
+      "feel": "Scale 0.4 -> overshoot -> 1 on a springy curve, with a blur that clears as it lands (Snappy / Elastic Text).",
+      "defaultHosts": "OpenPlate title block (default); QuoteCallout mark; captions: scale / pop / type active word and typed looks"
+    },
+    {
+      "id": "smear_blur_in",
+      "family": "type_physics",
+      "intents": [
+        "pivot",
+        "hook"
+      ],
+      "driver": "transform",
+      "feel": "A horizontal smear: the layer is stretched and blurred along x and slides in, then snaps sharp (Stretch Blur).",
+      "defaultHosts": "FullscreenStatement (default); VsClaim sides (default)"
+    },
+    {
+      "id": "type_trail",
+      "family": "type_physics",
+      "intents": [
+        "list",
+        "hook"
+      ],
+      "driver": "glyph",
+      "feel": "Characters arrive one after another, each leaving a fading ghost of itself behind it (Type Trail).",
+      "defaultHosts": "none by default (text form: pass `text`); variety pool for list / hook"
+    },
+    {
+      "id": "scramble_settle",
+      "family": "type_physics",
+      "intents": [
+        "pivot",
+        "stat"
+      ],
+      "driver": "glyph",
+      "feel": "Glyphs flicker through random letters and lock onto the real ones left to right.",
+      "defaultHosts": "none by default (text form: pass `text`); variety pool for pivot / stat"
+    },
+    {
+      "id": "split_mask_reveal",
+      "family": "reveal_mask",
+      "intents": [
+        "evidence",
+        "payoff"
+      ],
+      "driver": "transform",
+      "feel": "A horizontal slit opens from the centre line and the layer is revealed through it (Split Reveal).",
+      "defaultHosts": "WikiCallout sheet (default); QuoteCallout block (default); seed default for evidence plates (Wiki, Newspaper, Tweet)"
+    },
+    {
+      "id": "stretch_squash_pop",
+      "family": "type_physics",
+      "intents": [
+        "punchline",
+        "hook"
+      ],
+      "driver": "transform",
+      "feel": "Cartoon physics: stretched flat, squashed tall, overshoot, settle. Not a fade.",
+      "defaultHosts": "StampTitle title (default); BigKineticHeadline lines (default); captions: bounce active word; seed default for punchline"
+    },
+    {
+      "id": "counter_snap",
+      "family": "metric",
+      "intents": [
+        "stat"
+      ],
+      "driver": "number",
+      "feel": "A number counts up on a snappy spring and the digits pop as they settle.",
+      "defaultHosts": "StatHighlight number (default); seed default for stat"
+    },
+    {
+      "id": "nested_scale_in",
+      "family": "image_story",
+      "intents": [
+        "evidence",
+        "payoff",
+        "stat"
+      ],
+      "driver": "transform",
+      "feel": "Nested scale from the centre: the layer grows 0.6 -> 1 while its content counter-scales 1.25 -> 1 (Nested Images energy).",
+      "defaultHosts": "NewspaperCallout and TweetCard sheet (host default; seeds pass split_mask_reveal)"
+    },
+    {
+      "id": "glitch_text_reveal",
+      "family": "type_physics",
+      "intents": [
+        "pivot",
+        "punchline"
+      ],
+      "driver": "transform",
+      "feel": "RGB split and horizontal jitter that settle into sharp type in a few stepped frames (Glitch Text Reveal). The split is a red / blue drop-shadow pair (never the karaoke blue-green).",
+      "defaultHosts": "variety pool only (pivot, punchline)"
+    },
+    {
+      "id": "pixel_dissolve_in",
+      "family": "reveal_mask",
+      "intents": [
+        "evidence",
+        "payoff"
+      ],
+      "driver": "transform",
+      "feel": "A coarse checker grid reveals the layer and refines to nothing: the mask cells shrink 96 px -> 6 px while opacity climbs in four steps (Pixel Dissolve, lite).",
+      "defaultHosts": "variety pool only (evidence, payoff)"
+    },
+    {
+      "id": "gooey_accent_pop",
+      "family": "type_physics",
+      "intents": [
+        "punchline",
+        "stat"
+      ],
+      "driver": "transform",
+      "feel": "A blobby pop: x and y overshoot out of phase with a slight tilt, so the layer wobbles like a gooey blob before it settles. Motion only: no backing card.",
+      "defaultHosts": "variety pool only (punchline, stat)"
+    },
+    {
+      "id": "blur_spin_settle",
+      "family": "type_physics",
+      "intents": [
+        "hook",
+        "pivot"
+      ],
+      "driver": "transform",
+      "feel": "A slight spin and blur resolving to sharp upright type (Blurry Text Spin, lite): rotate 14 deg -> 0, blur 12 px -> 0, scale 0.92 -> 1.",
+      "defaultHosts": "variety pool only (hook, pivot)"
+    },
+    {
+      "id": "logo_slam",
+      "family": "image_story",
+      "intents": [
+        "media",
+        "payoff",
+        "hook"
+      ],
+      "driver": "transform",
+      "feel": "A logo HIT: it slams in from 0.2 scale, overshoots to ~1.18, rocks a few degrees and settles (Jitter logo reveal). Motion only.",
+      "defaultHosts": "ImageRun logo items (default for logo uploads); labeled-asset logo pips (overlay `recipeId`); logo_cloud hero"
+    },
+    {
+      "id": "sticker_pop",
+      "family": "image_story",
+      "intents": [
+        "media",
+        "punchline",
+        "hook"
+      ],
+      "driver": "transform",
+      "feel": "An elastic sticker pop: scale 0.3 -> overshoot -> 1 with a small rotate wiggle that dies out (KLIPY stickers, emoji).",
+      "defaultHosts": "KLIPY sticker / GIF overlays (overlay `recipeId`); labeled product pips; logo_cloud background variety"
+    },
+    {
+      "id": "still_push_in",
+      "family": "image_story",
+      "intents": [
+        "media",
+        "evidence",
+        "payoff"
+      ],
+      "driver": "transform",
+      "feel": "A slow camera push on a still: scale 1.12 -> 1 over ~60 % of the hold with a soft blur that clears in the first frames (Ken Burns, not a fade).",
+      "defaultHosts": "ImageRun person / still items; labeled-asset person cards (overlay `recipeId`)"
+    },
+    {
+      "id": "card_tilt_in",
+      "family": "image_story",
+      "intents": [
+        "media",
+        "evidence",
+        "payoff"
+      ],
+      "driver": "transform",
+      "feel": "A card swung in under perspective: rotateY 16 deg and rotateX 10 deg settle to 0 while the scale lands 0.9 -> 1 (article / screenshot as a physical object).",
+      "defaultHosts": "labeled-asset screenshot cards (overlay `recipeId`); NewspaperCallout / WikiCallout / TweetCard on every second seed variant"
+    },
+    {
+      "id": "orbit_drift",
+      "family": "image_story",
+      "intents": [
+        "media",
+        "payoff"
+      ],
+      "driver": "transform",
+      "feel": "CONTINUOUS: a very slow drift (a few px, ~1.5 deg) on two out-of-phase sines for the whole hold; a short blur-clear entrance. For logo-cloud background items.",
+      "defaultHosts": "ImageRun logo_cloud background items (continuous drift over the hold)"
+    }
+  ]
+}

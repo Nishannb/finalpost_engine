@@ -1,0 +1,15 @@
+{
+  "cache_key": "e649818d0ad4beb4789d8aeaf644e5ec9b4b071ab5a0eed6343a029ebf4e038f",
+  "seed": 1,
+  "bpm": 84,
+  "key": "D major",
+  "mood": "nostalgic",
+  "caption": "lo-fi hip hop, warm, nostalgic, rhodes piano, muted electric guitar, warm analog, tape saturation, instrumental, no vocals, 84 bpm",
+  "negative_prompt": "vocals, singing, voice, choir, lyrics, spoken word, rap, fade in, fade out, silence, applause, crowd noise",
+  "lyrics": "[intro]\n\n[inst]\n\n[inst]",
+  "prompt_version": 2,
+  "postprocess_version": 1,
+  "estimated_cost_usd": 0.0075,
+  "mode": "plan",
+  "cost_usd": 0
+}
