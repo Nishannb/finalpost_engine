@@ -12,6 +12,7 @@ Branch: `bgm-phase-2`. Not pushed.
 - After T5: absent (0 lines).
 - After T6: absent (0 lines).
 - After T7: absent (0 lines).
+- After T8: absent (0 lines).
 - Runware calls: 0. Lambda renders: 0. Gemini/Groq/Claude generation calls: 0.
 
 ## 2. Per task
@@ -86,6 +87,16 @@ Branch: `bgm-phase-2`. Not pushed.
 - An older `wp12d` pin looks for a "musicMood intentionally omitted" comment in `analyzeVideo.ts`. That comment is already gone from Phase 1. T7 did not touch that file. Not treated as a T7 failure.
 - Commit: `d2cdf8a`.
 
+### T8. Pool prewarm (plan only)
+
+- Status: done as a planner with hard gates. The live fill is not wired, on purpose.
+- Files: `agents/music_specialist/scripts/prewarm_pool.py`, `scripts/__init__.py`, `tests/test_prewarm.py`.
+- Tests: pytest 35 passed (5 of them are this script). Server tsc clean. A music vitest subset passed. Remotion tsc still the 3 known errors. `spend.log` still absent after the tests (pytest points `MUSIC_SPEND_LOG` at a temp file).
+- `--plan` prints the call count and the cost from `BGM_COST_USD` ($0.0075) and exits 0 with no caller token and no TTY.
+- `--confirm-spend` exits 2 unless `MUSIC_SPECIALIST_CALLER=pipeline`, stdin is a TTY, and the answer is exactly `y`. It prints the plan before those checks.
+- After those gates, `run_live_fill` still raises before constructing `RunwareTransport` and before `append_spend`. A human who types `y` will not spend and will not fill the pool. Wiring it would also need an R2 upload, which this run must not perform.
+- Commit: filled after the commit.
+
 ## 3. Flags
 
 - `MUSIC_MIX_MEASURE`: default off. `1` renders bed-only and VO-only wavs after a local render and logs `music.mix_measured`. Off so normal renders do not pay the extra render.
@@ -111,7 +122,23 @@ Branch: `bgm-phase-2`. Not pushed.
 - T10's `npm run first-video` calls Groq and Gemini. Those are paid APIs, so that full command will not be run. A local Remotion render that does not call them will be used if the code can do it without a new analyze.
 - `MUSIC_CARVED_TWIN` stays off. Playback code is in `MusicBedTrack`, but no blueprint gets `musicCarvedUrl` yet.
 - On a 250 ms collision, a kinetic hit outranks a caption pop. The brief listed them as one group.
+- The prewarm script does not generate. Saying `y` raises before any Runware call. The $0.105 figure is the plan for a future wired run, not a spend that happened.
 
 ## 7. Commands for the human (do not run overnight)
 
-Filled in after T8.
+Live polish edit. `tech_sharp` maps to `high-energy`, so this should pool-hit the salvaged bed and log `music.pool_hit` with `cost_usd` 0. A `music.generated` line with a cost means a paid generation. Do not add `MUSIC_BED_FRESH=1`.
+
+```
+cd /Users/nishanbaral/Desktop/apps/creators_kinmel/finalpost_engine
+MUSIC_SPECIALIST=live POLISH_MUSIC_BED_URL= PRODUCT_EDIT_PROFILE=polish \
+  npm run first-video -- "/Users/nishanbaral/Downloads/2.mp4" auto
+```
+
+Pool plan. This does not spend. With pool size 3 and one high-energy bed already stored, and the other four moods empty, it prints `calls=14` and `cost_usd=0.1050` (14 × $0.0075).
+
+```
+cd /Users/nishanbaral/Desktop/apps/creators_kinmel/finalpost_engine/agents
+./.venv/bin/python -m music_specialist.scripts.prewarm_pool --plan --counts high-energy=1 --pool-size 3
+```
+
+Do not run `--confirm-spend`. The live body is not connected to generation or to R2, so it cannot fill the pool.
