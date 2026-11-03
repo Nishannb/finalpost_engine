@@ -8,6 +8,7 @@ Branch: `bgm-phase-2`. Not pushed.
 - After T1: absent (0 lines).
 - After T2: absent (0 lines).
 - After T3: absent (0 lines).
+- After T4 (reverted): absent (0 lines).
 - Runware calls: 0. Lambda renders: 0. Gemini/Groq/Claude generation calls: 0.
 
 ## 2. Per task
@@ -43,6 +44,15 @@ Branch: `bgm-phase-2`. Not pushed.
 - Tests: pytest 28 passed. Salvaged bed: measured bpm 129.2 (within 3% of 128), 16 bars, not drum-led (30 ms fade), loop 29.094 s, seam jump ≤ 1.5 dB. Vitest loopBed + musicBed 33 passed. Server tsc clean. Remotion tsc only the 3 known errors.
 - Gap: `MusicPlan.loopUrl` is never set, and `uploadBed` is not passed `loopFilePath`. A render therefore still uses the single file. The existing high-energy pool bed has no loop object. Recorded for the human. Not fixed overnight because connecting it is an upload-path change and this run must not write the pool.
 - Listen files (gitignored, local): `remotion/out/music-loop/bed_full.wav`, `bed_loop.wav`, `bed_loop_x3.wav`.
+- Commit: `4ea32fc74e470207000caa037183690b2630e16c`.
+
+### T4. QC gate
+
+- Status: blocked and reverted. Nothing from this task is in the tree.
+- The salvaged bed's tail is a real 3.2 s run at about −67 dBFS, ending at 59.9 s (median level of the rest is about −19 dBFS). The silence check correctly fails that tail. Two retunes did not make the bed pass without ignoring a hole the spec calls a failure.
+- Vocal fraction on that bed was 0.60, so the first constant (0.45) also flagged the synth bed. That part was raised to 0.72 and then reverted with the rest.
+- Pytest was 31 passed and 1 failed (`test_smoke_bed_passes`) at revert time. Server tsc was not green yet on the first draft (`MusicMode` `'off'`). Those edits are gone.
+- Human decision: trim the trailing near-silence before the gate, or exempt the tail, before turning a live retry on. Left off so a future live edit cannot reject the bed we already have.
 
 ## 3. Flags
 
@@ -55,7 +65,10 @@ Branch: `bgm-phase-2`. Not pushed.
 
 ## 5. Listen list
 
-Not produced yet.
+- `remotion/out/music-loop/bed_full.wav`
+- `remotion/out/music-loop/bed_loop.wav`
+- `remotion/out/music-loop/bed_loop_x3.wav` (three loops, for the seam)
+
 
 ## 6. Decisions for the human
 
