@@ -834,6 +834,7 @@ export type AudioDesign = {
     kind: 'whoosh' | 'hit' | 'pop';
     volume?: number;
     reason?: string;
+    src?: string;
   }>;
 };
 

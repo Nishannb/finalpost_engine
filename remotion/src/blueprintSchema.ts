@@ -927,6 +927,7 @@ export const timelineBlueprintSchema = z.object({
             kind: z.enum(['whoosh', 'hit', 'pop']),
             volume: z.number().optional(),
             reason: z.string().optional(),
+            src: z.string().optional(),
           }),
         )
         .optional()

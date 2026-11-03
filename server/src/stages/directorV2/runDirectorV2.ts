@@ -7,6 +7,7 @@ import type {VisualDirection} from '../broll/geminiDirector.ts';
 import {fallbackVisualDirection} from '../broll/geminiDirector.ts';
 import {startMusicPlan, type MusicPlan} from '../music/musicSpecialist.ts';
 import {sfxEnabled} from '../music/flags.ts';
+import {collectVisualCuts} from '../music/mergeHits.ts';
 import {buildPerceptionPack} from './perception.ts';
 import {analyzeStory} from './storyAnalyst.ts';
 import {designEdit} from './creativeDirector.ts';
@@ -63,7 +64,7 @@ export async function runDirectorV2(input: {
   const ms = (sec: number) => Math.round(sec * 1000);
   const musicPending = input.editLooks ? startMusicPlan({
     transcript_segments: input.captionWords.map(word => ({text: word.text, start_ms: ms(word.start), end_ms: ms(word.end)})),
-    visual_cuts: [],
+    visual_cuts: collectVisualCuts({captionWords: input.captionWords}),
     emotional_tone: input.lookBias?.mood || 'neutral talking-head',
     canvas_sec: Math.min(input.timeline.outputDurationSec, 180),
     include_sfx: sfxEnabled(),

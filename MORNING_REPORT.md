@@ -11,6 +11,7 @@ Branch: `bgm-phase-2`. Not pushed.
 - After T4 (reverted): absent (0 lines).
 - After T5: absent (0 lines).
 - After T6: absent (0 lines).
+- After T7: absent (0 lines).
 - Runware calls: 0. Lambda renders: 0. Gemini/Groq/Claude generation calls: 0.
 
 ## 2. Per task
@@ -74,6 +75,17 @@ Branch: `bgm-phase-2`. Not pushed.
 - The existing voice-delivery loudnorm in `deliveryAcoustics.ts` was not changed.
 - Commit: `715e561`.
 
+### T7. SFX merge (stays off)
+
+- Status: done. Not wired into the render. `MUSIC_SPECIALIST_SFX` stays off.
+- Files: `mergeHits.ts`, `mergeHits.test.ts`, `runDirectorV2.ts` (caption-pop `visual_cuts` only), optional `src` on hits in the blueprint type, the Remotion zod schema, and `SfxTrack.tsx`.
+- Tests: mergeHits vitest 9 passed inside a music run of 60 passed. Pytest 30 passed. Server tsc clean. Remotion tsc only the 3 known errors.
+- `mergeHits` is not called from analyze or the director. `schedulePolishSfxHits` is still the only writer of `audioDesign.hits`. A non-empty `src` on a hit plays that URL; hits without `src` still play the local whoosh/hit/pop wav.
+- The music job now sends at most 24 `caption_pop` cuts. `include_sfx` is still false, and the seed does not read cuts, so the bed does not change. Kinetic plates, motion entrances, and recipe peaks are accepted by `collectVisualCuts` but are not known when music starts, so they are not sent.
+- When a kinetic hit and a caption hit land within 250 ms, the kinetic one wins. The brief grouped them; a collision needed one winner.
+- An older `wp12d` pin looks for a "musicMood intentionally omitted" comment in `analyzeVideo.ts`. That comment is already gone from Phase 1. T7 did not touch that file. Not treated as a T7 failure.
+- Commit: filled after the commit.
+
 ## 3. Flags
 
 - `MUSIC_MIX_MEASURE`: default off. `1` renders bed-only and VO-only wavs after a local render and logs `music.mix_measured`. Off so normal renders do not pay the extra render.
@@ -98,6 +110,7 @@ Branch: `bgm-phase-2`. Not pushed.
 - `tech_sharp` → `high-energy`. The visual theme is sharp/tech, the brief asked for high-energy unless a better fit, and the only real bed is the 128 bpm A minor high-energy bed. Other visual moods: warm_intimate→nostalgic, calm_cool→calm, bold_energetic→high-energy, clean_light→neutral, dark_cinematic→tense, earthy_natural→calm, soft_pastel→calm.
 - T10's `npm run first-video` calls Groq and Gemini. Those are paid APIs, so that full command will not be run. A local Remotion render that does not call them will be used if the code can do it without a new analyze.
 - `MUSIC_CARVED_TWIN` stays off. Playback code is in `MusicBedTrack`, but no blueprint gets `musicCarvedUrl` yet.
+- On a 250 ms collision, a kinetic hit outranks a caption pop. The brief listed them as one group.
 
 ## 7. Commands for the human (do not run overnight)
 

@@ -5,6 +5,7 @@
 import React from 'react';
 import {AbsoluteFill, Audio, Sequence, staticFile, useVideoConfig} from 'remotion';
 
+import {resolveMediaSrc} from '../lib/mediaSrc';
 import {framesBetween, secToFrame} from '../lib/timeline';
 
 const FILES: Record<string, string> = {
@@ -17,6 +18,7 @@ export type SfxHit = {
   at: number;
   kind: string;
   volume?: number;
+  src?: string;
 };
 
 export const SfxTrack: React.FC<{hits?: SfxHit[]}> = ({hits}) => {
@@ -27,8 +29,9 @@ export const SfxTrack: React.FC<{hits?: SfxHit[]}> = ({hits}) => {
   return (
     <AbsoluteFill>
       {hits.map((hit, index) => {
-        const src = FILES[hit.kind];
-        if (!src) {
+        const file = FILES[hit.kind];
+        const custom = typeof hit.src === 'string' && hit.src.length > 0 ? hit.src : null;
+        if (!custom && !file) {
           return null;
         }
         return (
@@ -36,7 +39,7 @@ export const SfxTrack: React.FC<{hits?: SfxHit[]}> = ({hits}) => {
             key={`sfx-${hit.kind}-${hit.at}-${index}`}
             from={secToFrame(Math.max(0, hit.at), fps)}
             durationInFrames={Math.max(1, framesBetween(0, 0.45, fps))}>
-            <Audio src={staticFile(src)} volume={hit.volume ?? 0.12} />
+            <Audio src={custom ? resolveMediaSrc(custom) : staticFile(file as string)} volume={hit.volume ?? 0.12} />
           </Sequence>
         );
       })}
