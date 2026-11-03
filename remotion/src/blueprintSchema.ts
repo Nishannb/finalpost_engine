@@ -892,6 +892,9 @@ export const timelineBlueprintSchema = z.object({
       ducking: z.boolean().optional(),
       musicSource: z.enum(['licensed', 'generated']).optional(),
       musicBpm: z.number().optional(),
+      musicFullUrl: z.string().optional(),
+      musicLoopUrl: z.string().optional(),
+      musicFullDurationSec: z.number().optional(),
       voLufs: z.number().optional(),
       duck: z.object({
         preset: z.enum(['talking', 'default', 'legacy_brief']),

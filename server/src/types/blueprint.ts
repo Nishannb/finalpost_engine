@@ -803,6 +803,12 @@ export type AudioDesign = {
   /** Which resolver arm supplied musicUrl. Absent on blueprints written before generated beds. */
   musicSource?: 'licensed' | 'generated';
   musicBpm?: number;
+  /** Generated beds: full bed played once (falls back to musicUrl). */
+  musicFullUrl?: string;
+  /** Generated beds: bar-aligned loop body, played after the full bed on long timelines. */
+  musicLoopUrl?: string;
+  /** Length of the full bed in seconds; where the loop file starts. */
+  musicFullDurationSec?: number;
   /** Speech-gated integrated loudness of the creator audio (LUFS). Absent on older blueprints. */
   voLufs?: number;
   /** Generated-bed envelope. Absent → MusicBedTrack keeps the legacy 0.18/0.04 gate. */

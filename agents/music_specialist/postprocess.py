@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 
 import numpy as np
 import pyloudnorm as pyln
@@ -10,11 +11,21 @@ from pydub import AudioSegment
 
 from .silence_trimmer import trim_segment
 
-POSTPROCESS_VERSION = 1
+POSTPROCESS_VERSION = 2
 TARGET_LUFS = -16.0
 PEAK_CEILING_DBFS = -1.5
 SEAM_MS = 40.0
 RATE = 48000
+ANALYSIS_RATE = 22050
+HOP = 512
+BEATS_PER_BAR = 4
+SKIP_BARS = 2
+ZERO_CROSS_MS = 15.0
+DRUM_FADE_MS = 10.0
+SOFT_FADE_MS = 30.0
+# Mean librosa onset_strength over the loop region (22.05 kHz, hop 512) at or above this
+# counts as drum-led. Empirical starting point; tune against real beds.
+DRUM_ONSET_DENSITY = 1.5
 
 
 def write_click_bed(path: str, bpm: int, seconds: float = 60.0, rate: int = RATE) -> None:
@@ -52,6 +63,71 @@ def loop_seam(samples: np.ndarray, rate: int, fade_ms: float = SEAM_MS) -> np.nd
     return out
 
 
+def _measure_beats(samples: np.ndarray, rate: int):
+    """Return (bpm, beat_frames, onset_env) or None when no usable beat grid is found."""
+    import librosa
+
+    mono = samples.mean(axis=1)
+    y = librosa.resample(mono, orig_sr=rate, target_sr=ANALYSIS_RATE)
+    env = librosa.onset.onset_strength(y=y, sr=ANALYSIS_RATE, hop_length=HOP)
+    tempo, frames = librosa.beat.beat_track(onset_envelope=env, sr=ANALYSIS_RATE, hop_length=HOP)
+    bpm = float(np.atleast_1d(tempo)[0])
+    frames = np.asarray(frames, dtype=int)
+    if not np.isfinite(bpm) or bpm <= 0 or frames.size < BEATS_PER_BAR * 2:
+        return None
+    return bpm, frames, env
+
+
+def _downbeat_frames(beat_frames: np.ndarray, env: np.ndarray) -> np.ndarray:
+    """4/4 assumed: the beat phase (0-3) with the strongest summed onset is the downbeat."""
+    strength = env[np.clip(beat_frames, 0, len(env) - 1)]
+    phase = int(np.argmax([strength[k::BEATS_PER_BAR].sum() for k in range(BEATS_PER_BAR)]))
+    return beat_frames[phase::BEATS_PER_BAR]
+
+
+def _snap_zero_crossing(samples: np.ndarray, index: int, rate: int) -> int:
+    """Nearest index within ±15 ms where both channels cross zero between i and i+1."""
+    radius = int(rate * ZERO_CROSS_MS / 1000.0)
+    lo = max(0, index - radius)
+    hi = min(samples.shape[0] - 1, index + radius)
+    if hi <= lo:
+        return index
+    window = samples[lo : hi + 1]
+    crossing = np.all(window[:-1] * window[1:] <= 0.0, axis=1)
+    candidates = np.nonzero(crossing)[0] + lo + 1
+    if candidates.size == 0:
+        return index
+    return int(candidates[np.argmin(np.abs(candidates - index))])
+
+
+def _bar_loop(samples: np.ndarray, rate: int, downbeats: np.ndarray, env: np.ndarray):
+    """Cut a bar-aligned loop body. Returns (body, start_sec, end_sec, bars, drum_led) or None."""
+    n_bars = len(downbeats) - 1
+    if n_bars >= 20:
+        bars = 16
+    elif n_bars >= 8 + 2 * SKIP_BARS:
+        bars = 8
+    elif n_bars >= 4 + 2 * SKIP_BARS:
+        bars = 4
+    else:
+        return None
+    first = SKIP_BARS
+    times = downbeats * HOP / ANALYSIS_RATE
+    start = _snap_zero_crossing(samples, int(round(times[first] * rate)), rate)
+    end = _snap_zero_crossing(samples, int(round(times[first + bars] * rate)), rate)
+    region = env[downbeats[first] : downbeats[first + bars]]
+    drum_led = bool(region.size and float(region.mean()) >= DRUM_ONSET_DENSITY)
+    fade = int(rate * (DRUM_FADE_MS if drum_led else SOFT_FADE_MS) / 1000.0)
+    body = samples[start:end].copy()
+    if fade < 2 or body.shape[0] <= fade * 2 or end + fade > samples.shape[0]:
+        return None
+    # Equal-power: the head fades in against the audio that follows the cut, so
+    # end -> start is continuous when the body repeats.
+    t = np.linspace(0.0, 1.0, fade, endpoint=False)[:, None]
+    body[:fade] = body[:fade] * np.sin(t * np.pi / 2.0) + samples[end : end + fade] * np.cos(t * np.pi / 2.0)
+    return body, start / rate, end / rate, bars, drum_led
+
+
 def postprocess_bed(src_path: str, dest_path: str) -> dict:
     segment = AudioSegment.from_file(src_path)
     segment, _trimmed = trim_segment(segment)
@@ -61,15 +137,46 @@ def postprocess_bed(src_path: str, dest_path: str) -> dict:
     peak = float(1 << 15)
     samples = np.array(segment.get_array_of_samples(), dtype=np.float64).reshape(-1, 2) / peak
     samples = _normalize(samples, RATE)
-    samples = loop_seam(samples, RATE, SEAM_MS)
-    samples = _limit_peak(samples)
-    os.makedirs(os.path.dirname(dest_path) or ".", exist_ok=True)
-    _write(dest_path, samples, RATE)
-    loudness = float(pyln.Meter(RATE).integrated_loudness(samples))
+    beats = _measure_beats(samples, RATE)
+    loop = None
+    downbeat_times: list = []
+    measured_bpm = None
+    if beats is not None:
+        measured_bpm, frames, env = beats
+        downbeats = _downbeat_frames(frames, env)
+        downbeat_times = [round(float(f) * HOP / ANALYSIS_RATE, 3) for f in downbeats]
+        loop = _bar_loop(samples, RATE, downbeats, env)
+    if loop is not None:
+        full = _limit_peak(samples)
+        body, loop_start, loop_end, bars, drum_led = loop
+        loop_audio = _limit_peak(body)
+    else:
+        # No usable bar grid: previous behaviour (40 ms seam), loop = full.
+        full = _limit_peak(loop_seam(samples, RATE, SEAM_MS))
+        loop_audio = full
+        loop_start, loop_end, bars, drum_led = 0.0, full.shape[0] / RATE, 0, False
+    out_dir = os.path.dirname(dest_path) or "."
+    os.makedirs(out_dir, exist_ok=True)
+    full_path = os.path.join(out_dir, "bed_full.wav")
+    loop_path = os.path.join(out_dir, "bed_loop.wav")
+    _write(full_path, full, RATE)
+    _write(loop_path, loop_audio, RATE)
+    shutil.copyfile(full_path, dest_path)
+    loudness = float(pyln.Meter(RATE).integrated_loudness(full))
     return {
         "bed_path": dest_path,
+        "bed_full_path": full_path,
+        "bed_loop_path": loop_path,
         "integrated_lufs": round(loudness, 3),
-        "duration_sec": round(samples.shape[0] / RATE, 3),
+        "duration_sec": round(full.shape[0] / RATE, 3),
+        "loop_duration_sec": round(loop_audio.shape[0] / RATE, 3),
+        "loop_start_sec": round(loop_start, 3),
+        "loop_end_sec": round(loop_end, 3),
+        "loop_bars": bars,
+        "loop_drum_led": drum_led,
+        "loop_fallback": loop is None,
+        "measured_bpm": round(measured_bpm, 2) if measured_bpm else None,
+        "downbeat_times": downbeat_times,
         "postprocess_version": POSTPROCESS_VERSION,
         "sample_rate": RATE,
     }

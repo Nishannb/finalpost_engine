@@ -30,6 +30,11 @@ export function bedObjectKey(cacheKey: string, dry = false): string {
   return `music/beds/${dry ? 'dry/' : ''}${cacheKey}/bed.wav`;
 }
 
+/** Object key for the bar-aligned loop body. Helper only; nothing uploads it yet. */
+export function bedLoopObjectKey(cacheKey: string, dry = false): string {
+  return `music/beds/${dry ? 'dry/' : ''}${cacheKey}/bed_loop.wav`;
+}
+
 export function publicUrlForKey(key: string): string {
   return `${env.R2_PUBLIC_BASE_URL.replace(/\/+$/, '')}/${key}`;
 }
@@ -89,6 +94,8 @@ export async function uploadBed(input: {
   meta: Record<string, unknown>;
   mood: string;
   dry?: boolean;
+  /** Optional bar-aligned loop wav. Uploaded to bedLoopObjectKey; url goes on meta as loop_url. */
+  loopFilePath?: string;
 }): Promise<string> {
   if (!r2Configured()) throw new Error('r2_unconfigured');
   const dry = Boolean(input.dry);
@@ -98,7 +105,12 @@ export async function uploadBed(input: {
     const uploaded = await uploadPublicFile(input.filePath, bedObjectKey(input.cacheKey, dry), 'audio/wav');
     url = uploaded.publicUrl;
     const metaPath = path.join(os.tmpdir(), `music-meta-${input.cacheKey}.json`);
-    await fs.writeFile(metaPath, JSON.stringify({licence: LICENCE, ...input.meta, url}));
+    let loopUrl: string | undefined;
+    if (input.loopFilePath) {
+      const loopUploaded = await uploadPublicFile(input.loopFilePath, bedLoopObjectKey(input.cacheKey, dry), 'audio/wav');
+      loopUrl = loopUploaded.publicUrl;
+    }
+    await fs.writeFile(metaPath, JSON.stringify({licence: LICENCE, ...input.meta, url, ...(loopUrl ? {loop_url: loopUrl} : {})}));
     await uploadPublicFile(metaPath, `music/beds/${dry ? 'dry/' : ''}${input.cacheKey}/meta.json`, 'application/json');
   }
   const meta = input.meta as Record<string, unknown>;

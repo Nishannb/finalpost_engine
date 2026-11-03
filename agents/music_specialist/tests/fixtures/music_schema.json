@@ -8,7 +8,7 @@
   "negative_prompt": "vocals, singing, voice, choir, lyrics, spoken word, rap, fade in, fade out, silence, applause, crowd noise",
   "lyrics": "[intro]\n\n[inst]\n\n[inst]",
   "prompt_version": 2,
-  "postprocess_version": 1,
+  "postprocess_version": 2,
   "estimated_cost_usd": 0.0075,
   "mode": "plan",
   "cost_usd": 0

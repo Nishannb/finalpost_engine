@@ -2498,7 +2498,7 @@ async function analyzeVideoUnguarded(
           }
           duck = buildDuckEnvelope({words: captionWords, durationSec: timeline.outputDurationSec, preset, voLufs, bedLufs: resolved.integratedLufs});
         }
-        audioDesign = toAudioDesign({existing: audioDesign, resolved, duck, mood: musicPlan?.mood, voLufs});
+        audioDesign = toAudioDesign({existing: audioDesign, resolved, duck, mood: musicPlan?.mood, voLufs, ...(musicPlan?.loopUrl && musicPlan.fullDurationSec ? {loop: {loopUrl: musicPlan.loopUrl, fullDurationSec: musicPlan.fullDurationSec}} : {})});
         warnings.push(resolved.source === 'licensed' ? 'polish_music:bed:env' : 'music:bed:generated');
       }
     }

@@ -47,6 +47,12 @@ export type MusicPlan = {
   source: 'generated';
   /** True when the bed came from the mood pool (no generation, $0). */
   fromPool?: boolean;
+  /** Public URL of the loop body. Unset until an upload provides one. */
+  loopUrl?: string | null;
+  /** Local bar-aligned loop wav from the specialist. */
+  loopFilePath?: string;
+  /** Duration of the full bed, set when a clean loop exists. */
+  fullDurationSec?: number;
 };
 
 export function agentsDir(): string {
@@ -126,6 +132,9 @@ function toPlan(result: MusicResult, url: string | null): MusicPlan {
     promptVersion: result.prompt_version,
     ...(result.postprocess_version !== undefined ? {postprocessVersion: result.postprocess_version} : {}),
     source: 'generated',
+    ...(result.bed_loop_path && result.loop_duration_sec !== undefined && result.loop_fallback === false && result.duration_sec !== undefined
+      ? {loopFilePath: result.bed_loop_path, fullDurationSec: result.duration_sec}
+      : {}),
   };
 }
 

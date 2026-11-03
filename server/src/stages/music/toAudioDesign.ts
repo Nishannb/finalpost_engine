@@ -13,6 +13,8 @@ export function toAudioDesign(input: {
   duck?: DuckEnvelope | null;
   mood?: string;
   voLufs?: number;
+  /** Generated beds only. Absent → single looping musicUrl, as before. */
+  loop?: {fullUrl?: string; loopUrl: string; fullDurationSec: number} | null;
 }): AudioDesign {
   const existing = input.existing;
   const base: AudioDesign = {
@@ -40,6 +42,13 @@ export function toAudioDesign(input: {
     ducking: true,
     musicSource: 'generated',
     ...(input.resolved.bpm !== undefined ? {musicBpm: input.resolved.bpm} : {}),
+    ...(input.loop
+      ? {
+          musicFullUrl: input.loop.fullUrl ?? input.resolved.url,
+          musicLoopUrl: input.loop.loopUrl,
+          musicFullDurationSec: input.loop.fullDurationSec,
+        }
+      : {}),
     ...(input.duck ? {duck: input.duck} : {}),
     ...(input.voLufs !== undefined ? {voLufs: input.voLufs} : {}),
   };
