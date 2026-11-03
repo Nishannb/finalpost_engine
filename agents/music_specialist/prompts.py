@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
+from pathlib import Path
 from dataclasses import dataclass
 
 from .models import BGM_CFG, BGM_DURATION_SEC, BGM_MODEL, BGM_STEPS, PROMPT_VERSION
@@ -63,11 +65,31 @@ _BUCKETS = (
 )
 
 
+_log = logging.getLogger("music_specialist")
+CONTENT_MOOD_MAP_PATH = (
+    Path(__file__).resolve().parents[2] / "server" / "src" / "stages" / "music" / "contentMoodMap.json"
+)
+_content_mood_map: dict[str, str] | None = None
+
+
+def content_mood_map() -> dict[str, str]:
+    """VisualMood -> music mood, shared with server/src/stages/music/flags.ts."""
+    global _content_mood_map
+    if _content_mood_map is None:
+        _content_mood_map = json.loads(CONTENT_MOOD_MAP_PATH.read_text(encoding="utf-8"))
+    return _content_mood_map
+
+
 def resolve_mood(tone: str) -> MoodSpec:
-    text = (tone or "").lower()
+    text = (tone or "").strip().lower()
+    mapped = content_mood_map().get(text)
+    if mapped:
+        return MOODS[mapped]
     for keys, name in _BUCKETS:
         if any(key in text for key in keys):
             return MOODS[name]
+    if text:
+        _log.warning("music.mood_unmapped tone=%r", tone)
     return MOODS["neutral"]
 
 

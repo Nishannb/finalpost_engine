@@ -1,5 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {stageLogger} from '../../lib/logger.ts';
 
 export type MusicMode = 'off' | 'dry' | 'live';
 export type MusicBedSource = 'auto' | 'licensed' | 'generated' | 'off';
@@ -82,17 +84,32 @@ const MOOD_BUCKETS: Array<[string[], string]> = [
   [['neutral'], 'neutral'],
 ];
 
+const moodLog = stageLogger('music');
+let contentMoodMap: Record<string, string> | null = null;
+
+/** VisualMood → music mood. Single source of truth shared with agents/music_specialist/prompts.py. */
+export function loadContentMoodMap(): Record<string, string> {
+  if (!contentMoodMap) {
+    const file = path.join(path.dirname(fileURLToPath(import.meta.url)), 'contentMoodMap.json');
+    contentMoodMap = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, string>;
+  }
+  return contentMoodMap;
+}
+
 /**
  * MoodSpec name the Python side will resolve for this tone (mirror of prompts.py resolve_mood).
- * MUSIC_BED_MOOD forces a pool name. The pool is keyed by this name, not the raw tone string.
+ * MUSIC_BED_MOOD forces a pool name. Exact VisualMood lookup runs before the keyword buckets.
  */
 export function resolveMoodPool(tone: string, env: NodeJS.ProcessEnv = process.env): string {
   const forced = (env.MUSIC_BED_MOOD ?? '').trim().toLowerCase();
   if (MOOD_BUCKETS.some(([, name]) => name === forced)) return forced;
-  const text = (tone || '').toLowerCase();
+  const text = (tone || '').trim().toLowerCase();
+  const mapped = loadContentMoodMap()[text];
+  if (mapped) return mapped;
   for (const [keys, name] of MOOD_BUCKETS) {
     if (keys.some(key => text.includes(key))) return name;
   }
+  if (text) moodLog.warn({tone}, 'music.mood_unmapped');
   return 'neutral';
 }
 

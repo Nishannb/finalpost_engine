@@ -1,7 +1,8 @@
 import {EventEmitter} from 'node:events';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
-import {buildSpawnSpec, bedFresh, isTestEnv, resolveMoodPool, resolveMusicMode} from './flags.ts';
+import {VISUAL_MOODS} from '../contentProfile/contentProfile.ts';
+import {buildSpawnSpec, bedFresh, isTestEnv, loadContentMoodMap, resolveMoodPool, resolveMusicMode} from './flags.ts';
 import {mapWordsToSource} from './measureVoLufs.ts';
 import {awaitMusicPlan, planMusicForDirector, spawnMusic, type MusicPlan} from './musicSpecialist.ts';
 import {pickPoolBed, poolObjectKey} from './uploadBed.ts';
@@ -38,12 +39,21 @@ describe('spawn spec (no real process)', () => {
 });
 
 describe('mood pool', () => {
-  it('maps tones to the MoodSpec name; tech_sharp is neutral; MUSIC_BED_MOOD overrides', () => {
+  it('every VisualMood is in contentMoodMap.json; tech_sharp is high-energy', () => {
+    const map = loadContentMoodMap();
+    for (const mood of VISUAL_MOODS) expect(map[mood], mood).toBeTruthy();
+    expect(resolveMoodPool('tech_sharp', {})).toBe('high-energy');
+    expect(resolveMoodPool('dark_cinematic', {})).toBe('tense');
+    expect(resolveMoodPool('clean_light', {})).toBe('neutral');
+  });
+
+  it('maps tones to the MoodSpec name; MUSIC_BED_MOOD overrides the map', () => {
     expect(resolveMoodPool('high-energy', {})).toBe('high-energy');
     expect(resolveMoodPool('Energetic and punchy', {})).toBe('high-energy');
-    expect(resolveMoodPool('tech_sharp', {})).toBe('neutral');
-    expect(resolveMoodPool('tech_sharp', {MUSIC_BED_MOOD: 'high-energy'})).toBe('high-energy');
-    expect(resolveMoodPool('tech_sharp', {MUSIC_BED_MOOD: 'bogus'})).toBe('neutral');
+    expect(resolveMoodPool('neutral talking-head', {})).toBe('neutral');
+    expect(resolveMoodPool('zzz', {})).toBe('neutral');
+    expect(resolveMoodPool('tech_sharp', {MUSIC_BED_MOOD: 'calm'})).toBe('calm');
+    expect(resolveMoodPool('tech_sharp', {MUSIC_BED_MOOD: 'bogus'})).toBe('high-energy');
     expect(poolObjectKey('high-energy')).toBe('music/beds/pool/high-energy.json');
     expect(poolObjectKey('high-energy', true)).toBe('music/beds/pool/dry-high-energy.json');
   });
