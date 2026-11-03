@@ -13,6 +13,7 @@ Branch: `bgm-phase-2`. Not pushed.
 - After T6: absent (0 lines).
 - After T7: absent (0 lines).
 - After T8: absent (0 lines).
+- After T9 and at the end of the run: absent (0 lines).
 - Runware calls: 0. Lambda renders: 0. Gemini/Groq/Claude generation calls: 0.
 
 ## 2. Per task
@@ -95,18 +96,36 @@ Branch: `bgm-phase-2`. Not pushed.
 - `--plan` prints the call count and the cost from `BGM_COST_USD` ($0.0075) and exits 0 with no caller token and no TTY.
 - `--confirm-spend` exits 2 unless `MUSIC_SPECIALIST_CALLER=pipeline`, stdin is a TTY, and the answer is exactly `y`. It prints the plan before those checks.
 - After those gates, `run_live_fill` still raises before constructing `RunwareTransport` and before `append_spend`. A human who types `y` will not spend and will not fill the pool. Wiring it would also need an R2 upload, which this run must not perform.
+- Commit: `9385a34`.
+
+### T9. Late-upload spool
+
+- Status: done. Tested with a fake uploader, not R2.
+- Files: `spool.ts`, `spool.test.ts`, `musicSpecialist.ts` (flush at the start of `runMusicPlan`, copy into the spool before `uploadBed`, delete the entry only after upload succeeds), `.gitignore` line `agents/music_specialist/spool/`.
+- Tests: spool tests passed inside a 57-test vitest run (spool, musicSpecialist, mergeHits, loopBed, musicBed). Pytest 35 passed. Server tsc clean. Remotion tsc only the 3 known errors.
+- A child that writes `bed.wav` and `meta.json` and is then SIGKILLed still leaves a complete entry. The next `flushSpool` uploads it and deletes it. A failed upload leaves its entry and does not block the next one. A half-written `.tmp-*` directory is ignored.
+- Default directory is `agents/music_specialist/spool` unless `MUSIC_SPOOL_DIR` is set. Nothing was uploaded to R2.
 - Commit: filled after the commit.
+
+### T10. Proof render
+
+- Status: skipped. Not run.
+- `npm run first-video` renders with `renderLocally` (not Lambda), but it always calls `analyzeVideo` first. That path calls Groq and Gemini. Those are paid generation APIs, so the command was not started.
+- There is no saved blueprint on disk to re-render locally. The only blueprint JSON in the repo is an old eval fixture, not the polish edit of `2.mp4`.
+- The earlier dry pool-hit render, from before this run, is still the one to listen to: `https://media.kinmel.shop/ai-video/render/2026-11-03/first_bp_2753aa41d02f423c8e11.mp4`. Its log line was `music.pool_hit` for cache key `108abbca07e0c08d977649dbd1d1d842c072e564986b495f627caf07bfb55a53`, video id `350490efc54c233ae72d8772`, `cost_usd` 0. It predates `music.mix_check` on the local path and predates `MUSIC_MASTER_PASS`, so it has neither measured gaps nor a −14 master.
+- `music.python` lines in `logs/engine.log` from this run are vitest dry spawns, not a live specialist.
 
 ## 3. Flags
 
 - `MUSIC_MIX_MEASURE`: default off. `1` renders bed-only and VO-only wavs after a local render and logs `music.mix_measured`. Off so normal renders do not pay the extra render.
 - `MUSIC_CARVED_TWIN`: default off. `1` is the intended switch for playing `bed_carved.wav` under speech. Off because T2 has no rendered-mix measurement, and because the URL is not wired yet.
 - `MUSIC_MASTER_PASS`: default off. `1` runs a local two-pass loudnorm (I=−14, TP=−1, LRA=11) on the finished MP4 audio and copies the video. Off so a normal render is not re-encoded.
+- `MUSIC_SPOOL_DIR`: unset. The spool then lives in `agents/music_specialist/spool` (gitignored). Set it to put the durable copy somewhere else. The next pipeline run uploads whatever is still there.
 
 ## 4. Numbers from T2 and T10
 
 - Fixture (salvaged bed + synthetic −20 LUFS voice, gains applied per region): full-file bed −16.0 LUFS. Speech gap and pause gap passed at 18 ± 1 and 9 ± 1. No final MP4 yet, so no final LUFS or true peak.
-- T10 not run.
+- T10 not run, so there is no measured mix of `2.mp4` and no mastered MP4. The T6 fixture (2 s sine, local ffmpeg) landed within 1 LU of −14 with true peak ≤ −0.5 dBFS. That is not the talking-head mix.
 
 ## 5. Listen list
 
@@ -119,10 +138,12 @@ Branch: `bgm-phase-2`. Not pushed.
 ## 6. Decisions for the human
 
 - `tech_sharp` → `high-energy`. The visual theme is sharp/tech, the brief asked for high-energy unless a better fit, and the only real bed is the 128 bpm A minor high-energy bed. Other visual moods: warm_intimate→nostalgic, calm_cool→calm, bold_energetic→high-energy, clean_light→neutral, dark_cinematic→tense, earthy_natural→calm, soft_pastel→calm.
-- T10's `npm run first-video` calls Groq and Gemini. Those are paid APIs, so that full command will not be run. A local Remotion render that does not call them will be used if the code can do it without a new analyze.
+- T10's `npm run first-video` calls Groq and Gemini before the local render. It was not run. No polish blueprint was saved on disk, so there was nothing local to re-render.
 - `MUSIC_CARVED_TWIN` stays off. Playback code is in `MusicBedTrack`, but no blueprint gets `musicCarvedUrl` yet.
 - On a 250 ms collision, a kinetic hit outranks a caption pop. The brief listed them as one group.
 - The prewarm script does not generate. Saying `y` raises before any Runware call. The $0.105 figure is the plan for a future wired run, not a spend that happened.
+- T10 was skipped because `first-video` analyzes with Groq and Gemini before the local render. No saved polish blueprint was on disk to render instead.
+- QC (T4) stays off until the salvaged bed's 3.2 s near-silent tail is trimmed or exempted. A live retry would reject the only real bed.
 
 ## 7. Commands for the human (do not run overnight)
 

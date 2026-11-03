@@ -16,6 +16,7 @@ import {
   sfxEnabled,
 } from './flags.ts';
 import {musicResultSchema, type MusicResult} from './schema.ts';
+import {flushSpool, removeSpool, spoolDir, writeSpool} from './spool.ts';
 import {cachedMoodBed, findUploadedBed, pickPoolBed, readPool, uploadBed, type PoolBed} from './uploadBed.ts';
 
 const log = stageLogger('music');
@@ -184,6 +185,15 @@ async function runMusicPlan(job: MusicJob): Promise<MusicPlan | null> {
   const dry = spawnMode !== 'live';
   const fresh = bedFresh();
   try {
+    try {
+      const flushed = await flushSpool({
+        dir: spoolDir(),
+        upload: entry => uploadBed({filePath: entry.filePath, cacheKey: entry.cacheKey, mood: entry.mood, dry: entry.dry, meta: entry.meta}),
+      });
+      if (flushed > 0) log.info({count: flushed}, 'music.spool_flushed');
+    } catch (error) {
+      log.warn({reason: error instanceof Error ? error.message : String(error)}, 'music.spool_flush_failed');
+    }
     // Pool first: a mood with a bed never spawns Python. Dry reads the real pool too; dry writes go to a separate prefix.
     if (!fresh) {
       const picked = pickPoolBed(videoId, await readPool(mood));
@@ -205,25 +215,27 @@ async function runMusicPlan(job: MusicJob): Promise<MusicPlan | null> {
     const generated = await spawnMusic(decision.mode, {...jobWithSfx, seed: plan.seed});
     if (!generated.bed_path) return failOpen(mood, 'no_bed', videoId);
     let url: string;
+    const uploadMeta = {
+      prompt: generated.caption,
+      seed: generated.seed,
+      cost: generated.cost_usd ?? 0,
+      lufs: generated.integrated_lufs,
+      integrated_lufs: generated.integrated_lufs,
+      duration_sec: generated.duration_sec,
+      bpm: generated.bpm,
+      key: generated.key,
+      prompt_version: generated.prompt_version,
+      postprocess_version: generated.postprocess_version,
+    };
+    const spoolRoot = spoolDir();
     try {
-      url = await uploadBed({
-        filePath: generated.bed_path,
-        cacheKey: generated.cache_key,
-        mood: generated.mood ?? mood,
-        dry,
-        meta: {
-          prompt: generated.caption,
-          seed: generated.seed,
-          cost: generated.cost_usd ?? 0,
-          lufs: generated.integrated_lufs,
-          integrated_lufs: generated.integrated_lufs,
-          duration_sec: generated.duration_sec,
-          bpm: generated.bpm,
-          key: generated.key,
-          prompt_version: generated.prompt_version,
-          postprocess_version: generated.postprocess_version,
-        },
-      });
+      await writeSpool({dir: spoolRoot, cacheKey: generated.cache_key, filePath: generated.bed_path, meta: {mood: generated.mood ?? mood, dry, meta: uploadMeta}});
+    } catch (error) {
+      log.warn({reason: error instanceof Error ? error.message : String(error)}, 'music.spool_write_failed');
+    }
+    try {
+      url = await uploadBed({filePath: generated.bed_path, cacheKey: generated.cache_key, mood: generated.mood ?? mood, dry, meta: uploadMeta});
+      await removeSpool(spoolRoot, generated.cache_key).catch(() => undefined);
     } catch (error) {
       const reason = error instanceof Error && error.message === 'r2_unconfigured' ? 'r2_unconfigured' : 'upload';
       return failOpen(mood, reason, videoId);

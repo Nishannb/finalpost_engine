@@ -30,3 +30,6 @@ subjectmatte/out/
 
 # Real Runware spend record (timestamp, video, cache_key, seed, includeCost). Local only.
 agents/music_specialist/spend.log
+
+# Late-upload spool for generated beds (local only)
+agents/music_specialist/spool/
