@@ -8,6 +8,7 @@ import {
   type GeneratedGraphicPreviewProps,
 } from './generated/GeneratedGraphicPreview';
 import {ShortVideo, durationInFramesFor} from './ShortVideo';
+import {MIX_PROBE_FPS, MusicMixProbe, mixProbeFrames, musicMixProbeSchema, type MusicMixProbeProps} from './components/MusicMixProbe';
 import sampleProps from '../props/sample.json';
 import storyboardData from './kinetic/storyboard.spec.json';
 import {
@@ -40,8 +41,21 @@ const previewDefaults: GeneratedGraphicPreviewProps = {
   captionBottomFrac: 0.16,
 };
 
+const mixProbeDefaults: MusicMixProbeProps = {stem: 'bed', bedUrl: 'staticFile:music-smoke-bed.wav', voUrl: '', duck: null, durationSec: 6};
+
 export const RemotionRoot: React.FC = () => (
   <>
+  <Composition
+    id="MusicMixProbe"
+    component={MusicMixProbe}
+    schema={musicMixProbeSchema}
+    defaultProps={mixProbeDefaults}
+    durationInFrames={mixProbeFrames(mixProbeDefaults.durationSec)}
+    fps={MIX_PROBE_FPS}
+    width={320}
+    height={180}
+    calculateMetadata={({props}: {props: MusicMixProbeProps}) => ({durationInFrames: mixProbeFrames(props.durationSec)})}
+  />
   <Composition
     id="ShortVideo"
     component={ShortVideo}

@@ -27,6 +27,7 @@ import {uploadRenderedVideo} from '../../storage/r2.ts';
 import type {RenderStyle, TimelineBlueprint} from '../../types/blueprint.ts';
 import {resolveLutPath} from '../color/luts.ts';
 import {logMixCheck} from '../music/mixCheck.ts';
+import {runMixMeasure} from '../music/mixMeasure.ts';
 import {prefetchBlueprintMedia} from './prefetchAssets.ts';
 
 const log = stageLogger('stage-e-local');
@@ -135,6 +136,18 @@ export async function renderLocally(input: {
       expectAudio,
     });
     logMixCheck(log, blueprint);
+    // MUSIC_MIX_MEASURE=1 only: bed-only and VO-only local stems, logged as music.mix_measured. Never fails the render.
+    await runMixMeasure({
+      renderJobId: input.renderJobId,
+      remotionRoot,
+      agentsDir: path.resolve(remotionRoot, '../agents'),
+      finalPath: uploadPath,
+      durationSec: input.style.trimEnabled ? blueprint.outputDurationSec : blueprint.sourceDurationSec,
+      videoUrl: blueprint.videoUrl,
+      keepSegments: input.style.trimEnabled ? blueprint.keepSegments : undefined,
+      audioDesign: blueprint.audioDesign,
+      blueprintId: blueprint.blueprintId,
+    });
 
     try {
       // Dev/QA: keep the burn on disk and skip R2 when LOCAL_RENDER_SKIP_R2=1.

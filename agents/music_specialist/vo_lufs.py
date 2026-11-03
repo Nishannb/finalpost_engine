@@ -24,30 +24,58 @@ def duck_gain_db(vo_lufs: float, bed_lufs: float, offset_lu: float) -> float:
 
 
 def speech_gated_lufs(samples: np.ndarray, rate: int, intervals: Iterable[Sequence[float]]) -> Optional[float]:
-    mono = samples if samples.ndim == 1 else samples.mean(axis=1)
+    """samples: 1-D mono, or (samples, channels). Multichannel is measured per BS.1770 (channel energies summed), not downmixed."""
     parts = []
     for start, end in intervals:
-        a, b = max(0, int(start * rate)), min(len(mono), int(end * rate))
+        a, b = max(0, int(start * rate)), min(len(samples), int(end * rate))
         if b > a:
-            parts.append(mono[a:b])
+            parts.append(samples[a:b])  # slices every channel on the same time range
     if not parts:
         return None
-    gated = np.concatenate(parts)
+    gated = np.concatenate(parts, axis=0)
     if len(gated) < MIN_GATED_SEC * rate:
         return None
     value = float(pyln.Meter(rate).integrated_loudness(gated))
     return value if np.isfinite(value) else None
 
 
-def measure_file(path: str, intervals: Iterable[Sequence[float]]) -> Optional[float]:
+def read_audio(path: str) -> tuple:
+    """(float64 samples in -1..1, rate). 1-D when the file is mono, else (samples, channels). Native rate and channels."""
     from pydub import AudioSegment
 
-    segment = AudioSegment.from_file(path).set_channels(1).set_sample_width(2)
+    segment = AudioSegment.from_file(path).set_sample_width(2)
     samples = np.array(segment.get_array_of_samples(), dtype=np.float64) / float(1 << 15)
-    return speech_gated_lufs(samples, segment.frame_rate, intervals)
+    if segment.channels > 1:
+        samples = samples.reshape(-1, segment.channels)
+    return samples, segment.frame_rate
+
+
+def measure_file(path: str, intervals: Iterable[Sequence[float]]) -> Optional[float]:
+    samples, rate = read_audio(path)
+    return speech_gated_lufs(samples, rate, intervals)
+
+
+def measure_mix(bed_path: str, vo_path: str, speech: Sequence[Sequence[float]], pause: Sequence[Sequence[float]]) -> dict:
+    """Loudness of the stems inside speech and pause windows. Offline. A value is None when its windows are too short to gate."""
+    return {
+        "vo_speech_lufs": measure_file(vo_path, speech),
+        "bed_speech_lufs": measure_file(bed_path, speech),
+        "bed_pause_lufs": measure_file(bed_path, pause),
+    }
+
+
+def mix_main() -> None:
+    """CLI: python -m music_specialist.vo_lufs --mix <bed.wav> <vo.wav> <windows.json>; windows = {"speech": [[s,e]], "pause": [[s,e]]}."""
+    with open(sys.argv[4], encoding="utf-8") as handle:
+        windows = json.load(handle)
+    result = measure_mix(sys.argv[2], sys.argv[3], windows.get("speech", []), windows.get("pause", []))
+    json.dump({key: None if value is None else round(value, 2) for key, value in result.items()}, sys.stdout)
 
 
 def main() -> None:
+    if len(sys.argv) >= 5 and sys.argv[1] == "--mix":
+        mix_main()
+        return
     if len(sys.argv) < 3:
         raise SystemExit(2)
     with open(sys.argv[2], encoding="utf-8") as handle:

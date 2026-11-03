@@ -54,7 +54,12 @@ export function bedFresh(env: NodeJS.ProcessEnv = process.env): boolean {
   return env.MUSIC_BED_FRESH === '1';
 }
 
-export const MUSIC_CALLER_ENV = 'MUSIC_SPECIALIST_CALLER';
+/** MUSIC_MIX_MEASURE=1 renders bed-only and VO-only stems locally after a local render and logs music.mix_measured. Default off. */
+export function mixMeasureEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.MUSIC_MIX_MEASURE === '1';
+}
+
+export const MUSIC_CALLER_ENV ='MUSIC_SPECIALIST_CALLER';
 
 export type SpawnSpec = {
   args: string[];
