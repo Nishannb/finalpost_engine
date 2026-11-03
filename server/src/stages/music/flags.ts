@@ -59,6 +59,14 @@ export function mixMeasureEnabled(env: NodeJS.ProcessEnv = process.env): boolean
   return env.MUSIC_MIX_MEASURE === '1';
 }
 
+/**
+ * MUSIC_CARVED_TWIN=1 plays the VO-carved bed (bed_carved.wav) under speech, crossfaded with the full bed.
+ * Default OFF, placeholder only: T2 never measured a rendered mix, so there is no evidence the twin is free of a regression.
+ */
+export function carvedTwinEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.MUSIC_CARVED_TWIN === '1';
+}
+
 export const MUSIC_CALLER_ENV ='MUSIC_SPECIALIST_CALLER';
 
 export type SpawnSpec = {

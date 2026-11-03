@@ -807,6 +807,8 @@ export type AudioDesign = {
   musicFullUrl?: string;
   /** Generated beds: bar-aligned loop body, played after the full bed on long timelines. */
   musicLoopUrl?: string;
+  /** VO-carved twin of the full bed (MUSIC_CARVED_TWIN, default off). Absent → single-file playback. */
+  musicCarvedUrl?: string;
   /** Length of the full bed in seconds; where the loop file starts. */
   musicFullDurationSec?: number;
   /** Speech-gated integrated loudness of the creator audio (LUFS). Absent on older blueprints. */

@@ -9,6 +9,7 @@ Branch: `bgm-phase-2`. Not pushed.
 - After T2: absent (0 lines).
 - After T3: absent (0 lines).
 - After T4 (reverted): absent (0 lines).
+- After T5: absent (0 lines).
 - Runware calls: 0. Lambda renders: 0. Gemini/Groq/Claude generation calls: 0.
 
 ## 2. Per task
@@ -54,9 +55,19 @@ Branch: `bgm-phase-2`. Not pushed.
 - Pytest was 31 passed and 1 failed (`test_smoke_bed_passes`) at revert time. Server tsc was not green yet on the first draft (`MusicMode` `'off'`). Those edits are gone.
 - Human decision: trim the trailing near-silence before the gate, or exempt the tail, before turning a live retry on. Left off so a future live edit cannot reject the bed we already have.
 
+### T5. VO-carved twin
+
+- Status: done. Default off.
+- Files: `postprocess.py` (`carve_for_voice`, writes `bed_carved.wav`), `test_carved.py`, `flags.ts` (`carvedTwinEnabled`), `carvedMix.ts` + vitest, `MusicBedTrack.tsx` (full and carved in sync on both the loop-split path and the single-file path), optional `musicCarvedUrl` on the server type and the Remotion zod schema, `.env.example` comment.
+- Tests: pytest 30 passed (salvaged bed: below 150 Hz at least 6 dB down, 2.5–3.5 kHz within −3 dB ± 1.5). Vitest 51 passed (musicBed, musicSpecialist, loopBed, wp27, carvedMix). Server tsc clean. Remotion tsc only the 3 known `ShortVideo.tsx` errors.
+- `MUSIC_CARVED_TWIN` defaults to off. T2 never measured a rendered mix, so there is no regression number to justify defaulting it on.
+- Gap: nothing in the pipeline sets `musicCarvedUrl`, and `ShortVideo.tsx` does not pass it. Turning the flag on does not change a render until a later change copies `bed_carved.wav` onto the blueprint. Left that way so this run does not upload a new pool object. Old blueprints with no carved URL stay on the single file.
+- Commit: filled after the commit.
+
 ## 3. Flags
 
 - `MUSIC_MIX_MEASURE`: default off. `1` renders bed-only and VO-only wavs after a local render and logs `music.mix_measured`. Off so normal renders do not pay the extra render.
+- `MUSIC_CARVED_TWIN`: default off. `1` is the intended switch for playing `bed_carved.wav` under speech. Off because T2 has no rendered-mix measurement, and because the URL is not wired yet.
 
 ## 4. Numbers from T2 and T10
 
@@ -68,12 +79,14 @@ Branch: `bgm-phase-2`. Not pushed.
 - `remotion/out/music-loop/bed_full.wav`
 - `remotion/out/music-loop/bed_loop.wav`
 - `remotion/out/music-loop/bed_loop_x3.wav` (three loops, for the seam)
+- `remotion/out/music-loop/bed_carved.wav` (high-pass ~200 Hz, −3 dB at 3 kHz, from the salvaged bed)
 
 
 ## 6. Decisions for the human
 
 - `tech_sharp` → `high-energy`. The visual theme is sharp/tech, the brief asked for high-energy unless a better fit, and the only real bed is the 128 bpm A minor high-energy bed. Other visual moods: warm_intimate→nostalgic, calm_cool→calm, bold_energetic→high-energy, clean_light→neutral, dark_cinematic→tense, earthy_natural→calm, soft_pastel→calm.
 - T10's `npm run first-video` calls Groq and Gemini. Those are paid APIs, so that full command will not be run. A local Remotion render that does not call them will be used if the code can do it without a new analyze.
+- `MUSIC_CARVED_TWIN` stays off. Playback code is in `MusicBedTrack`, but no blueprint gets `musicCarvedUrl` yet.
 
 ## 7. Commands for the human (do not run overnight)
 

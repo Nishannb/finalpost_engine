@@ -26,6 +26,10 @@ SOFT_FADE_MS = 30.0
 # Mean librosa onset_strength over the loop region (22.05 kHz, hop 512) at or above this
 # counts as drum-led. Empirical starting point; tune against real beds.
 DRUM_ONSET_DENSITY = 1.5
+HIGHPASS_HZ = 200.0
+CARVE_HZ = 3000.0
+CARVE_BW_HZ = 2000.0
+CARVE_DB = -3.0
 
 
 def write_click_bed(path: str, bpm: int, seconds: float = 60.0, rate: int = RATE) -> None:
@@ -61,6 +65,25 @@ def loop_seam(samples: np.ndarray, rate: int, fade_ms: float = SEAM_MS) -> np.nd
     out = samples[:-fade].copy()
     out[:fade] = mixed
     return out
+
+
+def carve_for_voice(samples: np.ndarray, rate: int) -> np.ndarray:
+    """VO-carved twin: 4th-order high-pass at 200 Hz, then a -3 dB bell at 3 kHz (2 kHz wide, Q 1.5).
+
+    Local scipy only. The bell is the RBJ peaking biquad.
+    """
+    from scipy import signal
+
+    hp = signal.butter(4, HIGHPASS_HZ, btype="highpass", fs=rate, output="sos")
+    a_gain = 10 ** (CARVE_DB / 40.0)
+    w0 = 2 * np.pi * CARVE_HZ / rate
+    alpha = np.sin(w0) / (2 * (CARVE_HZ / CARVE_BW_HZ))
+    cosw = np.cos(w0)
+    b = np.array([1 + alpha * a_gain, -2 * cosw, 1 - alpha * a_gain])
+    a = np.array([1 + alpha / a_gain, -2 * cosw, 1 - alpha / a_gain])
+    bell = signal.tf2sos(b / a[0], a / a[0])
+    out = signal.sosfilt(bell, signal.sosfilt(hp, samples, axis=0), axis=0)
+    return np.clip(out, -1.0, 1.0)
 
 
 def _measure_beats(samples: np.ndarray, rate: int):
@@ -161,12 +184,15 @@ def postprocess_bed(src_path: str, dest_path: str) -> dict:
     loop_path = os.path.join(out_dir, "bed_loop.wav")
     _write(full_path, full, RATE)
     _write(loop_path, loop_audio, RATE)
+    carved_path = os.path.join(out_dir, "bed_carved.wav")
+    _write(carved_path, carve_for_voice(full, RATE), RATE)
     shutil.copyfile(full_path, dest_path)
     loudness = float(pyln.Meter(RATE).integrated_loudness(full))
     return {
         "bed_path": dest_path,
         "bed_full_path": full_path,
         "bed_loop_path": loop_path,
+        "bed_carved_path": carved_path,
         "integrated_lufs": round(loudness, 3),
         "duration_sec": round(full.shape[0] / RATE, 3),
         "loop_duration_sec": round(loop_audio.shape[0] / RATE, 3),
