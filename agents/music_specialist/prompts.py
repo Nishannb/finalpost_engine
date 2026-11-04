@@ -12,8 +12,14 @@ POSTPROCESS_VERSION = 1
 LYRICS = "[intro]\n\n[inst]\n\n[inst]"
 NEGATIVE_PROMPT = (
     "vocals, singing, voice, choir, lyrics, spoken word, rap, "
-    "fade in, fade out, silence, applause, crowd noise"
+    "fade in, fade out, silence, applause, crowd noise, "
+    "lead, solo, busy arpeggio, vocal chops, loud drums"
 )
+# Voice-first (docs/audio/VOICE_FIRST.md): every caption asks for a supportive underscore.
+SUPPORT_TAGS = (
+    "background underscore", "minimal", "sparse arrangement", "no lead melody", "supportive",
+)
+MAX_CAPTION_TAGS = 12
 TIME_SIGNATURE = 4
 
 
@@ -31,8 +37,8 @@ class MoodSpec:
 MOODS: dict[str, MoodSpec] = {
     "high-energy": MoodSpec(
         "high-energy", "synthwave", ("energetic", "driving"),
-        ("analog bass synth", "drum machine", "supersaw lead"),
-        ("hi-fi", "wide stereo"), 128, "A minor",
+        ("analog bass synth", "drum machine"),
+        ("hi-fi", "wide stereo"), 120, "A minor",
     ),
     "nostalgic": MoodSpec(
         "nostalgic", "lo-fi hip hop", ("warm", "nostalgic"),
@@ -100,11 +106,12 @@ def derive_seed(video_id: str, mood_name: str, prompt_version: int = PROMPT_VERS
 
 
 def caption_for(spec: MoodSpec) -> str:
+    """At most MAX_CAPTION_TAGS tags. Highest priority first; production tags are the first dropped, then "instrumental"."""
     tags = [
-        spec.genre, *spec.mood_words, *spec.instruments, *spec.production,
-        "instrumental", "no vocals", f"{spec.bpm} bpm",
+        spec.genre, *spec.mood_words, *spec.instruments, *SUPPORT_TAGS,
+        "no vocals", f"{spec.bpm} bpm", "instrumental", *spec.production,
     ]
-    return ", ".join(tags)
+    return ", ".join(tags[:MAX_CAPTION_TAGS])
 
 
 def build_bgm_prompt(tone: str) -> str:

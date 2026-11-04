@@ -98,6 +98,12 @@ describe('measure parsing', () => {
     expect(gaps.settledPauseSec).toBe(1.7);
   });
 
+  it('carries the voice-fight count and treats a missing count as zero', () => {
+    const fight = gapsFromMeasure({vo_speech_lufs: -20, bed_speech_lufs: -38, bed_over_voice_windows: 2, speech_windows_unmeasured: 1, min_speech_window_gap_lu: 4.5});
+    expect(fight).toMatchObject({bedOverVoiceWindows: 2, speechWindowsUnmeasured: 1, minSpeechWindowGapLu: 4.5});
+    expect(gapsFromMeasure({}).bedOverVoiceWindows).toBe(0);
+  });
+
   it('reads the ebur128 summary', () => {
     const stderr = '[Parsed_ebur128_0] Summary:\n\n  Integrated loudness:\n    I:         -16.2 LUFS\n    Threshold: -26.2 LUFS\n\n  True peak:\n    Peak:       -1.3 dBFS\n';
     expect(parseEbur128Summary(stderr)).toEqual({finalLufs: -16.2, finalTruePeak: -1.3});

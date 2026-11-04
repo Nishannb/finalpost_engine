@@ -27,6 +27,7 @@ export const musicResultSchema = z.object({
   qc_bpm_error_ratio: z.number().nullable().optional(),
   qc_seam_db: z.number().nullable().optional(),
   qc_vocal_score: z.number().nullable().optional(),
+  qc_speech_band: z.object({energy_share: z.number(), flux: z.number()}).passthrough().optional(),
   qc_passed: z.boolean().optional(),
   qc_retried: z.boolean().optional(),
 });

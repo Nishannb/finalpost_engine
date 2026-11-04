@@ -15,6 +15,8 @@ import numpy as np
 import pyloudnorm as pyln
 
 MIN_GATED_SEC = 0.6
+MIN_WINDOW_SEC = 0.4  # one BS.1770 block: the shortest window with a loudness of its own
+VOICE_FIGHT_LU = 6.0  # a speech window where the bed is within this many LU of the voice is a "fight"
 TALKING_OFFSETS_LU = {"speech": -18.0, "pause": -9.0, "open": -4.0}
 
 
@@ -23,7 +25,7 @@ def duck_gain_db(vo_lufs: float, bed_lufs: float, offset_lu: float) -> float:
     return float(min(0.0, max(-40.0, (vo_lufs + offset_lu) - bed_lufs)))
 
 
-def speech_gated_lufs(samples: np.ndarray, rate: int, intervals: Iterable[Sequence[float]]) -> Optional[float]:
+def speech_gated_lufs(samples: np.ndarray, rate: int, intervals: Iterable[Sequence[float]], min_sec: float = MIN_GATED_SEC) -> Optional[float]:
     """samples: 1-D mono, or (samples, channels). Multichannel is measured per BS.1770 (channel energies summed), not downmixed."""
     parts = []
     for start, end in intervals:
@@ -33,7 +35,7 @@ def speech_gated_lufs(samples: np.ndarray, rate: int, intervals: Iterable[Sequen
     if not parts:
         return None
     gated = np.concatenate(parts, axis=0)
-    if len(gated) < MIN_GATED_SEC * rate:
+    if len(gated) < min_sec * rate:
         return None
     value = float(pyln.Meter(rate).integrated_loudness(gated))
     return value if np.isfinite(value) else None
@@ -55,6 +57,28 @@ def measure_file(path: str, intervals: Iterable[Sequence[float]]) -> Optional[fl
     return speech_gated_lufs(samples, rate, intervals)
 
 
+def bed_over_voice_windows(voice, bed, rate: int, speech: Sequence[Sequence[float]], threshold_lu: float = VOICE_FIGHT_LU) -> dict:
+    """Per speech window: voice LUFS minus bed LUFS. A window with a gap under threshold_lu is a fight.
+
+    Windows shorter than MIN_WINDOW_SEC have no loudness of their own and are counted as unmeasured, never as a pass.
+    """
+    gaps = []
+    unmeasured = 0
+    for start, end in speech:
+        v = speech_gated_lufs(voice, rate, [[start, end]], MIN_WINDOW_SEC)
+        b = speech_gated_lufs(bed, rate, [[start, end]], MIN_WINDOW_SEC)
+        if v is None or b is None:
+            unmeasured += 1
+        else:
+            gaps.append(round(v - b, 2))
+    return {
+        "bed_over_voice_windows": sum(1 for gap in gaps if gap < threshold_lu),
+        "speech_window_gaps": gaps,
+        "speech_windows_unmeasured": unmeasured,
+        "min_speech_window_gap_lu": min(gaps) if gaps else None,
+    }
+
+
 def measure_mix(
     bed_path: str,
     vo_path: str,
@@ -68,9 +92,12 @@ def measure_mix(
     where the envelope has reached the pause gain; it is None when no pause was long enough to settle.
     """
     bed, rate = read_audio(bed_path)
+    voice, voice_rate = read_audio(vo_path)
     settled = list(pause_settled or [])
+    fight = bed_over_voice_windows(voice, bed, rate, speech) if voice_rate == rate else {}
     return {
-        "vo_speech_lufs": measure_file(vo_path, speech),
+        **fight,
+        "vo_speech_lufs": speech_gated_lufs(voice, voice_rate, speech),
         "bed_speech_lufs": speech_gated_lufs(bed, rate, speech),
         "bed_pause_lufs": speech_gated_lufs(bed, rate, pause),
         "bed_pause_settled_lufs": speech_gated_lufs(bed, rate, settled) if settled else None,
@@ -84,7 +111,10 @@ def mix_main() -> None:
     with open(sys.argv[4], encoding="utf-8") as handle:
         windows = json.load(handle)
     result = measure_mix(sys.argv[2], sys.argv[3], windows.get("speech", []), windows.get("pause", []), windows.get("pauseSettled", []))
-    json.dump({key: None if value is None else round(value, 2) for key, value in result.items()}, sys.stdout)
+    json.dump(
+        {key: value if isinstance(value, (list, int)) or value is None else round(value, 2) for key, value in result.items()},
+        sys.stdout,
+    )
 
 
 def main() -> None:

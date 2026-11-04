@@ -110,6 +110,7 @@ class AIMusicSpecialistAgent:
                 metrics = postprocess_bed(raw_path, bed_path)
                 qc = _run_qc(metrics, spec.bpm)
         _log.info("music.qc_vocal_score %s", qc["vocal_score"])
+        _log.info("music.qc_speech_band %s", metrics.get("qc_speech_band"))
 
         events: List[SfxEvent] = []
         for index, cut in enumerate(cuts):

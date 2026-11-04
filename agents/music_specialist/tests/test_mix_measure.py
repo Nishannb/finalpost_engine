@@ -125,3 +125,22 @@ def test_settled_pause_gap_is_nine_on_a_two_second_pause(tmp_path: Path) -> None
     assert measured["settled_pause_count"] == 1
     assert measured["settled_pause_sec"] == pytest.approx(1.28, abs=0.01)
     assert measure_mix(str(bed_path), str(vo_path), speech, pause)["bed_pause_settled_lufs"] is None
+
+
+def test_bed_over_voice_windows_counts_windows_within_six_lu(tmp_path: Path) -> None:
+    from music_specialist.vo_lufs import bed_over_voice_windows
+
+    rate = 48000
+    rng = np.random.default_rng(5)
+
+    def burst(db: float, seconds: float) -> np.ndarray:
+        x = rng.standard_normal(int(seconds * rate))
+        return x * 10 ** ((db - pyln.Meter(rate).integrated_loudness(x)) / 20)
+
+    voice = np.concatenate([burst(-20, 1.0), burst(-20, 1.0), burst(-20, 1.0), burst(-20, 0.5)[: int(0.2 * rate)]])
+    bed = np.concatenate([burst(-38, 1.0), burst(-24, 1.0), burst(-27, 1.0), burst(-38, 0.5)[: int(0.2 * rate)]])  # gaps 18, 4, 7, and a too-short window
+    result = bed_over_voice_windows(voice, bed, rate, [[0.0, 1.0], [1.0, 2.0], [2.0, 3.0], [3.0, 3.2]])
+    assert result["bed_over_voice_windows"] == 1
+    assert result["speech_windows_unmeasured"] == 1
+    assert result["min_speech_window_gap_lu"] == pytest.approx(4.0, abs=0.6)
+    assert [round(g) for g in result["speech_window_gaps"]] == [18, 4, 7]

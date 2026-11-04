@@ -88,6 +88,34 @@ def carve_for_voice(samples: np.ndarray, rate: int) -> np.ndarray:
     return np.clip(out, -1.0, 1.0)
 
 
+SPEECH_BAND_HZ = (1000.0, 4000.0)
+
+
+def speech_band_stats(samples: np.ndarray, rate: int) -> dict:
+    """Log-only (music.qc_speech_band). How much of the bed sits where speech lives, and how busy it is there.
+
+    energy_share: bed energy in 1-4 kHz over total energy, 0..1.
+    flux: mean positive frame-to-frame magnitude change in the band over the mean band magnitude. Dimensionless; higher = busier.
+    Never read by `passed`; it is data for later calibration.
+    """
+    from scipy import signal
+
+    mono = samples.mean(axis=1) if samples.ndim > 1 else samples
+    freqs, _times, spec = signal.stft(mono, fs=rate, nperseg=2048, noverlap=1536)
+    mag = np.abs(spec)
+    total = float(np.sum(mag**2))
+    band = (freqs >= SPEECH_BAND_HZ[0]) & (freqs <= SPEECH_BAND_HZ[1])
+    band_mag = mag[band]
+    if total <= 0 or band_mag.shape[1] < 2:
+        return {"energy_share": 0.0, "flux": 0.0, "band_hz": list(SPEECH_BAND_HZ)}
+    share = float(np.sum(band_mag**2)) / total
+    rise = np.maximum(0.0, np.diff(band_mag, axis=1))
+    frame_flux = np.sqrt(np.sum(rise**2, axis=0))
+    frame_level = np.sqrt(np.sum(band_mag**2, axis=0))
+    level = float(np.mean(frame_level)) or 1e-12
+    return {"energy_share": round(share, 4), "flux": round(float(np.mean(frame_flux)) / level, 4), "band_hz": list(SPEECH_BAND_HZ)}
+
+
 def _measure_beats(samples: np.ndarray, rate: int):
     """Return (bpm, beat_frames, onset_env) or None when no usable beat grid is found."""
     import librosa
@@ -209,6 +237,7 @@ def postprocess_bed(src_path: str, dest_path: str) -> dict:
         "loop_fallback": loop is None,
         "measured_bpm": round(measured_bpm, 2) if measured_bpm else None,
         "downbeat_times": downbeat_times,
+        "qc_speech_band": speech_band_stats(full, RATE),
         "postprocess_version": POSTPROCESS_VERSION,
         "sample_rate": RATE,
     }

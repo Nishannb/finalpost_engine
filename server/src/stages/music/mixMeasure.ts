@@ -106,11 +106,17 @@ export type MixMeasured = {
   bedSpeechLufs: number | null;
   bedPauseLufs: number | null;
   bedPauseSettledLufs: number | null;
+  /** Speech windows where the bed's loudness is within VOICE_FIGHT_LU of the voice's. Windows under 0.4 s cannot be measured and are counted apart. */
+  bedOverVoiceWindows: number;
+  speechWindowsUnmeasured: number;
+  minSpeechWindowGapLu: number | null;
 };
+
+export const VOICE_FIGHT_LU = 6;
 
 /** speechGapLu = VO speech LUFS − bed speech LUFS. The pause gaps use the same VO speech LUFS minus the bed over the pause window (the VO is silent in a pause). */
 export function gapsFromMeasure(
-  raw: {vo_speech_lufs?: number | null; bed_speech_lufs?: number | null; bed_pause_lufs?: number | null; bed_pause_settled_lufs?: number | null},
+  raw: {vo_speech_lufs?: number | null; bed_speech_lufs?: number | null; bed_pause_lufs?: number | null; bed_pause_settled_lufs?: number | null; bed_over_voice_windows?: number; speech_windows_unmeasured?: number; min_speech_window_gap_lu?: number | null},
   settled: Window[] = [],
 ): MixMeasured {
   const num = (value: number | null | undefined) => (typeof value === 'number' && Number.isFinite(value) ? value : null);
@@ -125,6 +131,9 @@ export function gapsFromMeasure(
     speechGapLu: vo !== null && bedSpeech !== null ? round1(vo - bedSpeech) : null,
     pauseGapLuAll: vo !== null && bedPause !== null ? round1(vo - bedPause) : null,
     bedPauseSettledLufs: bedPauseSettled,
+    bedOverVoiceWindows: raw.bed_over_voice_windows ?? 0,
+    speechWindowsUnmeasured: raw.speech_windows_unmeasured ?? 0,
+    minSpeechWindowGapLu: num(raw.min_speech_window_gap_lu),
     pauseGapLuSettled: vo !== null && bedPauseSettled !== null ? round1(vo - bedPauseSettled) : null,
     settledPauseCount: settled.length,
     settledPauseSec: round3(settled.reduce((sum, [a, b]) => sum + (b - a), 0)),
@@ -256,7 +265,7 @@ export type MixMeasureInput = {
     musicCarvedUrl?: string;
     musicFullDurationSec?: number;
     musicSource?: 'licensed' | 'generated';
-    duck?: DuckLike & Record<string, unknown>;
+    duck?: DuckLike & {voLufs?: number; bedLufs?: number; speechDb?: number} & Record<string, unknown>;
   };
   blueprintId?: string;
 };
@@ -285,7 +294,14 @@ export async function runMixMeasure(input: MixMeasureInput, env: NodeJS.ProcessE
     }
     const measured = await measureStems({bedPath: stems.bed, voPath: stems.vo, windows, agentsDir: input.agentsDir});
     const finalAudio = await measureFinalAudio(input.finalPath);
-    log.info({blueprintId: input.blueprintId, ...measured, ...finalAudio, speechWindows: windows.speech.length, pauseWindows: windows.pause.length, holdSec: duck.holdSec, releaseSec: duck.releaseSec, pauses: describePauses(duck)}, 'music.mix_measured');
+    // The gap the envelope was asked for, so a shortfall is visible next to the measured one.
+    const intendedSpeechGapLu =
+      typeof duck.voLufs === 'number' && typeof duck.bedLufs === 'number' && typeof duck.speechDb === 'number' ? round1(duck.voLufs - (duck.bedLufs + duck.speechDb)) : null;
+    const speechGapShortfallLu = intendedSpeechGapLu !== null && measured.speechGapLu !== null ? round1(intendedSpeechGapLu - measured.speechGapLu) : null;
+    if (measured.bedOverVoiceWindows > 0) {
+      log.warn({blueprintId: input.blueprintId, bedOverVoiceWindows: measured.bedOverVoiceWindows, minSpeechWindowGapLu: measured.minSpeechWindowGapLu, thresholdLu: VOICE_FIGHT_LU}, 'music.voice_fight');
+    }
+    log.info({blueprintId: input.blueprintId, ...measured, intendedSpeechGapLu, speechGapShortfallLu, ...finalAudio, speechWindows: windows.speech.length, pauseWindows: windows.pause.length, holdSec: duck.holdSec, releaseSec: duck.releaseSec, pauses: describePauses(duck)}, 'music.mix_measured');
   } catch (error) {
     log.warn({blueprintId: input.blueprintId, reason: error instanceof Error ? error.message.slice(0, 300) : 'mix_measure'}, 'music.mix_measure_failed');
   } finally {

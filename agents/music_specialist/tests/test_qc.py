@@ -66,3 +66,21 @@ def test_dry_run_returns_bed_even_if_qc_fails(tmp_path, monkeypatch):
     assert out["qc_passed"] is False and out["qc_retried"] is False
     assert Path(out["bed_path"]).exists() if "bed_path" in out else True
     assert out["qc_vocal_score"] == 0.5
+
+
+def test_speech_band_stats_is_log_only_and_separates_busy_from_steady():
+    import numpy as np
+    from music_specialist.postprocess import speech_band_stats
+
+    rate = 48000
+    t = np.arange(rate * 4) / rate
+    low = np.stack([0.3 * np.sin(2 * np.pi * 110 * t)] * 2, axis=1)  # a pad far below the speech band
+    mid_steady = np.stack([0.3 * np.sin(2 * np.pi * 2000 * t)] * 2, axis=1)
+    rng = np.random.default_rng(1)
+    gate = (np.floor(t * 8) % 2)[:, None]  # 8 Hz on/off bursts: busy
+    mid_busy = np.stack([0.3 * np.sin(2 * np.pi * 2000 * t)] * 2, axis=1) * gate + 0.001 * rng.standard_normal((len(t), 2))
+
+    a, b, c = (speech_band_stats(x, rate) for x in (low, mid_steady, mid_busy))
+    assert a["energy_share"] < 0.05
+    assert b["energy_share"] > 0.9 and c["energy_share"] > 0.9
+    assert c["flux"] > b["flux"] * 3

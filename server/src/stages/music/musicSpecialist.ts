@@ -115,6 +115,7 @@ export function spawnMusic(
       try {
         const parsed = musicResultSchema.parse(JSON.parse(out));
         if (typeof parsed.qc_vocal_score === 'number') log.info({score: parsed.qc_vocal_score}, 'music.qc_vocal_score');
+        if (parsed.qc_speech_band) log.info({...parsed.qc_speech_band}, 'music.qc_speech_band');
         resolve(parsed);
       } catch (error) {
         reject(new Error(`music schema: ${redactSecrets(error instanceof Error ? error.message : String(error), secret)}`));
@@ -242,6 +243,7 @@ async function runMusicPlan(job: MusicJob): Promise<MusicPlan | null> {
       qc_bpm_error_ratio: generated.qc_bpm_error_ratio,
       qc_seam_db: generated.qc_seam_db,
       qc_vocal_score: generated.qc_vocal_score,
+      qc_speech_band: generated.qc_speech_band,
     };
     const spoolRoot = spoolDir();
     try {
