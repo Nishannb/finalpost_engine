@@ -88,7 +88,9 @@ describe('WP12D 2) wiring pins', () => {
   it('analyzeVideo schedules polish SFX and warns polish_sfx:hits without setting musicMood', () => {
     expect(analyzeSrc).toContain('schedulePolishSfxHits');
     expect(analyzeSrc).toContain('polish_sfx:hits:');
-    expect(analyzeSrc).toMatch(/musicMood intentionally omitted|musicMood stays unset|No music bed/i);
+    // Scheduling hits never sets a musicMood: the hits block only carries an existing one forward (the bed block sets it, for a bed that exists).
+    expect(analyzeSrc).toContain('hits: scheduled.hits,');
+    expect(analyzeSrc).toContain('...(audioDesign?.musicMood ? {musicMood: audioDesign.musicMood} : {}),');
   });
 
   it('SfxTrack only knows whoosh/hit/pop local wavs; ShortVideo consumes audioDesign.hits', () => {

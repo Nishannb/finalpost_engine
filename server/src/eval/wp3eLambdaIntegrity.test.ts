@@ -193,8 +193,13 @@ describe('wiring in renderRunner (source text; it imports the logger)', () => {
   const poll = runner.slice(runner.indexOf('export async function refreshRenderJob'));
   it('a finished Lambda render becomes `done` only through verifyLambdaOutput; the raw Lambda URL is never assigned to the job', () => {
     expect(poll).toContain('const verifiedUrl = await verifyLambdaOutput(');
-    expect(poll).toContain('job.outputUrl = verifiedUrl;');
+    // Phase 2.4: the verified URL goes through the master pass (music/lambdaMaster.ts), which only ever returns that same URL or a mastered copy it re-inspected itself.
+    expect(poll).toContain('{outputUrl: verifiedUrl, renderJobId: job.renderJobId,');
+    expect(poll).toContain('job.outputUrl = mastered.url;');
+    expect(poll).toContain('assertRenderOutputValid(await inspectOutput(file),');
     expect(poll).not.toContain('job.outputUrl = progress.outputUrl');
+    expect(poll).not.toContain('job.outputUrl = verifiedUrl');
+    expect(poll).not.toMatch(/masterLambdaOutput\(\s*\{outputUrl: progress\.outputUrl/);
     expect(poll.indexOf("job.status = 'done';")).toBeGreaterThan(poll.indexOf('verifyLambdaOutput('));
     expect(poll.match(/job\.status = 'done'/g)).toHaveLength(1);
   });

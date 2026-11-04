@@ -143,7 +143,7 @@ describe('where the flag comes from and where it goes (source text; these files 
     expect(poll).toContain('expectAudio: audio.expectAudio}}');
     expect(poll.indexOf('audioExpectationFor(')).toBeLessThan(poll.indexOf('verifyLambdaOutput('));
     expect(poll).toContain('if (audio.warnings.length > 0) {\n        job.warnings = [...new Set([...(job.warnings ?? []), ...audio.warnings])];');
-    expect(poll.match(/downloadToFile\(/g)).toHaveLength(1);
+    expect(poll.match(/downloadToFile\(/g)).toHaveLength(2); // one to verify the Lambda output, one for the master pass (whose result is inspected again)
     expect(runner).not.toMatch(/probeMedia|ffprobe/);
   });
   it('the local path still probes its prefetched copy first and only falls back to the saved flag when that probe fails', () => {
