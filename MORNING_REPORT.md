@@ -8,6 +8,7 @@ Branch: `bgm-phase-2`. Not pushed.
 - After A: absent (0 lines).
 - After B: absent (0 lines).
 - After C: absent (0 lines).
+- After D: absent (0 lines).
 - Runware calls: 0. LLM calls: 0. Lambda renders: 0.
 
 ## 2. Per task
@@ -36,6 +37,14 @@ Branch: `bgm-phase-2`. Not pushed.
 - Tests: pytest 41 passed. Vitest 84 passed (music + wp27). Server tsc clean. Remotion tsc only the 3 known errors.
 - Old pool entries with only `url` keep single-file playback. Carved is only attached when `MUSIC_CARVED_TWIN=1`.
 - Commit: `a064742`.
+
+### D. Free re-renders (save + render-blueprint)
+
+- Status: done.
+- Files: `saveBlueprint.ts` (+ test), `renderBlueprint.ts` (+ test), `duckEnvelope.ts` (optional talking offset overrides), `analyzeVideo.ts` (save just before return), root and server `package.json` scripts, `.gitignore` for `out/blueprints/` and `out/renders/`.
+- Tests: vitest renderBlueprint + saveBlueprint 18 passed; full music suite was 99 before the carved strip, then 18 again after. Server tsc clean. Remotion tsc only the 3 known errors. Pytest 41 passed.
+- `render-blueprint` source ban: no analyzeVideo, Runware, Anthropic, Groq, Gemini, or Lambda strings. `--carved 0` strips `musicCarvedUrl`; `--carved 1` never invents a URL. Mix and master numbers stay in the engine log under the printed `renderJobId`.
+- Commit: filled after the commit.
 
 ## 3. R2 objects written
 

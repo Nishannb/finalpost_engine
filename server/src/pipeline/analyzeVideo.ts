@@ -18,6 +18,7 @@ import {captionMuteRanges, mergeMuteRanges, type MuteRange} from '../lib/caption
 import {densityTransitionClip, ensurePolishTransitionDensity, sentenceStartsOf} from '../stages/broll/transitionDensity.ts';
 import {schedulePolishSfxHits} from '../lib/polishSfx.ts';
 import {buildDuckEnvelope} from '../stages/music/duckEnvelope.ts';
+import {saveBlueprintForReplay} from '../stages/music/saveBlueprint.ts';
 import {resolveBedSource, resolveDuckPreset} from '../stages/music/flags.ts';
 import {resolveMusicBed} from '../stages/music/resolveMusicBed.ts';
 import {agentsDir as musicAgentsDir, awaitMusicPlan} from '../stages/music/musicSpecialist.ts';
@@ -34,7 +35,7 @@ import {designFieldsForBlueprint} from '../lib/designTokens.ts';
 import {buildDirectorVideoPart, type DirectorVideoPart} from '../media/directorVideo.ts';
 import {stageLogger} from '../lib/logger.ts';
 import {remapWords} from '../lib/timeRemap.ts';
-import {copyLocalFile, downloadToFile, isLocalMediaPath, withWorkspace} from '../lib/tempFiles.ts';
+import {copyLocalFile, downloadToFile, isLocalMediaPath, resolveLocalMediaPath, withWorkspace} from '../lib/tempFiles.ts';
 import {denoiseTalkingHeadAudio, extractSpeakerCutout, extractSpeechAudio, probeMedia, sampleFramePalette} from '../media/ffmpeg.ts';
 import {buildDenoiseFilter, DENOISE_APPLIED_WARNING, DENOISE_FAILED_WARNING} from '../stages/audio/noiseFilter.ts';
 import {analyzeDeliveryAcoustics} from '../stages/audio/deliveryAcoustics.ts';
@@ -2714,6 +2715,19 @@ async function analyzeVideoUnguarded(
     }
 
     observe(() => ({type: 'blueprint', blueprint}));
+    // Phase 2.1 D: keep the final blueprint on disk for free re-renders. A write failure never fails analyze.
+    try {
+      const savedPath = await saveBlueprintForReplay({
+        videoId: musicVideoId,
+        sourceVideoPath: local ? resolveLocalMediaPath(input.videoUrl) : null,
+        voLufs: blueprint.audioDesign?.voLufs ?? null,
+        savedAt: new Date().toISOString(),
+        blueprint,
+      });
+      log.info({videoId: musicVideoId, path: savedPath}, 'music.blueprint_saved');
+    } catch (error) {
+      log.warn({videoId: musicVideoId, reason: error instanceof Error ? error.message.slice(0, 300) : 'save'}, 'music.blueprint_save_failed');
+    }
     return blueprint;
   });
 }

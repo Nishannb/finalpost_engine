@@ -69,15 +69,22 @@ export function buildDuckEnvelope(input: {
   voLufs?: number;
   /** talking: integrated loudness of the bed file. Default −16 (the postprocess target). */
   bedLufs?: number;
+  /**
+   * talking only: override TALKING_OFFSETS_LU (LU under the voice). Absolute presets ignore these.
+   * Applied here, at save/render time, into speechDb/pauseDb/openDb. Remotion only evaluates the stored dB, so it needs no new fields.
+   */
+  speechOffsetLu?: number;
+  pauseOffsetLu?: number;
+  openOffsetLu?: number;
 }): DuckEnvelope {
   const preset = input.preset ?? 'talking';
   const voLufs = input.voLufs ?? VO_LUFS_ASSUMED;
   const bedLufs = input.bedLufs ?? BED_LUFS_ASSUMED;
   const gains = preset === 'talking'
     ? {
-        speechDb: clampGainDb(voLufs + TALKING_OFFSETS_LU.speech - bedLufs),
-        pauseDb: clampGainDb(voLufs + TALKING_OFFSETS_LU.pause - bedLufs),
-        openDb: clampGainDb(voLufs + TALKING_OFFSETS_LU.open - bedLufs),
+        speechDb: clampGainDb(voLufs + (input.speechOffsetLu ?? TALKING_OFFSETS_LU.speech) - bedLufs),
+        pauseDb: clampGainDb(voLufs + (input.pauseOffsetLu ?? TALKING_OFFSETS_LU.pause) - bedLufs),
+        openDb: clampGainDb(voLufs + (input.openOffsetLu ?? TALKING_OFFSETS_LU.open) - bedLufs),
       }
     : DUCK_PRESETS[preset];
   return {

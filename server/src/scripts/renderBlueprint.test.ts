@@ -1,0 +1,79 @@
+import {readFileSync} from 'node:fs';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {describe, expect, it} from 'vitest';
+
+import {buildDuckEnvelope} from '../stages/music/duckEnvelope.ts';
+import {applyCarvedOverride, applyDuckOverrides,parseCliArgs, resolveVideoUrl} from './renderBlueprint.ts';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+
+describe('render-blueprint never reaches a paid path', () => {
+  const source = readFileSync(path.join(here, 'renderBlueprint.ts'), 'utf8').toLowerCase();
+  it.each(['analyzevideo', 'runwaretransport', '@anthropic-ai', 'groq', 'google.generative', '@google/generative-ai', 'rendermediaonlambda'])(
+    'source does not mention %s',
+    banned => {
+      expect(source.includes(banned)).toBe(false);
+    },
+  );
+
+  it('static imports are only the duck helper, types and node builtins', () => {
+    const imports = [...source.matchAll(/^import[^'"]*['"]([^'"]+)['"]/gm)].map(m => m[1]);
+    expect(imports.filter(spec => spec!.startsWith('.'))).toEqual(['../stages/music/duckenvelope.ts', '../types/blueprint.ts']);
+  });
+});
+
+describe('talking offset overrides', () => {
+  const base = {words: [{start: 0, end: 1}], durationSec: 5, preset: 'talking' as const, voLufs: -20, bedLufs: -16};
+  it('speechOffsetLu replaces the speech offset only', () => {
+    const duck = buildDuckEnvelope({...base, speechOffsetLu: -16});
+    expect(duck.speechDb).toBe(-20); // clamp((-20) + (-16) - (-16))
+    expect(duck.pauseDb).toBe(-13); // default -9
+    expect(duck.openDb).toBe(-8); // default -4
+  });
+  it('absolute presets ignore the offsets', () => {
+    const duck = buildDuckEnvelope({...base, preset: 'default', speechOffsetLu: -30});
+    expect(duck.speechDb).toBe(-13);
+  });
+  it('no offsets leaves talking unchanged', () => {
+    expect(buildDuckEnvelope(base).speechDb).toBe(-22);
+  });
+});
+
+describe('applyDuckOverrides', () => {
+  const bp = {
+    outputDurationSec: 5,
+    captionWords: [{text: 'a', start: 0, end: 1, sentenceIndex: 0}],
+    audioDesign: {musicSource: 'generated', musicFullUrl: 'https://x/bed.wav', voLufs: -20, sfx: []},
+  } as never;
+  it('rebuilds a missing duck and honours the offset', () => {
+    const out = applyDuckOverrides(bp, {speechOffset: -16});
+    expect(out.rebuilt).toBe(true);
+    expect(out.audioDesign?.duck?.speechDb).toBe(-20);
+  });
+  it('leaves the blueprint alone with no flags and an existing duck', () => {
+    const withDuck = {...(bp as object), audioDesign: {...(bp as {audioDesign: object}).audioDesign, duck: {preset: 'talking'}}} as never;
+    expect(applyDuckOverrides(withDuck, {}).rebuilt).toBe(false);
+  });
+});
+
+describe('applyCarvedOverride', () => {
+  const ad = {musicSource: 'generated', musicFullUrl: 'https://x/bed.wav', musicCarvedUrl: 'https://x/carved.wav', sfx: []} as never;
+  it('--carved 0 omits musicCarvedUrl; 1 and omitted keep it', () => {
+    expect('musicCarvedUrl' in (applyCarvedOverride(ad, '0').audioDesign as object)).toBe(false);
+    expect(applyCarvedOverride(ad, '1').audioDesign).toBe(ad);
+    expect(applyCarvedOverride(ad, undefined).audioDesign).toBe(ad);
+  });
+});
+
+describe('cli helpers', () => {
+  it('parses flags', () => {
+    const o = parseCliArgs(['f.json', '--duck-preset', 'default', '--speech-offset=-16', '--carved', '0', '--master', '1']);
+    expect(o).toMatchObject({file: 'f.json', duckPreset: 'default', speechOffset: -16, carved: '0', master: '1', measure: '0'});
+  });
+  it('fails clearly on a missing prefetch path with no source', () => {
+    expect(() => resolveVideoUrl('/prefetch/job/source.mp4', null, () => false)).toThrow(/sourceVideoPath/);
+    expect(resolveVideoUrl('/prefetch/job/source.mp4', '/a/b.mp4', p => p === '/a/b.mp4')).toBe('/a/b.mp4');
+    expect(resolveVideoUrl('https://x/y.mp4', null, () => false)).toBe('https://x/y.mp4');
+  });
+});

@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "node --watch --experimental-strip-types src/index.ts",
     "first-video": "node --experimental-strip-types src/scripts/firstVideo.ts",
+    "render-blueprint": "node --experimental-strip-types src/scripts/renderBlueprint.ts",
     "eval:director-v2": "node --experimental-strip-types src/scripts/evalDirectorV2.ts",
     "eval:template-designer": "node --experimental-strip-types src/scripts/evalTemplateDesigner.ts",
     "build": "tsc -p tsconfig.json",
