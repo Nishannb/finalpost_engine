@@ -835,6 +835,8 @@ export type AudioDesign = {
     volume?: number;
     reason?: string;
     src?: string;
+    /** Catalog hits: the file's length in seconds, so the Sequence is not cut at the built-in 0.45 s. */
+    durationSec?: number;
   }>;
 };
 

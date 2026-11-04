@@ -11,6 +11,7 @@
     "dev": "npm run dev --workspace=server",
     "first-video": "npm run first-video --workspace=server --",
     "render-blueprint": "npm run render-blueprint --workspace=server --",
+    "sfx:check": "npm run sfx:check --workspace=server --",
     "eval:director-v2": "npm run eval:director-v2 --workspace=server --",
     "eval:template-designer": "npm run eval:template-designer --workspace=server --",
     "build": "npm run build --workspace=server",

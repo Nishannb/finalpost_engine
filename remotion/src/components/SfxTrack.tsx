@@ -19,6 +19,8 @@ export type SfxHit = {
   kind: string;
   volume?: number;
   src?: string;
+  /** Catalog hits only. Absent → the built-in 0.45 s. */
+  durationSec?: number;
 };
 
 export const SfxTrack: React.FC<{hits?: SfxHit[]}> = ({hits}) => {
@@ -38,7 +40,7 @@ export const SfxTrack: React.FC<{hits?: SfxHit[]}> = ({hits}) => {
           <Sequence
             key={`sfx-${hit.kind}-${hit.at}-${index}`}
             from={secToFrame(Math.max(0, hit.at), fps)}
-            durationInFrames={Math.max(1, framesBetween(0, 0.45, fps))}>
+            durationInFrames={Math.max(1, framesBetween(0, hit.durationSec && hit.durationSec > 0 ? hit.durationSec : 0.45, fps))}>
             <Audio src={custom ? resolveMediaSrc(custom) : staticFile(file as string)} volume={hit.volume ?? 0.12} />
           </Sequence>
         );

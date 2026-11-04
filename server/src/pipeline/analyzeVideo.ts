@@ -17,6 +17,7 @@ import {
 import {captionMuteRanges, mergeMuteRanges, type MuteRange} from '../lib/captionMute.ts';
 import {densityTransitionClip, ensurePolishTransitionDensity, sentenceStartsOf} from '../stages/broll/transitionDensity.ts';
 import {schedulePolishSfxHits} from '../lib/polishSfx.ts';
+import {applyCatalogToHits, loadSfxCatalog, sfxVoiceOffsetLu} from '../lib/sfxCatalog.ts';
 import {buildDuckEnvelope} from '../stages/music/duckEnvelope.ts';
 import {saveBlueprintForReplay} from '../stages/music/saveBlueprint.ts';
 import {resolveBedSource, resolveDuckPreset} from '../stages/music/flags.ts';
@@ -2501,6 +2502,22 @@ async function analyzeVideoUnguarded(
         }
         audioDesign = toAudioDesign({existing: audioDesign, resolved, duck, mood: musicPlan?.mood, voLufs, ...playbackFromPlan(musicPlan)});
         warnings.push(resolved.source === 'licensed' ? 'polish_music:bed:env' : 'music:bed:generated');
+      }
+    }
+    // Human SFX library (remotion/public/sfx-library). Empty or absent catalog: this block does nothing and the blueprint is unchanged.
+    if (audioDesign?.hits?.length) {
+      const catalog = loadSfxCatalog();
+      if (catalog.entries.length > 0) {
+        const voLufs = audioDesign.voLufs ?? VO_LUFS_ASSUMED;
+        const applied = applyCatalogToHits(audioDesign.hits, {
+          entries: catalog.entries,
+          videoId: musicVideoId,
+          voLufs,
+          offsetLu: sfxVoiceOffsetLu(),
+          wordOnsetsSec: captionWords.map(word => word.start),
+        });
+        audioDesign = {...audioDesign, hits: applied.hits};
+        log.info({videoId: musicVideoId, ...applied.stats, voLufsAssumed: audioDesign.voLufs === undefined}, 'sfx.catalog_applied');
       }
     }
     const blueprint: TimelineBlueprint = {

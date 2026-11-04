@@ -1,6 +1,7 @@
 import {createApp} from './app.ts';
 import {env} from './config/env.ts';
 import {logger} from './lib/logger.ts';
+import {validateSfxLibrary} from './lib/sfxCatalog.ts';
 import {getKv} from './store/kv.ts';
 
 async function main(): Promise<void> {
@@ -21,6 +22,13 @@ async function main(): Promise<void> {
     },
     'video engine auth config',
   );
+
+  // Non-fatal: a problem in the human-curated SFX library is a warning, never a reason not to start.
+  void validateSfxLibrary()
+    .then(report => {
+      for (const issue of report.issues) logger.warn({level: issue.level, code: issue.code, fileName: issue.fileName, message: issue.message, suggestion: issue.suggestion}, 'sfx.catalog_warning');
+    })
+    .catch(error => logger.warn({reason: error instanceof Error ? error.message.slice(0, 200) : 'sfx_validate'}, 'sfx.catalog_warning'));
 
   const server = createApp().listen(env.PORT, () => {
     logger.info({port: env.PORT, env: env.NODE_ENV}, 'video engine listening');

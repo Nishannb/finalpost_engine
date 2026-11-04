@@ -928,6 +928,7 @@ export const timelineBlueprintSchema = z.object({
             volume: z.number().optional(),
             reason: z.string().optional(),
             src: z.string().optional(),
+            durationSec: z.number().positive().optional(),
           }),
         )
         .optional()
