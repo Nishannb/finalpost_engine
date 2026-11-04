@@ -811,6 +811,18 @@ export type AudioDesign = {
   musicCarvedUrl?: string;
   /** Length of the full bed in seconds; where the loop file starts. */
   musicFullDurationSec?: number;
+  /**
+   * Placement (Phase 3, MUSIC_PERSONALIZE): where on the video the bed starts and ends. Absent on older blueprints = the bed plays from its start, as before.
+   * musicStartOffsetSec: seconds into the bed that play at video frame 0 (a bed downbeat). musicEndSec: video time the music is silent from.
+   * musicEndFadeSec: the fade-out that ends there (0.12 button, 0.4 hold-and-fade). musicLoopFromSec: video time the loop body takes over (a bar line).
+   * None of these is a gain: the duck envelope, in video time, is unchanged.
+   */
+  musicStartOffsetSec?: number;
+  musicEndSec?: number;
+  musicEndFadeSec?: number;
+  musicEndType?: 'button' | 'hold-fade';
+  musicLoopFromSec?: number;
+  musicPlacementScore?: number;
   /** How the bed was obtained, for the music.summary log. Absent on older blueprints. */
   musicProvenance?: {
     source: 'licensed' | 'generated' | 'pool';
@@ -819,6 +831,17 @@ export type AudioDesign = {
     cacheKey?: string;
     /** Set when the bed is a fallback (a pool bed used because generation failed). */
     fallbackReason?: string;
+    /** Phase 3: which fallback tier supplied the bed (the same style, or the same family). */
+    fallbackTier?: 'style' | 'family';
+    /** Phase 3: the brief this video got, the style of the bed that actually plays, and what was measured and decided. For music.summary only. */
+    brief?: {style: string; family: string; bpm: number; key: string; speechWpm: number; arc: string; energy: string; hookAtSec: number};
+    bedStyle?: string;
+    bedMeasuredLiftSec?: number | null;
+    liftAtVideoSec?: number | null;
+    startsOnDownbeat?: boolean;
+    placementReason?: string;
+    sfxSnapped?: number;
+    sfxDropped?: number;
   };
   /** Speech-gated integrated loudness of the creator audio (LUFS). Absent on older blueprints. */
   voLufs?: number;

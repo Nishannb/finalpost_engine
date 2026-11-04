@@ -26,6 +26,10 @@ export const musicMixProbeSchema = z.object({
       musicCarvedUrl: z.string().optional(),
       musicFullDurationSec: z.number().optional(),
       musicSource: z.enum(['licensed', 'generated']).optional(),
+      musicStartOffsetSec: z.number().optional(),
+      musicEndSec: z.number().optional(),
+      musicEndFadeSec: z.number().optional(),
+      musicLoopFromSec: z.number().optional(),
     })
     .optional(),
   durationSec: z.number().positive(),

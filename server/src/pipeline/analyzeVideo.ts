@@ -18,10 +18,14 @@ import {captionMuteRanges, mergeMuteRanges, type MuteRange} from '../lib/caption
 import {densityTransitionClip, ensurePolishTransitionDensity, sentenceStartsOf} from '../stages/broll/transitionDensity.ts';
 import {schedulePolishSfxHits} from '../lib/polishSfx.ts';
 import {applyCatalogToHits, loadSfxCatalog, sfxVoiceOffsetLu} from '../lib/sfxCatalog.ts';
+import type {MusicBrief, MusicFamily} from '../stages/music/musicBrief.ts';
+import {planPlacement} from '../stages/music/personalize.ts';
+import {withPlacement, type Placement} from '../stages/music/placement.ts';
+import {snapHitsToBeats} from '../stages/music/sfxBeatSnap.ts';
 import {buildDuckEnvelope} from '../stages/music/duckEnvelope.ts';
 import {saveBlueprintForReplay} from '../stages/music/saveBlueprint.ts';
 import {nonPublicBedUrls} from '../stages/music/bedUrls.ts';
-import {resolveBedSource, resolveDuckPreset, resolveDuckReleaseSec} from '../stages/music/flags.ts';
+import {personalizeEnabled, resolveBedSource, resolveDuckPreset, resolveDuckReleaseSec, resolveMoodPool} from '../stages/music/flags.ts';
 import {resolveMusicBed} from '../stages/music/resolveMusicBed.ts';
 import {agentsDir as musicAgentsDir, awaitMusicPlan} from '../stages/music/musicSpecialist.ts';
 import {measureVoLufs} from '../stages/music/measureVoLufs.ts';
@@ -141,6 +145,7 @@ import {uploadSourceVideo} from '../storage/r2.ts';
 import {applyProvidedCutout, normalizeProvidedCutoutUrl} from '../lib/providedCutout.ts';
 import type {
   AnalysisStage,
+  AudioDesign,
   DeliveryShapingClip,
   LanguageCode,
   TimeRange,
@@ -2446,6 +2451,8 @@ async function analyzeVideoUnguarded(
     if (muteRanges.length > 0) warnings.push(`polish_captions:muted_for_graphics:${muteRanges.length}`);
     // WP12D + WP27: local SFX hits on polish explain; optional music bed from POLISH_MUSIC_BED_URL (licensed URL only — never scraped).
     let audioDesign = broll.audioDesign;
+    let placementForSfx: Placement | null = null; // set when the bed was placed; the SFX snapper needs its beat grid
+    let placedBrief: MusicBrief | null = null;
     if (polishPath && motion) {
       const framedWindows = (broll.mediaContainers ?? [])
         .filter(container => (container as {canvasStyle?: string}).canvasStyle === 'blur_self' || container.mode === 'rounded_window')
@@ -2522,20 +2529,80 @@ async function analyzeVideoUnguarded(
           warnings.push('music:bed_url_not_public');
           audioDesign = toAudioDesign({existing: audioDesign, resolved: null});
         }
+        // Personalised placement (MUSIC_PERSONALIZE, new edits only): start on a downbeat, lift at the hook, end on a bar line. Fields only; no gain changes.
+        if (personalizeEnabled() && resolved.source === 'generated' && audioDesign.musicUrl) {
+          const ctaAt = ctaWindowsOf(captionWords, timeline.outputDurationSec)[0]?.start ?? null;
+          const planned = planPlacement({
+            videoId: musicVideoId,
+            words: captionWords,
+            durationSec: timeline.outputDurationSec,
+            visualMood: contentProfile?.mood,
+            contentType: contentProfile?.contentType,
+            fallbackFamily: resolveMoodPool(contentProfile?.mood || 'neutral talking-head') as MusicFamily,
+            cutTimesSec: (broll.transitions ?? []).map(item => item.at),
+            zoomTimesSec: zoomTriggers.map(item => item.start),
+            plateTimesSec: (motion?.generatedGraphics ?? []).map(item => item.start),
+            popTimesSec: (broll.semanticEmphasis ?? []).map(item => item.start),
+            hookStartSec: broll.hookStartSec,
+            hookDurationSec: broll.hookDurationSec,
+            ctaAtSec: ctaAt,
+            bed: musicPlan?.placement,
+          });
+          placementForSfx = planned.placement;
+          placedBrief = planned.brief;
+          audioDesign = withPlacement(audioDesign, planned.placement);
+          audioDesign = {
+            ...audioDesign,
+            musicProvenance: {
+              ...(audioDesign.musicProvenance as NonNullable<AudioDesign['musicProvenance']>),
+              ...(musicPlan?.fallbackTier ? {fallbackTier: musicPlan.fallbackTier} : {}),
+              brief: {style: planned.brief.style, family: planned.brief.family, bpm: planned.brief.bpm, key: planned.brief.key, speechWpm: planned.brief.speechWpm, arc: planned.brief.arc, energy: planned.brief.energy, hookAtSec: planned.brief.hookAtSec},
+              ...(musicPlan?.style ? {bedStyle: musicPlan.style} : {}),
+              bedMeasuredLiftSec: musicPlan?.placement?.liftSec ?? null,
+              liftAtVideoSec: planned.placement.liftAtVideoSec,
+              startsOnDownbeat: planned.placement.startsOnDownbeat,
+              placementReason: planned.placement.reason,
+            },
+          };
+          log.info(
+            {videoId: musicVideoId, ...planned.placement, barLinesSec: undefined, beatsSec: undefined, bedStyle: musicPlan?.style, requestedArc: musicPlan?.arc, hookAtSec: planned.brief.hookAtSec},
+            'music.placement',
+          );
+        }
         warnings.push(resolved.source === 'licensed' ? 'polish_music:bed:env' : 'music:bed:generated');
       }
     }
-    // Human SFX library (remotion/public/sfx-library). Empty or absent catalog: this block does nothing and the blueprint is unchanged.
-    if (audioDesign?.hits?.length) {
+    // SFX: beat snapping and the catalog hook/CTA (Phase 3, only for a placed bed), then the human SFX library (remotion/public/sfx-library).
+    // Empty or absent catalog and no placement: this block does nothing and the blueprint is unchanged.
+    if (audioDesign) {
       const catalog = loadSfxCatalog();
-      if (catalog.entries.length > 0) {
+      const wordOnsetsSec = captionWords.map(word => word.start);
+      const placement = placementForSfx as Placement | null;
+      const wantsHookCta = catalog.entries.some(entry => entry.tobeused.includes('hook') || entry.tobeused.includes('cta'));
+      if (placement && ((placement.beatsSec.length > 0 && (audioDesign.hits?.length ?? 0) > 0) || wantsHookCta)) {
+        const snapped = snapHitsToBeats(audioDesign.hits ?? [], {
+          beatsSec: placement.beatsSec,
+          barLinesSec: placement.barLinesSec,
+          wordOnsetsSec,
+          durationSec: timeline.outputDurationSec,
+          catalog: catalog.entries,
+          ctaAtSec: placedBrief?.ctaAtSec ?? null,
+        });
+        audioDesign = {
+          ...audioDesign,
+          hits: snapped.hits,
+          ...(audioDesign.musicProvenance ? {musicProvenance: {...audioDesign.musicProvenance, sfxSnapped: snapped.stats.snapped, sfxDropped: snapped.stats.dropped}} : {}),
+        };
+        log.info({videoId: musicVideoId, ...snapped.stats}, 'sfx.beat_snap');
+      }
+      if (audioDesign.hits?.length && catalog.entries.length > 0) {
         const voLufs = audioDesign.voLufs ?? VO_LUFS_ASSUMED;
         const applied = applyCatalogToHits(audioDesign.hits, {
           entries: catalog.entries,
           videoId: musicVideoId,
           voLufs,
           offsetLu: sfxVoiceOffsetLu(),
-          wordOnsetsSec: captionWords.map(word => word.start),
+          wordOnsetsSec,
         });
         audioDesign = {...audioDesign, hits: applied.hits};
         log.info({videoId: musicVideoId, ...applied.stats, voLufsAssumed: audioDesign.voLufs === undefined}, 'sfx.catalog_applied');

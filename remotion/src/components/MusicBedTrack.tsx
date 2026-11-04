@@ -7,6 +7,7 @@ import React from 'react';
 import {AbsoluteFill, Audio, Sequence, useCurrentFrame, useVideoConfig} from 'remotion';
 
 import {duckDbAt, duckLinearGainAt, type DuckEnvelope} from '../audio/duckEnvelope';
+import {placementGainAt} from '../audio/placementGain';
 import {resolveMediaSrc} from '../lib/mediaSrc';
 
 /**
@@ -40,6 +41,14 @@ export type MusicBedSpec = {
   /** VO-carved twin of the full bed. Absent → single-file playback. Set only when MUSIC_CARVED_TWIN is on. */
   musicCarvedUrl?: string;
   musicSource?: 'licensed' | 'generated';
+  /**
+   * Placement (MUSIC_PERSONALIZE, new blueprints only). Seconds into the bed that play at video frame 0 (a bed downbeat); video time the music is silent from;
+   * its fade; video time the loop body takes over (a bar line). Any of these present = the placed branch. None is a gain.
+   */
+  musicStartOffsetSec?: number;
+  musicEndSec?: number;
+  musicEndFadeSec?: number;
+  musicLoopFromSec?: number;
 };
 
 export type SpeechWindow = {start: number; end: number};
@@ -88,6 +97,31 @@ export const MusicBedTrack: React.FC<{
     duck
       ? duckLinearGainAt(duck, frame / fps)
       : musicBedVolumeAt({frame, fps, speechWindows, ducking, musicGain, duckedGain});
+
+  // Placed bed (Phase 3): start offset on a downbeat, an end fade, a bar-aligned loop hand-off. The duck envelope stays in VIDEO time and decides the level;
+  // the end fade can only lower it. Blueprints without placement fields never reach this branch, so they render exactly as before.
+  if (bed.musicStartOffsetSec !== undefined || bed.musicEndSec !== undefined) {
+    const offsetFrames = Math.max(0, Math.round((bed.musicStartOffsetSec ?? 0) * fps));
+    const timeSec = globalFrame / fps;
+    const base = volumeAt(globalFrame) * placementGainAt(timeSec, bed.musicEndSec, bed.musicEndFadeSec);
+    const carvedSrc = bed.musicCarvedUrl && duck ? resolveMediaSrc(bed.musicCarvedUrl) : null;
+    const gains = carvedSrc && duck ? carvedGains(carvedMix(duckDbAt(duck, timeSec), duck.speechDb, duck.openDb, duck.pauseDb)) : {full: 1, carved: 0};
+    const loopFrom = bed.musicLoopFromSec !== undefined && bed.musicLoopUrl ? Math.max(1, Math.round(bed.musicLoopFromSec * fps)) : null;
+    const headFrames = loopFrom !== null ? Math.min(loopFrom, durationInFrames) : durationInFrames;
+    return (
+      <AbsoluteFill>
+        <Sequence from={0} durationInFrames={Math.max(1, headFrames)}>
+          <Audio src={resolveMediaSrc(bed.musicFullUrl || bed.musicUrl)} startFrom={offsetFrames} volume={() => base * gains.full} />
+          {carvedSrc ? <Audio src={carvedSrc} startFrom={offsetFrames} volume={() => base * gains.carved} /> : null}
+        </Sequence>
+        {loopFrom !== null && loopFrom < durationInFrames ? (
+          <Sequence from={loopFrom} durationInFrames={durationInFrames - loopFrom}>
+            <Audio src={resolveMediaSrc(bed.musicLoopUrl as string)} loop loopVolumeCurveBehavior="extend" volume={() => base} />
+          </Sequence>
+        ) : null}
+      </AbsoluteFill>
+    );
+  }
 
   const split =
     bed.musicSource === 'generated' && bed.musicLoopUrl && bed.musicFullDurationSec && bed.musicFullDurationSec > 0;

@@ -478,6 +478,10 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({blueprint, style}) => {
                 ...(blueprint.audioDesign.musicCarvedUrl ? {musicCarvedUrl: blueprint.audioDesign.musicCarvedUrl} : {}),
                 ...(blueprint.audioDesign.musicFullDurationSec ? {musicFullDurationSec: blueprint.audioDesign.musicFullDurationSec} : {}),
                 ...(blueprint.audioDesign.musicSource ? {musicSource: blueprint.audioDesign.musicSource} : {}),
+                ...(blueprint.audioDesign.musicStartOffsetSec !== undefined ? {musicStartOffsetSec: blueprint.audioDesign.musicStartOffsetSec} : {}),
+                ...(blueprint.audioDesign.musicEndSec !== undefined ? {musicEndSec: blueprint.audioDesign.musicEndSec} : {}),
+                ...(blueprint.audioDesign.musicEndFadeSec !== undefined ? {musicEndFadeSec: blueprint.audioDesign.musicEndFadeSec} : {}),
+                ...(blueprint.audioDesign.musicLoopFromSec !== undefined ? {musicLoopFromSec: blueprint.audioDesign.musicLoopFromSec} : {}),
               }
             : null
         }

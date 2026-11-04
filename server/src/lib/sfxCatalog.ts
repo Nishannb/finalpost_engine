@@ -273,7 +273,9 @@ export async function validateSfxLibrary(
  * Full-screen plates and recipe entrances are scene or plate changes; a hard cut is a cut; a smash zoom is a zoom-in; a framed window is a punch-in.
  */
 export function cueForHit(hit: Pick<PolishSfxHit, 'kind' | 'reason'>): SfxCue {
-  const reason = hit.reason ?? '';
+  const reason = (hit.reason ?? '').split('|')[0]!; // placement tags a snapped hit with '|beat'
+  if (reason === 'sfx_hook') return 'hook';
+  if (reason === 'sfx_cta') return 'cta';
   if (reason.startsWith('recipe_')) return 'kinetic_plate';
   if (reason === 'graphic_full_screen') return 'transition';
   if (reason === 'graphic_split_screen') return 'emphasis';

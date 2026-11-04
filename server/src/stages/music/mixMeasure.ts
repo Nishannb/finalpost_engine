@@ -77,7 +77,7 @@ export function describePauses(duck: DuckLike): PauseReport[] {
 export function bedSpecFor(audioDesign: MixMeasureInput['audioDesign']): Record<string, unknown> | undefined {
   if (!audioDesign) return undefined;
   const spec: Record<string, unknown> = {};
-  for (const key of ['musicFullUrl', 'musicLoopUrl', 'musicCarvedUrl', 'musicFullDurationSec', 'musicSource'] as const) {
+  for (const key of ['musicFullUrl', 'musicLoopUrl', 'musicCarvedUrl', 'musicFullDurationSec', 'musicSource', 'musicStartOffsetSec', 'musicEndSec', 'musicEndFadeSec', 'musicLoopFromSec'] as const) {
     if (audioDesign[key] !== undefined && audioDesign[key] !== '') spec[key] = audioDesign[key];
   }
   return Object.keys(spec).length > 0 ? spec : undefined;
@@ -266,6 +266,10 @@ export type MixMeasureInput = {
     musicCarvedUrl?: string;
     musicFullDurationSec?: number;
     musicSource?: 'licensed' | 'generated';
+    musicStartOffsetSec?: number;
+    musicEndSec?: number;
+    musicEndFadeSec?: number;
+    musicLoopFromSec?: number;
     duck?: DuckLike & {voLufs?: number; bedLufs?: number; speechDb?: number} & Record<string, unknown>;
   };
   blueprintId?: string;
