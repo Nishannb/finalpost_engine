@@ -72,6 +72,10 @@ export function parseCliArgs(argv: string[]): CliOptions {
   return opts;
 }
 
+export function resolveBlueprintPath(file: string): string {
+  return path.isAbsolute(file) ? file : path.resolve(REPO_ROOT, file);
+}
+
 export function loadBlueprintFile(file: string): Envelope {
   const parsed = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
   if (parsed.blueprint && typeof parsed.blueprint === 'object') return parsed as unknown as Envelope;
@@ -139,7 +143,7 @@ export function applyCarvedOverride(
 
 async function main(): Promise<void> {
   const opts = parseCliArgs(process.argv.slice(2));
-  const loaded = loadBlueprintFile(path.resolve(opts.file));
+  const loaded = loadBlueprintFile(resolveBlueprintPath(opts.file));
   let blueprint = loaded.blueprint;
 
   const videoUrl = resolveVideoUrl(blueprint.videoUrl, loaded.sourceVideoPath);

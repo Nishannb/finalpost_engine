@@ -9,6 +9,7 @@ Branch: `bgm-phase-2`. Not pushed.
 - After B: absent (0 lines).
 - After C: absent (0 lines).
 - After D: absent (0 lines).
+- After E (end of Phase 2.1): absent (0 lines).
 - Runware calls: 0. LLM calls: 0. Lambda renders: 0.
 
 ## 2. Per task
@@ -44,7 +45,17 @@ Branch: `bgm-phase-2`. Not pushed.
 - Files: `saveBlueprint.ts` (+ test), `renderBlueprint.ts` (+ test), `duckEnvelope.ts` (optional talking offset overrides), `analyzeVideo.ts` (save just before return), root and server `package.json` scripts, `.gitignore` for `out/blueprints/` and `out/renders/`.
 - Tests: vitest renderBlueprint + saveBlueprint 18 passed; full music suite was 99 before the carved strip, then 18 again after. Server tsc clean. Remotion tsc only the 3 known errors. Pytest 41 passed.
 - `render-blueprint` source ban: no analyzeVideo, Runware, Anthropic, Groq, Gemini, or Lambda strings. `--carved 0` strips `musicCarvedUrl`; `--carved 1` never invents a URL. Mix and master numbers stay in the engine log under the printed `renderJobId`.
-- Commit: `ed9fe69`.
+- Commit: `ed9fe69` (path resolve follow-up included in the E commit).
+
+### E. Synthetic proof renders
+
+- Status: done. Zero spend. Fixture is a 12 s color video with band-limited noise "speech" bursts at −20 LUFS, not a re-analyze of `2.mp4`.
+- Files: `makeProofFixture.ts` (+ test), `.gitignore` `out/fixtures/`, relative path resolve in `renderBlueprint.ts`.
+- Tests: maker + render-blueprint + saveBlueprint vitest 22 passed. Server tsc clean. Spend log still absent.
+- Four local `render-blueprint` burns with `--measure 1`. Salvaged bed URLs from the backfilled pool. Intended `music.mix_check` was speechGapLu 18 / pauseGapLu 9 on every run.
+- `MusicMixProbe` only passes `musicUrl` into `MusicBedTrack`, so bed-stem `mix_measured` cannot see the carved twin. Final LUFS still barely moved between carved 0 and 1 (−22.0 vs −21.9 before master).
+- `MUSIC_CARVED_TWIN` stays **default off**. Reason: measured pauseGapLu was 12.4 on carved=1 (and on carved=0), outside the 9 ± 1.5 LU band required to flip the default on. SpeechGapLu 17.3 was inside 18 ± 1.5.
+- Commit: filled after the commit.
 
 ## 3. R2 objects written
 
@@ -61,15 +72,53 @@ Allowed keys only (salvaged cache key `108abbca…`):
 
 ## 4. Task E table
 
-Not run.
+| carved | master | speechGapLu (intended → measured) | pauseGapLu (intended → measured) | final LUFS | true peak |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 0 | 18 → 17.3 | 9 → 12.4 | −22.0 | −11.1 |
+| 1 | 0 | 18 → 17.3 | 9 → 12.4 | −21.9 | −11.1 |
+| 0 | 1 | 18 → 17.3 | 9 → 12.4 | −13.9 (after master; before −22.0) | −2.7 |
+| 1 | 1 | 18 → 17.3 | 9 → 12.4 | −13.9 (after master; before −21.9) | −3.1 |
+
+`MUSIC_CARVED_TWIN` default: **off**. Pause gap stayed outside 9 ± 1.5 LU with carved on.
 
 ## 5. Listen list
 
-v3 files are written after task A passes. The Phase 2 files are still at `remotion/out/music-loop/`.
+v3 beds:
 
-## 6. Commands for the human
+- `remotion/out/music-loop/bed_full.wav`
+- `remotion/out/music-loop/bed_loop.wav`
+- `remotion/out/music-loop/bed_loop_x3.wav`
+- `remotion/out/music-loop/bed_carved.wav`
 
-Filled in at the end. Do not run them during this phase.
+Proof renders:
+
+- `out/renders/proof-synth-0001-talking-c0-m0-20261104T050033.mp4`
+- `out/renders/proof-synth-0001-talking-c1-m0-20261104T050228.mp4`
+- `out/renders/proof-synth-0001-talking-c0-m1-20261104T050406.mp4`
+- `out/renders/proof-synth-0001-talking-c1-m1-20261104T050538.mp4`
+
+Fixture: `out/fixtures/proof/blueprint.json`, `source.mp4`, `dialogue.wav`.
+
+## 6. Commands for the human (do not run overnight)
+
+One real polish edit. Analyze still uses Groq/Gemini as any normal edit does. The bed should pool-hit the salvaged high-energy entry (Runware $0) unless `MUSIC_BED_FRESH=1`. After it finishes, `out/blueprints/{videoId}.json` is written for free replays.
+
+```
+cd /Users/nishanbaral/Desktop/apps/creators_kinmel/finalpost_engine
+MUSIC_SPECIALIST=live POLISH_MUSIC_BED_URL= PRODUCT_EDIT_PROFILE=polish \
+  MUSIC_MIX_MEASURE=1 MUSIC_MASTER_PASS=1 \
+  npm run first-video -- "/Users/nishanbaral/Downloads/2.mp4" auto
+```
+
+Look for `music.pool_hit` (cost 0). `music.generated` with a cost means a paid bed. Then A/B the saved blueprint by ear:
+
+```
+npm run render-blueprint -- out/blueprints/<videoId>.json --duck-preset talking --speech-offset -16 --measure 1 --master 1
+npm run render-blueprint -- out/blueprints/<videoId>.json --duck-preset talking --speech-offset -18 --measure 1 --master 1
+npm run render-blueprint -- out/blueprints/<videoId>.json --duck-preset talking --speech-offset -20 --measure 1 --master 1
+```
+
+Replace `<videoId>` with the 24-char id from `music.blueprint_saved` / the filename under `out/blueprints/`.
 
 ---
 

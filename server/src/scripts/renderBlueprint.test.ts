@@ -4,7 +4,7 @@ import {fileURLToPath} from 'node:url';
 import {describe, expect, it} from 'vitest';
 
 import {buildDuckEnvelope} from '../stages/music/duckEnvelope.ts';
-import {applyCarvedOverride, applyDuckOverrides,parseCliArgs, resolveVideoUrl} from './renderBlueprint.ts';
+import {applyCarvedOverride, applyDuckOverrides,parseCliArgs, resolveBlueprintPath, resolveVideoUrl} from './renderBlueprint.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -16,6 +16,11 @@ describe('render-blueprint never reaches a paid path', () => {
       expect(source.includes(banned)).toBe(false);
     },
   );
+
+  it('resolves a relative blueprint path under the repo root, keeps absolute paths', () => {
+    expect(resolveBlueprintPath('out/fixtures/proof/blueprint.json')).toBe(path.resolve(here, '../../..', 'out/fixtures/proof/blueprint.json'));
+    expect(resolveBlueprintPath('/abs/b.json')).toBe('/abs/b.json');
+  });
 
   it('static imports are only the duck helper, types and node builtins', () => {
     const imports = [...source.matchAll(/^import[^'"]*['"]([^'"]+)['"]/gm)].map(m => m[1]);

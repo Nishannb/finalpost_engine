@@ -37,3 +37,6 @@ agents/music_specialist/spool/
 # Phase 2.1 D: saved blueprints and local re-renders
 out/blueprints/
 out/renders/
+
+# synthetic proof fixtures
+out/fixtures/
