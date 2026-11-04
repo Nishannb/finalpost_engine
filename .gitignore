@@ -43,3 +43,6 @@ out/fixtures/
 
 # personalisation proof beds (generated)
 remotion/public/_proof-beds/
+
+# phase 3 proof outputs (numbers are in MORNING_REPORT.md)
+out/proof/

@@ -1,3 +1,108 @@
+# Phase 3
+
+Branch: `bgm-phase-2` (Phase 3 was not split onto its own branch). Not pushed, merged or deployed. Date: 2026-11-04. Human checklist: [docs/audio/BGM_RELEASE.md](docs/audio/BGM_RELEASE.md). Policy: [docs/audio/VOICE_FIRST.md](docs/audio/VOICE_FIRST.md).
+
+## 1. Spend proof, and what the resume did
+
+- `agents/music_specialist/spend.log`: absent at the start of Phase 3, absent after the crash, absent at the end. Unchanged. Runware calls 0, LLM calls 0, Lambda renders 0, R2 writes 0, no `first-video`, no deploy.
+- Resume: all Phase 3 work was already committed (`10a8016` is the head, working tree clean). I redid nothing.
+- **No render was run in the resume.** Free disk was 11–13 GB, under your 15 GB limit, so I would not have rendered anyway. It was not needed: the six proof renders had finished and logged their numbers before the crash (the second launch, after the `.env` fix). I recorded them in `out/proof/phase3/results.json`, kept one MP4 per video (the "on" version) in `out/proof/phase3/listen/`, and deleted the other proof MP4s. The test chunks ran one at a time with 2 workers, nothing else running.
+- Spend: the crash did not touch `spend.log`.
+
+## 2. Per task
+
+| Task | Status | Commit |
+|---|---|---|
+| 1. MusicBrief (`musicBrief.ts`, `briefRules.json`) | done | `6ec6d6f` |
+| 2. 10 styles, matrix mood x type, `PROMPT_VERSION` 4 | done | `6ec6d6f` |
+| 3. Tempo from speech pace, key from `hash(videoId)` | done | `6ec6d6f` |
+| 4. Arc request (lyrics tags) and measured energy map and lift | done | `6ec6d6f`, lift refinement in `10a8016` |
+| 5. Placement (`placement.ts`, `intensity.ts`, `MusicBedTrack`) | done | `128b3c6` |
+| 6. SFX on the beat behind the word mask, catalog hook/CTA | done | `128b3c6` |
+| 7. Pool and generation per brief, style then family fallback | done | `b3319f3` |
+| 8. `music.summary`, offline proof, docs, `render-blueprint` fix | done | `10a8016` |
+
+- **Brief** is built where the music job starts (inside `runDirectorV2`, because music runs in parallel with the director). Real cuts and zooms do not exist yet at that point, so sentence starts stand in for the cut rate there; placement later uses the real events. No extra LLM call.
+- **Styles:** the 10 suggested ones, unchanged. I kept your table because it covers all 5 families and every visual mood x content type maps to a style (a test fails on any gap). The mapping gives each mood three slots (softer, balanced, livelier) picked by content type, for example `warm_intimate` x `personal_story` is `warm-keys`, and `bold_energetic` x `motivational` is `driving-electronic`. Every style has 12 tags or fewer, including `no lead melody` and `no vocals`.
+- **Build emit:** `briefRules.json` is imported (not read with `fs`). I built the server with `tsc` into a scratch folder and confirmed the JSON is emitted and a brief builds from `dist`. The Dockerfile copies it for Python.
+- **Tests added:** pytest 44 to 67. Server tests +89 (brief, placement, intensity, SFX snapping, pool and fallback tiers, summary, proof script, `render-blueprint` env order). Parity: `placementGain.ts` is the only Remotion-side logic; it is a pure file and a test checks it stays between 0 and 1. The envelope is unchanged when placement is on (a test compares `duckDbAt` at 120 Hz).
+- **Checks at the head:** pytest 67 passed; server `tsc` clean; Remotion `tsc` only the 3 known errors; music/lib/scripts/directorV2 suites pass except the assembler test that also fails on `main`.
+
+## 3. The `.env` override bug (found in Phase 3, fixed)
+
+- **Bug:** `config/env.ts` loads the engine `.env` with `override: true` when `localRender` is imported. `render-blueprint` set its flags before that import, so a `MUSIC_*` value in `.env` silently replaced `--measure`, `--master` and `--carved`. The first six proof renders had no measurement for that reason (`.env` has `MUSIC_MIX_MEASURE`, edited at 13:40:30).
+- **Fix:** `applyRenderEnv` now runs after the imports. A test pins both the behaviour and the order.
+- **Check against your real `.env`** (booleans only, no values printed): old order, `--measure 1` loses (`measureFlagWins: false`); fixed order, all four flags win (`out/proof/phase3/flags_override_check.jsonl`). `LOCAL_RENDER_SKIP_R2` is not in your `.env`, so no proof render was ever uploaded.
+
+## 4. Were Phases 2.1–2.4 affected? No.
+
+The `.env` was last edited at **13:40:30**. All ten measured proof renders of Phases 2.1–2.4 ran between 10:47 and 13:21, before that. In each of them the flags demonstrably took effect: the measurement ran at all, master 0 gave −22 LUFS and master 1 gave −13.9, carved 0 and 1 gave speech gaps 17.3 and 18.7, release 450 and 300 gave different settled-pause numbers. So the numbers in the Phase 2.1–2.4 reports stand and no re-measure was needed. (What I cannot see is the earlier contents of `.env`; the evidence above does not depend on it.)
+
+## 5. Proof table (free, local; `render-blueprint --master 1 --measure 1`)
+
+Three synthetic edits, each as an "on" blueprint (what analyze saves with `MUSIC_PERSONALIZE=1`) and an "off" one (`0`, Phase 2.4). Same words, same source, same duck envelope and the **same bed audio**, so the difference is placement only. Intended gaps 18 (speech) / 9 (pause).
+
+| video | mode | speech gap | settled pause gap (n) | windows within 6 LU of the voice | closest window | final LUFS | true peak |
+|---|---|---|---|---|---|---|---|
+| 15 s fast | off | 22.0 | none (0) | 0 | 17.11 | −13.9 | −3.6 |
+| 15 s fast | **on** | **17.7** | none (0) | 0 | 16.92 | −13.9 | −3.8 |
+| 40 s normal | off | 18.0 | none (0) | 0 | 16.98 | −14.0 | −3.9 |
+| 40 s normal | **on** | **17.2** | none (0) | 0 | 17.05 | −14.0 | −3.8 |
+| 90 s slow | off | 17.7 | 9.0 (12) | 0 | 17.05 | −14.1 | −3.6 |
+| 90 s slow | **on** | **17.4** | **8.7** (12) | 0 | 17.03 | −14.0 | −3.6 |
+
+Settled pause gap is "none" on the first two because their pauses (0.65 s, 0.8 s) are too short to settle (that is by design, see Phase 2.2).
+
+| video | brief | offset | lift on video vs hook | on a downbeat | ending | score | SFX scheduled / snapped / dropped |
+|---|---|---|---|---|---|---|---|
+| 15 s | `driving-electronic` 128 bpm A minor, `hook-then-steady`, 213 wpm, high | 7.988 s | 3.29 s vs 2.5 s (1.7 beats) | yes | button at 15.0 s | 0.70 | 5 / 0 / 0 |
+| 40 s | `corporate-light` 104 bpm G major, `build`, 152 wpm, medium | 9.822 s | 1.72 s vs 2.5 s (1.4 beats) | yes | button at 39.36 s | 0.75 | 6 / 0 / 0 |
+| 90 s | `lofi-chill` 72 bpm G minor, `steady`, 111 wpm, low | 10.844 s | 2.51 s vs 2.5 s (0.01 beats) | yes | hold and fade to 90 s (last bar line over 1.5 s early) | 0.75 | 5 / 1 / 0 (2 more removed by the word mask at scheduling) |
+
+**Rendered-stem check** (a bed-only render of the 15 s "on" edit, no ducking): the lift lands at **3.30 s** on the video against 3.291 s from placement, the music is silent after the end time and audible before it. So the start offset is applied correctly by Remotion.
+
+### The criterion "on must be no worse than off" is NOT met numerically — decision for you
+
+"On" has a smaller speech gap than "off" in all three (by 4.3, 0.8 and 0.3 LU) and a smaller settled pause gap in the 90 s (by 0.3 LU). I did not hide this. What I think is happening, and what it does and does not mean:
+- The duck gain assumes the bed sits at its integrated −16 LUFS everywhere. A real bed is not flat: the part that plays under the speech differs from the average. Placement changes which part plays, so the gap moves with it.
+- "Off" for the 15 s edit is 22 only because its first 11 s play the synthetic bed's quiet intro pad. That is luck, not a target. Against the **intended 18**, "on" is 0.3, 0.8 and 0.6 LU short, which is the same 0.5 LU shortfall found in Phases 2.3 and 2.4 (Remotion's 1/97 volume step and the voice measuring slightly under the assumed −20). Nothing is near the voice: the closest window is 16.9 LU under it, and none comes within 6 LU.
+- Per the Phase 3 spec, placement never changes a gain, so I did not add a fix. The real gap is that the envelope does not know the bed's loudness where it plays. A bed with a loud lift section placed so the lift lands under early speech could sit closer to the voice than the average suggests.
+- **Options:** (a) accept it (all gaps 17.2–17.7, closest window 16.9); (b) build the duck from the bed's measured per-bar loudness at the chosen offset (postprocess would emit a per-bar LUFS map; the envelope would use it instead of the −16 assumption). (b) makes the gap track 18 whatever the placement, and "on" could still read lower than a lucky "off", but it removes the hole. It changes how the envelope is built, so I stopped for your call.
+
+Other limits seen in the proof: with the offset restricted to downbeats, the lift can only land within about half a bar of the hook (1.4 to 1.7 beats for the 15 s and 40 s edits; ±1 beat only when the grid happens to fit, as in the 90 s). The beat tracker's resolution is about 23 ms, so frame 0 can be that far from the true beat (the first beat in the stem check was about 19 ms off). The proof beds are synthetic; a real bed's measured downbeat phase can also be a beat off.
+
+## 6. Tests
+
+| Chunk | Passed | Failed | Skipped |
+|---|---|---|---|
+| eval 1/3 | 844 | 20 | 2 |
+| eval 2/3 | 625 | 15 | 8 |
+| eval 3/3 | 699 | 26 | 24 |
+| broll 1/2 | 732 | 14 | 1 |
+| broll 2/2 | 981 | 22 | 9 |
+| lib, filters, pipeline, media, http, scripts, motionWorker | 655 | 1 | 0 |
+| music, directorV2, kinetic, motionDirector, northStar, subjectStage, layout, templateDesigner, contentProfile, color, audio, transcribe, templates, render | 814 | 0 | 0 |
+| **Total** | **5,350** | **98** | **44** |
+
+Phase 2.4 baseline: 5,261 passed, 98 failed, 44 skipped. So **+89 passed (the new tests), 0 more failures.** I rebuilt the baseline by running the 49 failing files at the Phase 2.4 commit (`99420c1`) in a throwaway worktree: **the same 90 failing test names (98 tests) fail there. New failures: none. Fixed: none.** No failing file is in the music, SFX, placement, brief or `render-blueprint` areas. Same causes as in Phase 2.4 (missing gitignored fixtures and artifacts, stale call-inventory checks from earlier phases, caption/layout tests), and `src/lib/assembler/assembler.test.ts` also fails on `main`.
+
+## 7. Needs a human decision
+
+- The "on no worse than off" question in section 5: accept, or build the duck from per-bar bed loudness (my recommendation if you want the voice-first guarantee to hold for any bed).
+- Whether a lift landing up to about 1.7 beats from the hook is good enough (the downbeat-only rule; allowing beat-level offsets would tighten it but frame 0 would no longer be a downbeat).
+- Carried over from Phase 2.4: the pool-size rule is a **cap on appending** (a style with a bed still pool-hits at $0; `MUSIC_BED_FRESH=1` is what generates per video). The Docker image change is still unbuilt.
+- `.env` now holds production values. With the fix the CLI flags win over it. Note `CLAUDE.md` forbids me from running anything with `MUSIC_BED_FRESH=1`, `MUSIC_SPECIALIST=live` or `first-video`; those are yours.
+
+## 8. Your steps
+
+1. In the production environment set `MUSIC_BED_FRESH=1` (and `MUSIC_SPECIALIST=live`, `MUSIC_PERSONALIZE=1` is already the default). Each new edit then generates one bed (about $0.0075), re-rendering the same video is a $0 cache hit, and each style's pool grows up to `MUSIC_BED_POOL_SIZE`.
+2. Rebuild the engine image (`docker build -t kinmel-engine .`) and run the import check from `BGM_RELEASE.md` section 1 (librosa, pyloudnorm, pydub, scipy). The image must contain `briefRules.json`; the Dockerfile copies it. This is still unbuilt.
+3. Redeploy the Remotion site: `npm run remotion:deploy`. Placed beds use new `MusicBedTrack` code that exists only on a redeployed site.
+4. One real edit from your terminal, on a short video first: `MUSIC_BED_FRESH=1 MUSIC_SPECIALIST=live npm run first-video -- /path/to/talking-head.mp4`. Then `grep music.summary logs/engine.log | tail -1`.
+5. In `music.summary` check: `source` `generated`, `costUsd` about `0.0075`; `style`, `bpm` (a multiple of 4), `key`, `arc` and `speechWpm` that fit the video (`hook-then-steady` under 25 s, `build` to 60 s, else `steady`); `startsOnDownbeat: true`; `startOffsetSec` a real number; `liftAtVideoSec` within about half a bar of `hookAtSec` (or `null` if the bed never lifts); `placementScore` between 0 and 1; `endType` `button` or `hold-fade`; `fallbackTier` and `fallbackReason` `null`; `finalLufs` about −14. Also `music.brief`, `music.placement` and `sfx.beat_snap`. Then `agents/music_specialist/spend.log` should have exactly one new line.
+6. By ear: the voice is always clearly on top; the music starts on a beat with the picture and steps up near the hook; it ends on a bar line (or fades over the last 400 ms) with no long silent tail; no click at the loop on a long video; no SFX lands on the start of a word; sound effects land on the beat.
+7. Tuning, no code change: `server/src/stages/music/briefRules.json` (see VOICE_FIRST.md), and the A/B commands in `BGM_RELEASE.md` section 4.
+
 # Phase 2.4
 
 Branch: `bgm-phase-2`. Not pushed, merged or deployed. Date: 2026-11-04. Human checklist: [docs/audio/BGM_RELEASE.md](docs/audio/BGM_RELEASE.md).
