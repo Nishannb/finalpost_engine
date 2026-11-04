@@ -1,3 +1,88 @@
+# Phase 2.4
+
+Branch: `bgm-phase-2`. Not pushed, merged or deployed. Date: 2026-11-04. Human checklist: [docs/audio/BGM_RELEASE.md](docs/audio/BGM_RELEASE.md).
+
+## 1. Spend proof
+
+- `agents/music_specialist/spend.log`: absent at the start, absent at the end (0 lines, unchanged).
+- Runware calls: 0. LLM calls: 0. Lambda renders: 0. No deploy. R2 writes: 0 (the full test run had every API, R2 and AWS key blanked; the pool and upload tests use a fake R2).
+- Renders: two local `render-blueprint` burns and one local bed-stem probe, all free.
+
+## 2. Decisions applied
+
+1. `CLAUDE.md` committed (`19820af`).
+2. Folder stays `remotion/public/sfx-library/`. `VOICE_FIRST.md`, its README and this report all name that path.
+3. high-energy stays at 120 bpm.
+4. Word mask on built-in hits, at scheduling time only: `schedulePolishSfxHits({wordOnsetsSec})` drops a hit within 120 ms after an onset, before cap and spacing. Saved blueprints are never rescheduled (a test asserts `render-blueprint` has no path to the scheduler, and that stored hits pass through unchanged). Tests cover both cases.
+5. One-frame attack look-ahead: new optional `leadSec` (33.3 ms) on the envelope. Both envelope files changed together, the parity test is green at every 1/120 s, and an envelope with no `leadSec` evaluates exactly as before.
+6. Defaults, each with its env override: `talking` preset (−18 / −9 / −4), release 300 ms (`MUSIC_DUCK_RELEASE_MS`), carved on (`MUSIC_CARVED_TWIN=0` turns it off), master pass on, pool size 3. `.env.example` and `VOICE_FIRST.md` match. These affect **new** blueprints only; a `render-blueprint` rebuild keeps the timing the blueprint was saved with unless a flag overrides it (new `--lead-ms` flag).
+
+## 3. Per task
+
+### Task 1. Same audio on Lambda as on local
+- Status: done in code; **the Docker image change is unbuilt** (see below). Commit `bc4bf5b`.
+- **Master pass on Lambda:** `stages/music/lambdaMaster.ts`, called from `refreshRenderJob` after `verifyLambdaOutput` passes. Download, the same two-pass loudnorm, re-inspect the mastered file with the same judge, then upload to its own key `ai-video/render/<date>/<renderJobId>-mastered.mp4`. That URL becomes the job's `outputUrl`, which is what the app serves. The Lambda object is never overwritten. On any failure the verified Lambda URL is kept, `music.master_pass_failed` is logged and the job gets the warning `music:master_not_applied`. `MUSIC_MASTER_PASS=0` skips it. The mastering runs inside the poll that finds the render done (the existing in-flight guard makes concurrent polls report "still rendering"), so that one poll takes longer.
+- **`music.mix_check`** still logs on Lambda completion, and `music.summary` now does too. `MUSIC_MIX_MEASURE` stays local-only.
+- **Static files / deploy:** needs the site redeployed, not done. The repo command is `npm run remotion:deploy` (`remotion lambda sites create src/index.ts --site-name=kinmel-video-engine --region=us-east-1`). Until then a Lambda render uses the old site: no look-ahead, no catalog SFX.
+- **Bed URLs:** `bedUrls.ts` checks that `musicUrl`, full, loop and carved are public https. `analyzeVideo` now drops the bed and logs `music.bed_url_not_public` if any is not. Tests fail if any of those is a local path, `file:`, `http:`, `dry-run:`, `staticFile:` or a private host; the saved proof blueprint's URLs pass.
+- **Two production bugs found by the audit, both fixed:**
+  1. `contentMoodMap.json` was read with `fs` from beside the compiled file, and `tsc` does not copy JSON. I built the server and confirmed `dist` had **no JSON**: in the production image the mood lookup would have thrown and the music plan would have failed open on every edit, silently. It is now imported with `with {type: 'json'}`; a real `tsc` build emits it and `resolveMoodPool('tech_sharp')` returns `high-energy` from `dist`.
+  2. The `Dockerfile` shipped only `server/dist`: no `agents/`, no Python packages. Pool beds would still play (pure TypeScript), but an empty mood could not generate and the voice loudness would fall back to −20 LUFS. The Dockerfile now copies `agents/music_specialist` and the mood map, builds `/app/agents/.venv` (`pydub pyloudnorm numpy scipy librosa`) and makes the specialist folder writable for `spend.log`. **I did not build the image.** Build it and run the import check in `BGM_RELEASE.md` §1 before deploying.
+- Not changed: `MUSIC_SPECIALIST` stays `off` by default, and Lambda still renders what the blueprint says.
+
+### Task 2. Pool growth
+- Status: done. Commit `bc4bf5b`. `MUSIC_BED_POOL_SIZE` (default 3) did not exist in code before; it does now.
+- **How I read it, please confirm:** a mood with an empty pool generates once (~$0.0075) and the bed is appended; a mood with any bed still pool-hits at $0 (that is what makes high-energy $0 with the salvaged bed, as your §3 verification expects). The size is a **cap on appending**, not a reason to keep generating until 3. So pools grow past 1 only when generation runs anyway (for example `MUSIC_BED_FRESH=1`). If you want "keep generating until 3", that is a small change to the pool-hit condition, but it would make the next two high-energy edits cost money.
+- A new bed is appended only if it passed QC (`qc_passed !== false`) and the pool is under its size; existing beds (the salvaged v2 bed included) are never removed or replaced, and an existing entry can still be patched when the pool is full. `music.pool_appended {mood, size}` logs on an append; `music.pool_not_appended` logs why not.
+- Tests use a fake R2 (mocked module and `fetch`); the real pool is never read or written.
+
+### Task 3. `music.summary`
+- Status: done. Commit `bc4bf5b`. One line per render, local and Lambda: `source` (licensed / generated / pool / none), `mood`, `costUsd`, `voLufs`, `intendedSpeechGapLu`, `intendedPauseGapLu`, `carvedApplied`, `masterApplied`, `finalLufs`, `finalTruePeak` (from the master pass when it ran, else null), `sfxHits {catalog, builtIn}`, `fallbackReason`.
+- How the bed was obtained is saved on the blueprint as `audioDesign.musicProvenance` at analyze time. A blueprint saved before this has none; the summary then infers the source from `musicSource` and reports cost 0.
+- Limit: a total failure (`null` plan) reports `fallbackReason: "no_bed"`; the precise reason is still in the earlier `music.fallback` line. A pool bed used because generation failed carries the specific reason.
+
+### Task 4. Tests
+- Commit `8c96217`.
+- **Stale pins updated to current intended behaviour:** `wp12dSfxHits` (the removed "musicMood intentionally omitted" comment; it now pins that the hits block only carries an existing `musicMood` forward), and two `renderRunner` source pins (`wp3eLambdaIntegrity`, `wp3fLambdaAudio`) that my Lambda master wiring legitimately changed. They keep the safety assertions: the master only takes `verifiedUrl`, re-inspects its own result, and the raw Lambda URL is never assigned.
+- **Not music, left alone:** `wp17FlashCards` (caption mute window) and the rest below.
+- **Full server suite, four chunks** (eval; broll; lib, filters, pipeline, media, http, scripts, motionWorker; everything else), API/R2/AWS keys blanked:
+
+  | Chunk | Passed | Failed |
+  |---|---|---|
+  | `src/eval` | 2166 | 63 |
+  | `src/stages/broll` | 1712 | 37 |
+  | lib / filters / pipeline / media / http / scripts / motionWorker | 648 | 1 |
+  | music, directorV2, kinetic, motionDirector, northStar, subjectStage, layout, templateDesigner, contentProfile, color, audio, transcribe, templates, render | 732 | 0 |
+  | **Total before the pin fixes** | **5258** | **101** (44 skipped) |
+
+  After the three pin fixes the failing files re-ran at **98 failed**, so the full suite is **5261 passed, 98 failed, 44 skipped**. pytest: 44 passed. Server `tsc`: clean. Remotion `tsc`: only the 3 known errors.
+- **Where the 98 come from.** At the pre-2.4 `HEAD` the same files had 91 failing names; this phase added 2 (the pins above, now fixed) and fixed 1 (WP12D). None is new from this phase's music code. Most are environmental: 66 error lines are `ENOENT` for gitignored fixtures and artifacts (`remotion/out/...`, frozen baselines, recorded hashes) that are not on this machine, plus the call-inventory checks for files from earlier phases (`backfillSalvagedBed.ts` and others).
+- **On `main`:** 51 of the 52 failing files do not exist on `main` (the `phase 1.1 checkpoint` commit added them), so they cannot fail there. The one that exists, `src/lib/assembler/assembler.test.ts` ("assembler audit (Gabby)"), **also fails on `main`**. I ran this in throwaway worktrees (since removed).
+
+### Task 5. Checklist
+- `docs/audio/BGM_RELEASE.md`, commit `724978e`: production env with each value, the deploy command, the one-edit verification with what `music.summary` should show, the A/B commands, rollback, and the merge steps (review `54f7e9d` separately first, then merge; I did not merge).
+
+## 4. Synthetic proof after the look-ahead
+
+Fixture is the old Phase 2.1 blueprint, rebuilt with release 300 ms and a 33.3 ms look-ahead; master and measure on. Intended gaps 18 / 9.
+
+| carved | speech gap | settled pause gap | settled pauses | final LUFS | true peak | windows within 6 LU of the voice |
+|---|---|---|---|---|---|---|
+| 0 | **17.5** | 9.2 | 2 | −13.9 | −2.9 | 0 |
+| 1 | **18.9** | 9.2 | 2 | −13.9 | −3.4 | 0 |
+
+- Carved off: 17.3 → 17.5. Only about 0.2 of the 0.7 LU shortfall closed, so it is **not** about 18. The residual 0.5 is the part this phase cannot fix: Remotion's 1/97 volume step (about 0.28 dB at the −22 dB gain) plus the voice measuring −20.13 LUFS in the render against the −20 the envelope assumed (0.13), plus about 0.1 left from the attack still landing a little after the envelope. I did not tune the look-ahead past the one frame you chose.
+- Carved on: 18.9, i.e. the carved bed sits about 1.4 LU further under the voice. That is on the safe side of the voice-first rule.
+- `bedOverVoiceWindows` is 0 for both and the closest window is 17.3 LU under the voice, so `music.voice_fight` did not fire.
+
+## 5. Needs a human decision or action
+
+- Redeploy the Remotion site before the first Lambda edit (`npm run remotion:deploy`).
+- Build the Docker image and run the import check before deploying; the Dockerfile change is untested.
+- Mount persistent storage for `spend.log` (or set `MUSIC_SPEND_LOG`) in production, so paid calls can be audited.
+- Confirm my reading of the pool-size rule (a cap on appending).
+- The 98 failing tests need an owner; none is from this phase.
+
 # Phase 2.3
 
 Branch: `bgm-phase-2`. Not pushed. Date: 2026-11-04.
