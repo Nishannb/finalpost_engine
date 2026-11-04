@@ -61,15 +61,20 @@ export function mixMeasureEnabled(env: NodeJS.ProcessEnv = process.env): boolean
 
 /**
  * MUSIC_CARVED_TWIN=1 plays the VO-carved bed (bed_carved.wav) under speech, crossfaded with the full bed.
- * Default OFF, placeholder only: T2 never measured a rendered mix, so there is no evidence the twin is free of a regression.
+ * Default OFF, whatever any measurement says. The carved bed changes tone (low end and the 2-4 kHz speech band), not loudness, so the
+ * mix measurement can only say "carved did not move the level" (see carvedDecision). Whether it sounds better is an ear decision:
+ * `render-blueprint --carved 0|1`.
  */
 export function carvedTwinEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   return env.MUSIC_CARVED_TWIN === '1';
 }
 
-/** MUSIC_MASTER_PASS=1 runs a local two-pass loudnorm (I=-14, TP=-1, LRA=11) on the finished MP4 audio after a local render. Default off. */
+/**
+ * Local renders run a two-pass loudnorm (I=-14, TP=-1, LRA=11) on the finished MP4 audio. Default ON: the unmastered mix lands near -22 LUFS.
+ * MUSIC_MASTER_PASS=0 is the off switch. Any other value, or unset, is on.
+ */
 export function masterPassEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.MUSIC_MASTER_PASS === '1';
+  return (env.MUSIC_MASTER_PASS ?? '').trim() !== '0';
 }
 
 export const MUSIC_CALLER_ENV ='MUSIC_SPECIALIST_CALLER';

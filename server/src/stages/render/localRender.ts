@@ -137,7 +137,7 @@ export async function renderLocally(input: {
       durationSec: input.style.trimEnabled ? blueprint.outputDurationSec : blueprint.sourceDurationSec,
       expectAudio,
     });
-    // MUSIC_MASTER_PASS=1 only: two-pass loudnorm on the final audio, video copied. A failure keeps the unmastered file and never fails the render.
+    // Default on (MUSIC_MASTER_PASS=0 turns it off): two-pass loudnorm on the final audio, video copied. A failure keeps the unmastered file and never fails the render.
     if (masterPassEnabled()) {
       try {
         const mastered = await masterPass(uploadPath);
@@ -145,6 +145,8 @@ export async function renderLocally(input: {
       } catch (error) {
         log.warn({renderJobId: input.renderJobId, reason: error instanceof Error ? error.message.slice(0, 300) : 'master_pass'}, 'music.master_pass_failed');
       }
+    } else {
+      log.info({renderJobId: input.renderJobId}, 'music.master_pass_off');
     }
     logMixCheck(log, blueprint);
     // MUSIC_MIX_MEASURE=1 only: bed-only and VO-only local stems, logged as music.mix_measured. Never fails the render.

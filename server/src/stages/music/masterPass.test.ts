@@ -10,10 +10,11 @@ import {buildPass2Filter, masterPass, parseLoudnormJson} from './masterPass.ts';
 const hasFfmpeg = spawnSync('ffmpeg', ['-version']).status === 0;
 
 describe('masterPassEnabled', () => {
-  it('is on only for 1', () => {
-    expect(masterPassEnabled({})).toBe(false);
-    expect(masterPassEnabled({MUSIC_MASTER_PASS: 'true'})).toBe(false);
+  it('is on by default and off only for 0', () => {
+    expect(masterPassEnabled({})).toBe(true);
+    expect(masterPassEnabled({MUSIC_MASTER_PASS: ''})).toBe(true);
     expect(masterPassEnabled({MUSIC_MASTER_PASS: '1'})).toBe(true);
+    expect(masterPassEnabled({MUSIC_MASTER_PASS: '0'})).toBe(false);
   });
 });
 
