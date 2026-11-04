@@ -5,6 +5,7 @@ import path from 'node:path';
 
 import {env} from '../../config/env.ts';
 import {stageLogger} from '../../lib/logger.ts';
+import {resolvePoolSize} from './flags.ts';
 import {r2Configured, sourceObjectExists, uploadPublicFile} from '../../storage/r2.ts';
 
 const log = stageLogger('music');
@@ -87,25 +88,37 @@ export type PoolPatch = Partial<Pick<PoolBed, 'full_url' | 'loop_url' | 'carved_
  * Pure. An existing cache key is patched in place (every original key kept, only defined patch
  * values written, no second element). A new cache key is appended with the patch applied.
  */
-export function mergePoolEntry(beds: readonly PoolBed[], entry: PoolBed, patch: PoolPatch = {}): {beds: PoolBed[]; changed: boolean} {
+export function mergePoolEntry(
+  beds: readonly PoolBed[],
+  entry: PoolBed,
+  patch: PoolPatch = {},
+  limits: {maxSize?: number; allowAppend?: boolean} = {},
+): {beds: PoolBed[]; changed: boolean; appended: boolean; skipped?: 'pool_full' | 'qc_failed'} {
   const defined = Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined)) as PoolPatch;
   const index = beds.findIndex(bed => bed.cache_key === entry.cache_key);
-  if (index < 0) return {beds: [...beds, {...entry, ...defined}], changed: true};
-  if (Object.keys(defined).length === 0) return {beds: [...beds], changed: false};
+  if (index < 0) {
+    // A new bed joins the pool only when it passed QC and the pool is under its size. Existing entries (the salvaged v2 bed included) are never removed or replaced.
+    if (limits.allowAppend === false) return {beds: [...beds], changed: false, appended: false, skipped: 'qc_failed'};
+    if (limits.maxSize !== undefined && beds.length >= limits.maxSize) return {beds: [...beds], changed: false, appended: false, skipped: 'pool_full'};
+    return {beds: [...beds, {...entry, ...defined}], changed: true, appended: true};
+  }
+  if (Object.keys(defined).length === 0) return {beds: [...beds], changed: false, appended: false};
   const current = beds[index];
-  if (!current) return {beds: [...beds], changed: false};
+  if (!current) return {beds: [...beds], changed: false, appended: false};
   const next = beds.map(bed => ({...bed}));
   next[index] = {...current, ...defined};
-  return {beds: next, changed: true};
+  return {beds: next, changed: true, appended: false};
 }
 
-async function appendToPool(mood: string, entry: PoolBed, dry: boolean, patch: PoolPatch = {}): Promise<void> {
+async function appendToPool(mood: string, entry: PoolBed, dry: boolean, patch: PoolPatch = {}, allowAppend = true): Promise<void> {
   const beds = await readPool(mood, dry);
-  const merged = mergePoolEntry(beds, entry, patch);
+  const merged = mergePoolEntry(beds, entry, patch, {maxSize: resolvePoolSize(), allowAppend});
+  if (merged.skipped) log.info({mood, size: beds.length, reason: merged.skipped, cache_key: entry.cache_key}, 'music.pool_not_appended');
   if (!merged.changed) return;
   const file = path.join(os.tmpdir(), `music-pool-${dry ? 'dry-' : ''}${moodSlug(mood)}.json`);
   await fs.writeFile(file, JSON.stringify({beds: merged.beds}));
   await uploadPublicFile(file, poolObjectKey(mood, dry), 'application/json');
+  if (merged.appended) log.info({mood, size: merged.beds.length, cache_key: entry.cache_key, dry}, 'music.pool_appended');
 }
 
 async function readExistingMeta(cacheKey: string, dry: boolean): Promise<Record<string, unknown>> {
@@ -181,7 +194,7 @@ export async function uploadBedDetailed(input: UploadBedInput): Promise<UploadBe
     integrated_lufs: num(meta.integrated_lufs ?? meta.lufs),
     duration_sec: num(meta.duration_sec),
     added_at: new Date().toISOString(),
-  }, dry, {...derived, ...(hasDerived ? {duration_sec: num(meta.duration_sec)} : {})});
+  }, dry, {...derived, ...(hasDerived ? {duration_sec: num(meta.duration_sec)} : {})}, meta.qc_passed !== false);
   return {url, ...(fullUrl ? {fullUrl} : {}), ...(loopUrl ? {loopUrl} : {}), ...(carvedUrl ? {carvedUrl} : {})};
 }
 

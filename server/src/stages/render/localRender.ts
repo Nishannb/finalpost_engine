@@ -29,6 +29,7 @@ import {resolveLutPath} from '../color/luts.ts';
 import {masterPassEnabled} from '../music/flags.ts';
 import {masterPass} from '../music/masterPass.ts';
 import {logMixCheck} from '../music/mixCheck.ts';
+import {logMusicSummary} from '../music/musicSummary.ts';
 import {runMixMeasure} from '../music/mixMeasure.ts';
 import {prefetchBlueprintMedia} from './prefetchAssets.ts';
 
@@ -138,9 +139,11 @@ export async function renderLocally(input: {
       expectAudio,
     });
     // Default on (MUSIC_MASTER_PASS=0 turns it off): two-pass loudnorm on the final audio, video copied. A failure keeps the unmastered file and never fails the render.
+    let masterResult: Awaited<ReturnType<typeof masterPass>> | null = null;
     if (masterPassEnabled()) {
       try {
         const mastered = await masterPass(uploadPath);
+        masterResult = mastered;
         log.info({renderJobId: input.renderJobId, ...mastered}, 'music.master_pass');
       } catch (error) {
         log.warn({renderJobId: input.renderJobId, reason: error instanceof Error ? error.message.slice(0, 300) : 'master_pass'}, 'music.master_pass_failed');
@@ -149,6 +152,7 @@ export async function renderLocally(input: {
       log.info({renderJobId: input.renderJobId}, 'music.master_pass_off');
     }
     logMixCheck(log, blueprint);
+    logMusicSummary(log, {renderJobId: input.renderJobId, blueprintId: blueprint.blueprintId, where: 'local', audioDesign: blueprint.audioDesign, master: masterResult});
     // MUSIC_MIX_MEASURE=1 only: bed-only and VO-only local stems, logged as music.mix_measured. Never fails the render.
     await runMixMeasure({
       renderJobId: input.renderJobId,

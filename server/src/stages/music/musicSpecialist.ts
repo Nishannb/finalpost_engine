@@ -46,6 +46,8 @@ export type MusicPlan = {
   promptVersion: number;
   postprocessVersion?: number;
   source: 'generated';
+  /** Why this plan is a fallback (a pool bed used because generation failed). Absent on a normal plan. */
+  fallbackReason?: string;
   /** True when the bed came from the mood pool (no generation, $0). */
   fromPool?: boolean;
   /** Public URL of the loop body. Unset until an upload provides one. */
@@ -178,7 +180,7 @@ function urlHost(url: string): string {
 async function failOpen(mood: string, reason: string, videoId: string): Promise<MusicPlan | null> {
   log.warn({reason}, 'music.fallback');
   const cached = await cachedMoodBed(mood, videoId).catch(() => null);
-  return cached ? poolPlan(cached, mood) : null;
+  return cached ? {...poolPlan(cached, mood), fallbackReason: reason} : null;
 }
 
 async function runMusicPlan(job: MusicJob): Promise<MusicPlan | null> {

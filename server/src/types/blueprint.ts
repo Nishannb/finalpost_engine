@@ -811,6 +811,15 @@ export type AudioDesign = {
   musicCarvedUrl?: string;
   /** Length of the full bed in seconds; where the loop file starts. */
   musicFullDurationSec?: number;
+  /** How the bed was obtained, for the music.summary log. Absent on older blueprints. */
+  musicProvenance?: {
+    source: 'licensed' | 'generated' | 'pool';
+    mood?: string;
+    costUsd?: number;
+    cacheKey?: string;
+    /** Set when the bed is a fallback (a pool bed used because generation failed). */
+    fallbackReason?: string;
+  };
   /** Speech-gated integrated loudness of the creator audio (LUFS). Absent on older blueprints. */
   voLufs?: number;
   /** Generated-bed envelope. Absent → MusicBedTrack keeps the legacy 0.18/0.04 gate. */
@@ -822,6 +831,8 @@ export type AudioDesign = {
     attackSec: number;
     holdSec: number;
     releaseSec: number;
+    /** Attack look-ahead in seconds. Absent on older blueprints (= 0, unchanged curve). */
+    leadSec?: number;
     phrases: Array<{start: number; end: number}>;
     durationSec: number;
     voLufs?: number;

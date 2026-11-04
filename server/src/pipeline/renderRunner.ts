@@ -13,7 +13,12 @@ import {audioExpectationFor, createInFlight, describeVerificationFailure, verify
 import {createWorkspace, downloadToFile} from '../lib/tempFiles.ts';
 import {designDiagnosticsFor} from '../lib/designTokens.ts';
 import {stageLogger} from '../lib/logger.ts';
+import {masterLambdaOutput} from '../stages/music/lambdaMaster.ts';
+import {masterPass} from '../stages/music/masterPass.ts';
 import {logMixCheck} from '../stages/music/mixCheck.ts';
+import {logMusicSummary} from '../stages/music/musicSummary.ts';
+import {assertRenderOutputValid} from '../lib/renderIntegrity.ts';
+import {uploadPublicFile} from '../storage/r2.ts';
 import {inspectOutput} from './experimentVerdict.ts';
 import {
   loadBlueprint,
@@ -203,10 +208,26 @@ export async function refreshRenderJob(job: RenderJob): Promise<RenderJob> {
           allowHosts: env.INGEST_ALLOWED_PRIVATE_HOSTS.split(',').map(item => item.trim()).filter(Boolean),
         },
       );
+      // Production audio parity: the same -14 LUFS / -1 dBTP master pass as a local render, on the finished Lambda MP4. The mastered copy goes to its
+      // own key and becomes the job's output; any failure keeps the verified Lambda URL (music.master_pass_failed) and the render still succeeds.
+      const mastered = await masterLambdaOutput(
+        {outputUrl: verifiedUrl, renderJobId: job.renderJobId, blueprintId: blueprint.blueprintId},
+        {
+          download: (url, destination) => downloadToFile(url, destination, {maxBytes: LAMBDA_VERIFY_MAX_BYTES, timeoutMs: LAMBDA_VERIFY_TIMEOUT_MS}),
+          master: masterPass,
+          verify: async file => {
+            assertRenderOutputValid(await inspectOutput(file), {width: blueprint.width, height: blueprint.height, durationSec: job.outputDurationSec, expectAudio: audio.expectAudio});
+          },
+          upload: (file, key) => uploadPublicFile(file, key, 'video/mp4'),
+          workspace: await createWorkspace('lambda-master'),
+        },
+      );
       job.status = 'done';
       job.progress = 1;
-      job.outputUrl = verifiedUrl;
+      job.outputUrl = mastered.url;
+      if (!mastered.mastered && mastered.reason && mastered.reason !== 'off') job.warnings = [...new Set([...(job.warnings ?? []), 'music:master_not_applied'])];
       logMixCheck(log, blueprint);
+      logMusicSummary(log, {renderJobId: job.renderJobId, blueprintId: blueprint.blueprintId, where: 'lambda', audioDesign: blueprint.audioDesign, master: mastered.master ?? null});
       if (audio.warnings.length > 0) {
         job.warnings = [...new Set([...(job.warnings ?? []), ...audio.warnings])];
       }

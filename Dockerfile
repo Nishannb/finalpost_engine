@@ -21,7 +21,7 @@ ENV NODE_ENV=production
 
 # ffmpeg/ffprobe are required by src/media/ffmpeg.ts for audio extraction.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ffmpeg python3 ca-certificates curl \
+  && apt-get install -y --no-install-recommends ffmpeg python3 python3-venv ca-certificates curl \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package.json ./
@@ -36,13 +36,21 @@ COPY --from=build /app/server/dist ./server/dist
 COPY subjectmatte/human_matting ./subjectmatte/human_matting
 COPY subjectmatte/vendor ./subjectmatte/vendor
 COPY subjectmatte/requirements-rvm.txt ./subjectmatte/requirements-rvm.txt
+# Music specialist (BGM): the server spawns `python -m music_specialist` from /app/agents (see agentsDir()) and measures the creator's voice loudness with it.
+# Without this block the image still serves pool beds (pure TypeScript) but cannot generate a bed for an empty mood and assumes -20 LUFS for the voice.
+# The mood map is read by prompts.py from its source path, so it is copied to the same place. Dependencies live in /app/agents/.venv, which resolvePython() prefers.
+COPY agents/music_specialist ./agents/music_specialist
+COPY server/src/stages/music/contentMoodMap.json ./server/src/stages/music/contentMoodMap.json
+RUN python3 -m venv /app/agents/.venv \
+  && /app/agents/.venv/bin/pip install --no-cache-dir pydub pyloudnorm numpy scipy librosa
 COPY captionkit_tmp/captionkit.py captionkit_tmp/presets.json ./captionkit_tmp/
 COPY captionkit_tmp/fonts ./captionkit_tmp/fonts
 ENV CAPTIONKIT_ROOT=/app/captionkit_tmp
 ENV CAPTIONKIT_PYTHON=python3
 
 # Scratch files land in /tmp; a tmpfs mount there keeps the image read-only.
-RUN useradd --create-home --uid 10001 engine
+RUN useradd --create-home --uid 10001 engine \
+  && chown -R engine /app/agents/music_specialist  # spend.log and the specialist's scratch files are written next to the code
 USER engine
 
 EXPOSE 8090

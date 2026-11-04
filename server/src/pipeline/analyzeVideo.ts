@@ -20,7 +20,8 @@ import {schedulePolishSfxHits} from '../lib/polishSfx.ts';
 import {applyCatalogToHits, loadSfxCatalog, sfxVoiceOffsetLu} from '../lib/sfxCatalog.ts';
 import {buildDuckEnvelope} from '../stages/music/duckEnvelope.ts';
 import {saveBlueprintForReplay} from '../stages/music/saveBlueprint.ts';
-import {resolveBedSource, resolveDuckPreset} from '../stages/music/flags.ts';
+import {nonPublicBedUrls} from '../stages/music/bedUrls.ts';
+import {resolveBedSource, resolveDuckPreset, resolveDuckReleaseSec} from '../stages/music/flags.ts';
 import {resolveMusicBed} from '../stages/music/resolveMusicBed.ts';
 import {agentsDir as musicAgentsDir, awaitMusicPlan} from '../stages/music/musicSpecialist.ts';
 import {measureVoLufs} from '../stages/music/measureVoLufs.ts';
@@ -2461,7 +2462,10 @@ async function analyzeVideoUnguarded(
         transitions: (broll.transitions ?? []).map(transition => ({at: transition.at, keyword: transition.keyword})),
         framedWindows,
         existing: audioDesign?.hits,
+        // Voice-first: a new edit never gets a hit right after a word onset. Saved blueprints are not rescheduled, so they keep their stored hits.
+        wordOnsetsSec: captionWords.map(word => word.start),
       });
+      if (scheduled.maskedByWord > 0) log.info({maskedByWord: scheduled.maskedByWord}, 'sfx.word_mask');
       if (scheduled.hits.length > 0) {
         audioDesign = {
           ducking: audioDesign?.ducking ?? true,
@@ -2498,9 +2502,26 @@ async function analyzeVideoUnguarded(
             }
             voLufs = measured ?? VO_LUFS_ASSUMED;
           }
-          duck = buildDuckEnvelope({words: captionWords, durationSec: timeline.outputDurationSec, preset, voLufs, bedLufs: resolved.integratedLufs});
+          duck = buildDuckEnvelope({words: captionWords, durationSec: timeline.outputDurationSec, preset, voLufs, bedLufs: resolved.integratedLufs, releaseSec: resolveDuckReleaseSec()});
         }
         audioDesign = toAudioDesign({existing: audioDesign, resolved, duck, mood: musicPlan?.mood, voLufs, ...playbackFromPlan(musicPlan)});
+        audioDesign = {
+          ...audioDesign,
+          musicProvenance: {
+            source: resolved.source === 'licensed' ? 'licensed' : musicPlan?.fromPool ? 'pool' : 'generated',
+            ...(musicPlan?.mood ? {mood: musicPlan.mood} : {}),
+            costUsd: resolved.source === 'licensed' ? 0 : musicPlan?.costUsd ?? 0,
+            ...(musicPlan?.cacheKey ? {cacheKey: musicPlan.cacheKey} : {}),
+            ...(musicPlan?.fallbackReason ? {fallbackReason: musicPlan.fallbackReason} : {}),
+          },
+        };
+        // Lambda fetches these over the network: a local path or non-HTTPS URL would render silence. Drop the bed instead.
+        const unreachable = nonPublicBedUrls(audioDesign);
+        if (unreachable.length > 0) {
+          log.warn({fields: unreachable.map(item => item.field)}, 'music.bed_url_not_public');
+          warnings.push('music:bed_url_not_public');
+          audioDesign = toAudioDesign({existing: audioDesign, resolved: null});
+        }
         warnings.push(resolved.source === 'licensed' ? 'polish_music:bed:env' : 'music:bed:generated');
       }
     }
