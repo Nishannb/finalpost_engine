@@ -21,6 +21,7 @@ import {applyCatalogToHits, loadSfxCatalog, sfxVoiceOffsetLu} from '../lib/sfxCa
 import type {MusicBrief, MusicFamily} from '../stages/music/musicBrief.ts';
 import {buildBedLoudnessTrack, loudnessCorrectionRange} from '../stages/music/bedLoudness.ts';
 import type {DuckEnvelope} from '../stages/music/duckEnvelope.ts';
+import {LOOP_THRESHOLD_SEC} from '../stages/music/loopBed.ts';
 import {planPlacement} from '../stages/music/personalize.ts';
 import {withPlacement, type Placement} from '../stages/music/placement.ts';
 import {snapHitsToBeats} from '../stages/music/sfxBeatSnap.ts';
@@ -2553,23 +2554,6 @@ async function analyzeVideoUnguarded(
           placementForSfx = planned.placement;
           placedBrief = planned.brief;
           audioDesign = withPlacement(audioDesign, planned.placement);
-          // Loudness-aware ducking: gain = (voice + offset) - the loudness of the bed section actually playing at that moment (after the offset, the carved
-          // crossfade and the loop hand-off). A bed without a loudness map gets no track and keeps the static gains.
-          let loudnessDuck: {minDb: number; maxDb: number} | undefined;
-          if (audioDesign.duck) {
-            const track = buildBedLoudnessTrack({
-              bed: musicPlan?.placement,
-              startOffsetSec: planned.placement.startOffsetSec,
-              loopFromSec: planned.placement.loopFromSec,
-              durationSec: timeline.outputDurationSec,
-              duck: audioDesign.duck as unknown as DuckEnvelope,
-              carved: Boolean(audioDesign.musicCarvedUrl),
-            });
-            if (track) {
-              audioDesign = {...audioDesign, duck: {...audioDesign.duck, bedLoudness: track}};
-              loudnessDuck = loudnessCorrectionRange(audioDesign.duck as unknown as DuckEnvelope) ?? undefined;
-            }
-          }
           audioDesign = {
             ...audioDesign,
             musicProvenance: {
@@ -2581,13 +2565,33 @@ async function analyzeVideoUnguarded(
               liftAtVideoSec: planned.placement.liftAtVideoSec,
               startsOnDownbeat: planned.placement.startsOnDownbeat,
               placementReason: planned.placement.reason,
-              ...(loudnessDuck ? {loudnessDuck} : {}),
             },
           };
           log.info(
             {videoId: musicVideoId, ...planned.placement, barLinesSec: undefined, beatsSec: undefined, bedStyle: musicPlan?.style, requestedArc: musicPlan?.arc, hookAtSec: planned.brief.hookAtSec},
             'music.placement',
           );
+        }
+        // Loudness-aware ducking (Phase 3.1), for every generated bed that has a per-bar loudness map, whether or not it was placed: gain = (voice + offset) -
+        // the loudness of the bed section actually playing at that moment (after the placement offset, the carved crossfade and the loop hand-off).
+        // Without placement the bed plays from 0 and the loop takes over at the end of the full bed on a long timeline, as MusicBedTrack does.
+        // A bed with no map (older) gets no track and keeps the static gains.
+        if (resolved.source === 'generated' && audioDesign.duck && !audioDesign.duck.bedLoudness) {
+          const placed = placementForSfx as Placement | null;
+          const legacyLoopFrom = timeline.outputDurationSec > LOOP_THRESHOLD_SEC && musicPlan?.placement?.hasLoop ? musicPlan.placement.fullDurationSec ?? null : null;
+          const track = buildBedLoudnessTrack({
+            bed: musicPlan?.placement,
+            startOffsetSec: placed?.startOffsetSec ?? 0,
+            loopFromSec: placed ? placed.loopFromSec : legacyLoopFrom,
+            durationSec: timeline.outputDurationSec,
+            duck: audioDesign.duck as unknown as DuckEnvelope,
+            carved: Boolean(audioDesign.musicCarvedUrl),
+          });
+          if (track) {
+            audioDesign = {...audioDesign, duck: {...audioDesign.duck, bedLoudness: track}};
+            const loudnessDuck = loudnessCorrectionRange(audioDesign.duck as unknown as DuckEnvelope);
+            if (loudnessDuck && audioDesign.musicProvenance) audioDesign = {...audioDesign, musicProvenance: {...audioDesign.musicProvenance, loudnessDuck}};
+          }
         }
         warnings.push(resolved.source === 'licensed' ? 'polish_music:bed:env' : 'music:bed:generated');
       }

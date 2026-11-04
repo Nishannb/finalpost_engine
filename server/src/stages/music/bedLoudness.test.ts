@@ -231,15 +231,27 @@ describe('where the loudness comes from', () => {
 });
 
 describe('wiring', () => {
-  it('analyzeVideo builds the track after placement, from the plan\'s loudness map, and only for a bed with one', async () => {
+  it('analyzeVideo builds the track for any generated bed with a map (placed or not), from the plan\'s loudness map, after placement', async () => {
     const {readFileSync} = await import('node:fs');
     const source = readFileSync(new URL('../../pipeline/analyzeVideo.ts', import.meta.url), 'utf8');
     const placement = source.indexOf('audioDesign = withPlacement(audioDesign, planned.placement);');
     const track = source.indexOf('const track = buildBedLoudnessTrack({');
     expect(placement).toBeGreaterThan(0);
     expect(track).toBeGreaterThan(placement);
+    expect(source).toContain("if (resolved.source === 'generated' && audioDesign.duck && !audioDesign.duck.bedLoudness) {");
     expect(source).toContain('bed: musicPlan?.placement,');
-    expect(source).toContain('loopFromSec: planned.placement.loopFromSec,');
+    expect(source).toContain('startOffsetSec: placed?.startOffsetSec ?? 0,');
+    expect(source).toContain('loopFromSec: placed ? placed.loopFromSec : legacyLoopFrom,');
     expect(source).toContain('if (track) {');
+    // not gated on MUSIC_PERSONALIZE: it is the voice-first fix
+    const block = source.slice(source.indexOf('// Loudness-aware ducking (Phase 3.1)'), track);
+    expect(block).not.toContain('personalizeEnabled');
+  });
+  it('without placement the loop takes over at the end of the full bed on a long timeline, as MusicBedTrack does', () => {
+    const meta = bed(-16, -16, {hasLoop: true, loopDurationSec: 8, loopBars: 4, loopLoudnessMap: [-13, -13, -13, -13]});
+    const track = buildBedLoudnessTrack({bed: meta, startOffsetSec: 0, loopFromSec: 58.5, durationSec: 75, duck: staticDuck(), carved: false})!;
+    const at = (t: number) => track.lufs[Math.round(t / track.stepSec)]!;
+    expect(at(50)).toBeCloseTo(-16, 0);
+    expect(at(70)).toBeCloseTo(-13, 0);
   });
 });

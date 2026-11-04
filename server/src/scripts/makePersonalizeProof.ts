@@ -19,7 +19,9 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 import {schedulePolishSfxHits} from '../lib/polishSfx.ts';
-import {buildDuckEnvelope} from '../stages/music/duckEnvelope.ts';
+import {buildBedLoudnessTrack} from '../stages/music/bedLoudness.ts';
+import {buildDuckEnvelope, type DuckEnvelope} from '../stages/music/duckEnvelope.ts';
+import {LOOP_THRESHOLD_SEC} from '../stages/music/loopBed.ts';
 import {buildMusicBrief, type MusicBrief} from '../stages/music/musicBrief.ts';
 import {planPlacement} from '../stages/music/personalize.ts';
 import {withPlacement, type Placement} from '../stages/music/placement.ts';
@@ -144,6 +146,10 @@ function makeBed(name: string, brief: MusicBrief): BedResult {
     hasLoop: raw.loop_fallback === false,
     loopDurationSec: raw.loop_duration_sec ?? null,
     loopBars: raw.loop_bars ?? null,
+    ...(Array.isArray(raw.loudness_map) && raw.loudness_map.length > 0 ? {loudnessMap: raw.loudness_map} : {}),
+    ...(Array.isArray(raw.carved_loudness_map) && raw.carved_loudness_map.length > 0 ? {carvedLoudnessMap: raw.carved_loudness_map} : {}),
+    ...(Array.isArray(raw.loop_loudness_map) && raw.loop_loudness_map.length > 0 ? {loopLoudnessMap: raw.loop_loudness_map} : {}),
+    ...(typeof raw.loop_lufs === 'number' ? {loopLufs: raw.loop_lufs} : {}),
   };
   const url = (file: string) => `staticFile:_proof-beds/${name}/${file}`;
   return {meta, files: {full: url('bed_full.wav'), loop: url('bed_loop.wav'), carved: url('bed_carved.wav')}, measuredBpm: raw.measured_bpm ?? null};
@@ -220,8 +226,14 @@ function writeScenario(scenario: Scenario): ProofPlan {
       blueprint: {...base.blueprint, ...common, blueprintId: `bp_pz_${scenario.name.replace(/-/g, '_')}_${mode}`, audioDesign},
     };
   };
+  // Loudness-aware ducking, built the way analyzeVideo builds it: on = after placement; off = the bed plays from 0 with the legacy loop hand-off.
+  const loudness = (startOffsetSec: number, loopFromSec: number | null): AudioDesign['duck'] => {
+    const track = buildBedLoudnessTrack({bed: bed.meta, startOffsetSec, loopFromSec, durationSec: scenario.durationSec, duck, carved: true});
+    return track ? {...duck, bedLoudness: track} : duck;
+  };
+  const legacyLoopFrom = scenario.durationSec > LOOP_THRESHOLD_SEC && bed.meta.hasLoop ? bed.meta.fullDurationSec : null;
   const onAudio: AudioDesign = {
-    ...withPlacement({...baseAudio, hits: snapped.hits}, planned.placement),
+    ...withPlacement({...baseAudio, hits: snapped.hits, duck: loudness(planned.placement.startOffsetSec, planned.placement.loopFromSec)}, planned.placement),
     musicProvenance: {
       source: 'generated', mood: planned.brief.style, costUsd: 0,
       brief: {style: planned.brief.style, family: planned.brief.family, bpm: planned.brief.bpm, key: planned.brief.key, speechWpm: planned.brief.speechWpm, arc: planned.brief.arc, energy: planned.brief.energy, hookAtSec: planned.brief.hookAtSec},
@@ -229,7 +241,7 @@ function writeScenario(scenario: Scenario): ProofPlan {
       placementReason: planned.placement.reason, sfxSnapped: snapped.stats.snapped, sfxDropped: snapped.stats.dropped,
     },
   };
-  const offAudio: AudioDesign = {...baseAudio, hits: scheduled.hits, musicProvenance: {source: 'generated', mood: planned.brief.family, costUsd: 0}};
+  const offAudio: AudioDesign = {...baseAudio, hits: scheduled.hits, duck: loudness(0, legacyLoopFrom), musicProvenance: {source: 'generated', mood: planned.brief.family, costUsd: 0}};
   writeFileSync(path.join(dir, 'on.json'), `${JSON.stringify(envelope('on', onAudio), null, 2)}\n`);
   writeFileSync(path.join(dir, 'off.json'), `${JSON.stringify(envelope('off', offAudio), null, 2)}\n`);
 
