@@ -28,6 +28,19 @@ export type PoolBed = {
   full_url?: string;
   loop_url?: string;
   carved_url?: string;
+  /** Phase 3: the style this bed was made for and its pool family, and the arc that was requested. */
+  style?: string;
+  family?: string;
+  arc?: string;
+  /** Phase 3: measured on the bed (postprocess v4). Absent on older entries, which are still placed (start 0, hold-and-fade end). */
+  measured_bpm?: number;
+  downbeat_times?: number[];
+  energy_map?: number[];
+  lift_sec?: number | null;
+  lift_bar?: number | null;
+  bar_sec?: number | null;
+  loop_duration_sec?: number;
+  loop_bars?: number;
 };
 
 /** Dry (synthetic click) beds live under their own prefix and never enter a real pool. */
@@ -60,6 +73,18 @@ export function pickPoolBed<T>(videoId: string, beds: readonly T[]): T | null {
   return beds[digest.readUInt32BE(0) % beds.length] ?? null;
 }
 
+/**
+ * The bed whose tempo is nearest the brief's. Ties (and beds with no tempo) go to the same hash(videoId) pick as before, so a re-render picks the same bed.
+ * Deterministic: the same video, brief and pool always give the same bed.
+ */
+export function pickNearestBpm(videoId: string, beds: readonly PoolBed[], targetBpm: number): PoolBed | null {
+  if (beds.length === 0) return null;
+  const distance = (bed: PoolBed) => (typeof bed.bpm === 'number' && bed.bpm > 0 ? Math.abs(bed.bpm - targetBpm) : Number.POSITIVE_INFINITY);
+  const best = Math.min(...beds.map(distance));
+  const tied = beds.filter(bed => distance(bed) === best);
+  return pickPoolBed(videoId, tied);
+}
+
 export async function findUploadedBed(cacheKey: string, dry = false): Promise<string | null> {
   if (!r2Configured()) return null;
   const key = bedObjectKey(cacheKey, dry);
@@ -82,7 +107,7 @@ export async function readPool(mood: string, dry = false): Promise<PoolBed[]> {
 }
 
 /** Keys a later upload may add to an existing pool entry. */
-export type PoolPatch = Partial<Pick<PoolBed, 'full_url' | 'loop_url' | 'carved_url' | 'duration_sec'>>;
+export type PoolPatch = Partial<Pick<PoolBed, 'full_url' | 'loop_url' | 'carved_url' | 'duration_sec' | 'style' | 'family' | 'arc' | 'measured_bpm' | 'downbeat_times' | 'energy_map' | 'lift_sec' | 'lift_bar' | 'bar_sec' | 'loop_duration_sec' | 'loop_bars'>>;
 
 /**
  * Pure. An existing cache key is patched in place (every original key kept, only defined patch
@@ -121,6 +146,10 @@ async function appendToPool(mood: string, entry: PoolBed, dry: boolean, patch: P
   if (merged.appended) log.info({mood, size: merged.beds.length, cache_key: entry.cache_key, dry}, 'music.pool_appended');
 }
 
+export async function readBedMeta(cacheKey: string, dry = false): Promise<Record<string, unknown>> {
+  return readExistingMeta(cacheKey, dry);
+}
+
 async function readExistingMeta(cacheKey: string, dry: boolean): Promise<Record<string, unknown>> {
   try {
     const response = await fetch(`${publicUrlForKey(`music/beds/${dry ? 'dry/' : ''}${cacheKey}/meta.json`)}?t=${Date.now()}`);
@@ -130,6 +159,28 @@ async function readExistingMeta(cacheKey: string, dry: boolean): Promise<Record<
   } catch {
     return {};
   }
+}
+
+/** The Phase 3 fields of a bed's meta, as pool-entry fields. Only what is present; an older bed gives {}. */
+export function placementPoolFields(meta: Record<string, unknown>): Partial<PoolBed> {
+  const num = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : undefined);
+  const nums = (value: unknown) => (Array.isArray(value) && value.every(item => typeof item === 'number') ? (value as number[]) : undefined);
+  const str = (value: unknown) => (typeof value === 'string' && value !== '' ? value : undefined);
+  const nullable = (value: unknown) => (value === null ? null : num(value));
+  const out: Partial<PoolBed> = {
+    style: str(meta.style),
+    family: str(meta.family),
+    arc: str(meta.arc),
+    measured_bpm: num(meta.measured_bpm),
+    downbeat_times: nums(meta.downbeat_times),
+    energy_map: nums(meta.energy_map),
+    lift_sec: nullable(meta.lift_sec),
+    lift_bar: nullable(meta.lift_bar),
+    bar_sec: nullable(meta.bar_sec),
+    loop_duration_sec: num(meta.loop_duration_sec),
+    loop_bars: num(meta.loop_bars),
+  };
+  return Object.fromEntries(Object.entries(out).filter(([, value]) => value !== undefined)) as Partial<PoolBed>;
 }
 
 export type UploadBedResult = {url: string; fullUrl?: string; loopUrl?: string; carvedUrl?: string};
@@ -194,6 +245,7 @@ export async function uploadBedDetailed(input: UploadBedInput): Promise<UploadBe
     integrated_lufs: num(meta.integrated_lufs ?? meta.lufs),
     duration_sec: num(meta.duration_sec),
     added_at: new Date().toISOString(),
+    ...placementPoolFields(meta),
   }, dry, {...derived, ...(hasDerived ? {duration_sec: num(meta.duration_sec)} : {})}, meta.qc_passed !== false);
   return {url, ...(fullUrl ? {fullUrl} : {}), ...(loopUrl ? {loopUrl} : {}), ...(carvedUrl ? {carvedUrl} : {})};
 }

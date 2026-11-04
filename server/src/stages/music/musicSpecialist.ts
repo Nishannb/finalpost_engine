@@ -19,7 +19,8 @@ import {musicResultSchema, type MusicResult} from './schema.ts';
 import {flushSpool, removeSpool, spoolDir, writeSpool} from './spool.ts';
 import type {MusicBrief} from './musicBrief.ts';
 import type {BedPlacementMeta} from './placementMeta.ts';
-import {cachedMoodBed, findUploadedBed, pickPoolBed, readPool, uploadBed, uploadBedDetailed, type PoolBed} from './uploadBed.ts';
+import {BRIEF_RULES} from './musicBrief.ts';
+import {findUploadedBed, pickNearestBpm, pickPoolBed, placementPoolFields, readBedMeta, readPool, uploadBed, uploadBedDetailed, type PoolBed} from './uploadBed.ts';
 
 const log = stageLogger('music');
 
@@ -193,6 +194,24 @@ export function poolPlan(bed: PoolBed, mood: string): MusicPlan {
     promptVersion: 0,
     source: 'generated',
     fromPool: true,
+    ...(bed.style ? {style: bed.style} : {}),
+    ...(bed.family ? {family: bed.family} : {}),
+    ...(bed.arc ? {arc: bed.arc} : {}),
+    ...(bed.downbeat_times && bed.downbeat_times.length > 0
+      ? {
+          placement: {
+            downbeatTimes: bed.downbeat_times,
+            energyMap: bed.energy_map ?? [],
+            liftSec: bed.lift_sec ?? null,
+            liftBar: bed.lift_bar ?? null,
+            barSec: bed.bar_sec ?? null,
+            fullDurationSec: bed.duration_sec ?? null,
+            loopDurationSec: bed.loop_duration_sec ?? null,
+            loopBars: bed.loop_bars ?? null,
+            hasLoop: Boolean(bed.loop_url) && Boolean(bed.loop_duration_sec),
+          },
+        }
+      : {}),
     ...(bed.full_url ? {fullUrl: bed.full_url} : {}),
     ...(bed.carved_url ? {carvedUrl: bed.carved_url} : {}),
     ...(bed.loop_url ? {loopUrl: bed.loop_url, ...(bed.duration_sec !== undefined ? {fullDurationSec: bed.duration_sec} : {})} : {}),
@@ -207,10 +226,33 @@ function urlHost(url: string): string {
   }
 }
 
-async function failOpen(mood: string, reason: string, videoId: string): Promise<MusicPlan | null> {
-  log.warn({reason}, 'music.fallback');
-  const cached = await cachedMoodBed(mood, videoId).catch(() => null);
-  return cached ? {...poolPlan(cached, mood), fallbackReason: reason} : null;
+/**
+ * Generation failed, timed out or missed the cost cap. Fallback order: the pool bed of the SAME STYLE with the nearest tempo; else the same FAMILY (the
+ * family pool and every style pool in that family), nearest tempo; else no bed. Logs music.fallback {reason, tier}. The salvaged bed lives in the family pool.
+ */
+export async function failOpen(poolKey: string, reason: string, videoId: string, brief?: MusicJob['brief']): Promise<MusicPlan | null> {
+  try {
+    const target = brief?.bpm ?? 0;
+    const pick = (beds: readonly PoolBed[]) => (target > 0 ? pickNearestBpm(videoId, beds, target) : pickPoolBed(videoId, beds));
+    const styleBed = pick(await readPool(poolKey).catch(() => []));
+    if (styleBed) {
+      log.warn({reason, tier: 'style', style: poolKey}, 'music.fallback');
+      return {...poolPlan(styleBed, poolKey), fallbackReason: reason, fallbackTier: 'style'};
+    }
+    const family = brief?.family ?? poolKey;
+    const familyPools = [family, ...Object.entries(BRIEF_RULES.styles).filter(([name, rule]) => rule.family === family && name !== poolKey).map(([name]) => name)];
+    const familyBeds: PoolBed[] = [];
+    for (const name of familyPools) familyBeds.push(...(await readPool(name).catch(() => [])));
+    const familyBed = pick(familyBeds);
+    if (familyBed) {
+      log.warn({reason, tier: 'family', family}, 'music.fallback');
+      return {...poolPlan(familyBed, familyBed.style ?? family), fallbackReason: reason, fallbackTier: 'family'};
+    }
+  } catch {
+    // fail open: no bed
+  }
+  log.warn({reason, tier: 'none'}, 'music.fallback');
+  return null;
 }
 
 async function runMusicPlan(job: MusicJob): Promise<MusicPlan | null> {
@@ -222,7 +264,9 @@ async function runMusicPlan(job: MusicJob): Promise<MusicPlan | null> {
   if (bedSource === 'off' || bedSource === 'licensed') return null;
   if (bedSource === 'auto' && licensedSet) return null;
   const videoId = job.video_id ?? '';
-  const mood = resolveMoodPool(job.emotional_tone || 'neutral');
+  // Personalised: pools are keyed by the brief's STYLE. Without a brief it is the family mood, as before.
+  const brief = job.brief;
+  const mood = brief?.style ?? resolveMoodPool(job.emotional_tone || 'neutral');
   const spawnMode = buildSpawnSpec(decision.mode).mode;
   const dry = spawnMode !== 'live';
   const fresh = bedFresh();
@@ -238,9 +282,10 @@ async function runMusicPlan(job: MusicJob): Promise<MusicPlan | null> {
     }
     // Pool first: a mood with a bed never spawns Python. Dry reads the real pool too; dry writes go to a separate prefix.
     if (!fresh) {
-      const picked = pickPoolBed(videoId, await readPool(mood));
+      const beds = await readPool(mood);
+      const picked = brief ? pickNearestBpm(videoId, beds, brief.bpm) : pickPoolBed(videoId, beds);
       if (picked) {
-        log.info({mood, cache_key: picked.cache_key, host: urlHost(picked.url), cost_usd: 0, video_id: videoId}, 'music.pool_hit');
+        log.info({mood, cache_key: picked.cache_key, host: urlHost(picked.url), cost_usd: 0, video_id: videoId, ...(brief ? {bedBpm: picked.bpm, wantedBpm: brief.bpm} : {})}, 'music.pool_hit');
         return poolPlan(picked, mood);
       }
     }
@@ -248,14 +293,17 @@ async function runMusicPlan(job: MusicJob): Promise<MusicPlan | null> {
     const jobWithSfx = {...job, include_sfx: job.include_sfx ?? sfxEnabled()};
     const plan = await spawnMusic('plan', jobWithSfx);
     const estimate = plan.estimated_cost_usd ?? 0.0075;
-    if (estimate > resolveMaxUsd()) return failOpen(mood, 'cost_cap', videoId);
+    if (estimate > resolveMaxUsd()) return failOpen(mood, 'cost_cap', videoId, brief);
     const cached = await findUploadedBed(plan.cache_key, dry);
     if (cached) {
       log.info({cache_key: plan.cache_key, cost_usd: 0}, 'music.cache_hit');
-      return toPlan(plan, cached);
+      // Re-rendering the same video costs $0 and still gets the full bed, the loop, the carved twin and the measured placement from the stored meta.json.
+      const meta = await readBedMeta(plan.cache_key, dry).catch(() => ({} as Record<string, unknown>));
+      const fromMeta = poolPlan({cache_key: plan.cache_key, url: cached, ...(typeof meta.full_url === 'string' ? {full_url: meta.full_url} : {}), ...(typeof meta.loop_url === 'string' ? {loop_url: meta.loop_url} : {}), ...(typeof meta.carved_url === 'string' ? {carved_url: meta.carved_url} : {}), ...(typeof meta.duration_sec === 'number' ? {duration_sec: meta.duration_sec} : {}), ...placementPoolFields(meta)}, mood);
+      return {...toPlan(plan, cached), ...(fromMeta.fullUrl ? {fullUrl: fromMeta.fullUrl} : {}), ...(fromMeta.loopUrl ? {loopUrl: fromMeta.loopUrl, ...(fromMeta.fullDurationSec ? {fullDurationSec: fromMeta.fullDurationSec} : {})} : {}), ...(fromMeta.carvedUrl ? {carvedUrl: fromMeta.carvedUrl} : {}), ...(fromMeta.placement ? {placement: fromMeta.placement} : {})};
     }
     const generated = await spawnMusic(decision.mode, {...jobWithSfx, seed: plan.seed});
-    if (!generated.bed_path) return failOpen(mood, 'no_bed', videoId);
+    if (!generated.bed_path) return failOpen(mood, 'no_bed', videoId, brief);
     let uploaded: Awaited<ReturnType<typeof uploadBedDetailed>>;
     const uploadMeta = {
       prompt: generated.caption,
@@ -276,6 +324,18 @@ async function runMusicPlan(job: MusicJob): Promise<MusicPlan | null> {
       qc_seam_db: generated.qc_seam_db,
       qc_vocal_score: generated.qc_vocal_score,
       qc_speech_band: generated.qc_speech_band,
+      // Phase 3: what the brief asked for and what was measured on the bed. Placement reads the measured numbers, never the requested arc.
+      style: generated.style ?? undefined,
+      family: generated.family,
+      arc: generated.arc ?? undefined,
+      measured_bpm: generated.measured_bpm ?? undefined,
+      downbeat_times: generated.downbeat_times,
+      energy_map: generated.energy_map,
+      lift_bar: generated.lift_bar,
+      lift_sec: generated.lift_sec,
+      bar_sec: generated.bar_sec,
+      loop_duration_sec: generated.loop_duration_sec,
+      loop_bars: generated.loop_bars,
     };
     const spoolRoot = spoolDir();
     try {
@@ -298,7 +358,7 @@ async function runMusicPlan(job: MusicJob): Promise<MusicPlan | null> {
       await removeSpool(spoolRoot, generated.cache_key).catch(() => undefined);
     } catch (error) {
       const reason = error instanceof Error && error.message === 'r2_unconfigured' ? 'r2_unconfigured' : 'upload';
-      return failOpen(mood, reason, videoId);
+      return failOpen(mood, reason, videoId, brief);
     }
     log.info({cost_usd: generated.cost_usd ?? 0, cache_key: generated.cache_key, bpm: generated.bpm, seed: generated.seed}, 'music.generated');
     const plan2 = toPlan(generated, uploaded.url);
@@ -311,7 +371,7 @@ async function runMusicPlan(job: MusicJob): Promise<MusicPlan | null> {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const reason = /timeout|SIGKILL|exited null/i.test(message) ? 'timeout' : 'spawn';
-    return failOpen(mood, reason, videoId);
+    return failOpen(mood, reason, videoId, brief);
   }
 }
 
