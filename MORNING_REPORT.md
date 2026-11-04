@@ -1,3 +1,83 @@
+# Phase 2.2
+
+Branch: `bgm-phase-2`. Not pushed. Date: 2026-11-04.
+
+## 1. Spend proof
+
+- `agents/music_specialist/spend.log`: absent at the start, absent at the end (0 lines, unchanged).
+- Runware calls: 0. LLM calls: 0. Lambda renders: 0. R2 writes: 0. Only local Remotion, ffmpeg, Python and `render-blueprint` were run.
+
+## 2. Per task
+
+### 1. Honest pause measurement
+- Status: done.
+- `pauseGapLu` is now `pauseGapLuAll` (whole window) plus `pauseGapLuSettled` (only where the envelope has reached the pause gain: from `phrase.end + hold + release` to `next.start − attack`, 20 ms guard each side, at least 0.3 s). `settledPauseCount` and `settledPauseSec` are logged in `music.mix_measured`, along with a per-pause table (`pauses`).
+- Files: `server/src/stages/music/mixMeasure.ts` (+ test), `agents/music_specialist/vo_lufs.py`, `tests/test_mix_measure.py`.
+- Tests: synthetic 2 s pause with the real hold/release/attack: settled gap 9 ± 1 LU (passes); the whole-window gap reads higher, because the ramps run quieter than the pause gain.
+- Gate: pyloudnorm needs at least 0.6 s of settled audio in total. Below that `pauseGapLuSettled` is `null` rather than a made-up number.
+- **Found while doing this:** `MusicMixProbe` played the bare `musicUrl`, so it never played the loop or carved twin. The Phase 2.1 "carved changes nothing" reading came partly from that. The probe now takes the real bed fields (`bedSpec`: full, loop, carved, full duration, source). `MusicMixProbe.tsx` only; ShortVideo untouched.
+
+### 2. Does the envelope do what the preset says
+- Status: done. Defaults unchanged (hold 150 ms, release 450 ms).
+- Added `--hold-ms` and `--release-ms` to `render-blueprint` (they rebuild the duck; the stored hold/release are what Remotion evaluates, so no Remotion change). Output file names now carry `-r<release>`.
+- Fixture pauses (the 5 that qualify as pause windows, ≥ 0.6 s): 0.84, 0.64, 1.04, 0.74, 0.94 s.
+  - release 450 / hold 150: **1 of 5 settles** (1.04 s, settled 0.32 s).
+  - release 300 / hold 150: **2 of 5** (1.04 s, 0.94 s; 0.84 s settled total).
+  - release 300 / hold 100: 3 of 5 (computed only, not rendered).
+- The fixture's pauses are synthetic (0.6–1.0 s), so this tells you the mechanism, not your real edit. Almost every pause under about 1.0 s never reaches the pause gain at 450 ms release.
+- **Proposed change (not applied): release 300 ms.** Hold stays 150 ms for now. Decide by ear with the A/B below.
+
+### 3. Carved-twin decision
+- Status: done. `carvedDecision(carved0, carved1)` in `mixMeasure.ts` (tested). Carved is allowed only when speech gap and settled pause gap are each within 1 LU of carved=0. It needs both numbers, so it is "not allowed" when the settled pause gap is missing.
+- On the numbers below (release 300): speech +1.4 LU, settled pause 0.0 LU. The speech shift is outside 1 LU, so the rule says **not allowed**. That is a loudness check only: carved moves the speech-band balance, not just the level.
+- `MUSIC_CARVED_TWIN` stays **off by default**. Decide by ear: `render-blueprint --carved 0|1`.
+
+### 4. Master pass default
+- Status: done. `masterPassEnabled` is on unless `MUSIC_MASTER_PASS=0`. `render-blueprint --master` now defaults to 1. `music.master_pass` (before/after LUFS and true peak) logs on every render; `music.master_pass_off` when it is off.
+- Files: `flags.ts`, `masterPass.test.ts`, `localRender.ts`, `.env.example`.
+- Old blueprints: the proof fixture is a Phase 2.1 blueprint with no hold/release fields. It renders unchanged apart from the mastered loudness (about −22 → −14 LUFS).
+
+### 5. Re-run of the synthetic proof
+All four renders: master on, measure on, same fixture, salvaged bed.
+
+| carved | release | speech gap | pause gap (all) | pause gap (settled) | settled pauses | final LUFS | true peak | before master |
+|---|---|---|---|---|---|---|---|---|
+| 0 | 450 | 17.3 | 12.4 | null (0.32 s, too short to gate) | 1 | −13.9 | −2.7 | −22.0 / −11.1 |
+| 0 | 300 | 17.3 | 11.3 | **9.1** | 2 (0.84 s) | −13.9 | −2.8 | −22.1 / −11.1 |
+| 1 | 450 | 18.7 | 13.2 | null (0.32 s) | 1 | −13.9 | −3.1 | −21.9 / −11.1 |
+| 1 | 300 | 18.7 | 11.8 | **9.1** | 2 (0.84 s) | −14.0 | −2.7 | −22.1 / −11.1 |
+
+Reading: the 12.4 was the ramps, not the carved twin. At release 300 the settled gap is 9.1 against the intended 9. Speech gap is 17.3, not 18: there is a 0.7 LU shortfall in speech that I have not explained. The carved twin now shows up in the speech gap (+1.4 LU).
+
+Commits: `6b7f1ff` (tasks 1–3), `4c1be67` (task 4). Task 5 and this report: the commit that follows.
+
+## 3. Checks
+- pytest `music_specialist/tests`: 42 passed. Server vitest (music, scripts, render): 131 passed. Server `tsc --noEmit`: clean. Remotion `tsc`: only the 3 known errors in `ShortVideo.tsx`.
+
+## 4. Commands for your real edit (A/B by ear)
+Use your saved blueprint path for `<bp>`. Each run writes `out/renders/…mp4`; master is on by default.
+
+```
+# speech offset
+npm run render-blueprint -- <bp> --speech-offset -16
+npm run render-blueprint -- <bp> --speech-offset -18
+npm run render-blueprint -- <bp> --speech-offset -20
+
+# carved twin
+npm run render-blueprint -- <bp> --carved 0
+npm run render-blueprint -- <bp> --carved 1
+
+# release
+npm run render-blueprint -- <bp> --release-ms 450
+npm run render-blueprint -- <bp> --release-ms 300
+```
+Add `--measure 1` to any of them for the numbers (`music.mix_measured` in `logs/engine.log`). `--master 0` turns the master pass off.
+
+## 5. Needs a human decision
+- Release 450 vs 300 ms (proposed 300), by ear.
+- Carved on or off, by ear. The loudness rule alone says no on the fixture because of the 1.4 LU speech shift.
+- The 0.7 LU speech-gap shortfall (17.3 vs 18): not investigated; probably bed LUFS and the speech-window average, not the envelope.
+
 # Phase 2.1
 
 Branch: `bgm-phase-2`. Not pushed.
