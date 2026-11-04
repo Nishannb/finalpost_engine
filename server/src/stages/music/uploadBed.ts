@@ -41,6 +41,11 @@ export type PoolBed = {
   bar_sec?: number | null;
   loop_duration_sec?: number;
   loop_bars?: number;
+  /** Phase 3.1: short-term LUFS per bar of the full bed, the carved twin and the loop body. */
+  loudness_map?: number[];
+  carved_loudness_map?: number[];
+  loop_loudness_map?: number[];
+  loop_lufs?: number;
 };
 
 /** Dry (synthetic click) beds live under their own prefix and never enter a real pool. */
@@ -107,7 +112,7 @@ export async function readPool(mood: string, dry = false): Promise<PoolBed[]> {
 }
 
 /** Keys a later upload may add to an existing pool entry. */
-export type PoolPatch = Partial<Pick<PoolBed, 'full_url' | 'loop_url' | 'carved_url' | 'duration_sec' | 'style' | 'family' | 'arc' | 'measured_bpm' | 'downbeat_times' | 'energy_map' | 'lift_sec' | 'lift_bar' | 'bar_sec' | 'loop_duration_sec' | 'loop_bars'>>;
+export type PoolPatch = Partial<Pick<PoolBed, 'full_url' | 'loop_url' | 'carved_url' | 'duration_sec' | 'style' | 'family' | 'arc' | 'measured_bpm' | 'downbeat_times' | 'energy_map' | 'lift_sec' | 'lift_bar' | 'bar_sec' | 'loop_duration_sec' | 'loop_bars' | 'loudness_map' | 'carved_loudness_map' | 'loop_loudness_map' | 'loop_lufs'>>;
 
 /**
  * Pure. An existing cache key is patched in place (every original key kept, only defined patch
@@ -179,6 +184,10 @@ export function placementPoolFields(meta: Record<string, unknown>): Partial<Pool
     bar_sec: nullable(meta.bar_sec),
     loop_duration_sec: num(meta.loop_duration_sec),
     loop_bars: num(meta.loop_bars),
+    loudness_map: nums(meta.loudness_map),
+    carved_loudness_map: nums(meta.carved_loudness_map),
+    loop_loudness_map: nums(meta.loop_loudness_map),
+    loop_lufs: num(meta.loop_lufs),
   };
   return Object.fromEntries(Object.entries(out).filter(([, value]) => value !== undefined)) as Partial<PoolBed>;
 }

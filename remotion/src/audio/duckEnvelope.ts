@@ -9,6 +9,8 @@
 
 export type DuckPresetName = 'talking' | 'default' | 'legacy_brief';
 
+export type BedLoudnessTrack = {stepSec: number; lufs: number[]};
+
 export type DuckPhrase = {start: number; end: number};
 
 export type DuckEnvelope = {
@@ -21,6 +23,11 @@ export type DuckEnvelope = {
   releaseSec: number;
   /** Look-ahead: the attack ends this many seconds before the phrase onset. Absent (older blueprints) = 0, the old curve exactly. */
   leadSec?: number;
+  /**
+   * Loudness-aware ducking (Phase 3.1). Smoothed LUFS of the bed section that is actually playing, sampled every stepSec from video t=0 (after the placement
+   * offset, the carved crossfade and the loop hand-off). Absent (older blueprints, beds without a loudness map) = no correction: the gains are the static ones.
+   */
+  bedLoudness?: BedLoudnessTrack;
   phrases: DuckPhrase[];
   durationSec: number;
   voLufs?: number;
@@ -82,8 +89,8 @@ function regionDb(envelope: DuckEnvelope, timeSec: number): number {
   return speechDb;
 }
 
-/** dB at a timeline second. The attack is a straight ramp that ends leadSec before the word. */
-export function duckDbAt(envelope: DuckEnvelope, timeSec: number): number {
+/** The static curve at a timeline second: regions, hold, release and the look-ahead attack, with no loudness correction. The carved crossfade reads this. */
+export function duckBaseDbAt(envelope: DuckEnvelope, timeSec: number): number {
   const t = Math.min(Math.max(timeSec, 0), Math.max(envelope.durationSec, 0));
   // leadSec (absent on older blueprints = 0): the attack finishes this long BEFORE the word, so the dip is complete when the word starts.
   const lead = envelope.leadSec ?? 0;
@@ -97,6 +104,44 @@ export function duckDbAt(envelope: DuckEnvelope, timeSec: number): number {
     if (lead > 0 && t >= attackEnd && t < phrase.start) return envelope.speechDb;
   }
   return regionDb(envelope, t);
+}
+
+
+/** Never boost above the static gain by more than this: a near-silent intro is not pumped up. */
+export const DUCK_LOUDNESS_MAX_BOOST_DB = 6;
+/** The loudness the static gains assume for the bed (the postprocess target). */
+export const DUCK_ASSUMED_BED_LUFS = -16;
+const GAIN_FLOOR_DB = -40;
+
+/** Linear interpolation of the loudness track at a video time (held at the ends). */
+export function bedLoudnessAt(track: BedLoudnessTrack, timeSec: number): number {
+  const {lufs, stepSec} = track;
+  if (lufs.length === 0) return DUCK_ASSUMED_BED_LUFS;
+  const position = Math.max(0, timeSec) / stepSec;
+  const i = Math.floor(position);
+  if (i >= lufs.length - 1) return lufs[lufs.length - 1]!;
+  return lerp(lufs[i]!, lufs[i + 1]!, position - i);
+}
+
+/**
+ * dB added to the static gain so the bed lands where the preset says whatever section of it is playing: (static assumed bed loudness) - (bed loudness now),
+ * at most +DUCK_LOUDNESS_MAX_BOOST_DB. 0 for any envelope without a track, and for every preset except `talking`.
+ */
+export function loudnessCorrectionDb(envelope: DuckEnvelope, timeSec: number): number {
+  const track = envelope.bedLoudness;
+  if (!track || track.lufs.length === 0 || envelope.preset !== 'talking') return 0;
+  return Math.min(DUCK_LOUDNESS_MAX_BOOST_DB, (envelope.bedLufs ?? DUCK_ASSUMED_BED_LUFS) - bedLoudnessAt(track, timeSec));
+}
+
+/**
+ * dB at a timeline second: the static curve plus the loudness correction, clamped to [-40, 0]. Attack, hold, release and look-ahead are the static curve's.
+ * With no loudness track this is exactly duckBaseDbAt (older blueprints are unchanged).
+ */
+export function duckDbAt(envelope: DuckEnvelope, timeSec: number): number {
+  const base = duckBaseDbAt(envelope, timeSec);
+  if (!envelope.bedLoudness) return base;
+  const t = Math.min(Math.max(timeSec, 0), Math.max(envelope.durationSec, 0));
+  return Math.min(0, Math.max(GAIN_FLOOR_DB, base + loudnessCorrectionDb(envelope, t)));
 }
 
 export function duckLinearGainAt(envelope: DuckEnvelope, timeSec: number): number {

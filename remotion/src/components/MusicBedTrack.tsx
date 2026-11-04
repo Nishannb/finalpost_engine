@@ -6,12 +6,12 @@
 import React from 'react';
 import {AbsoluteFill, Audio, Sequence, useCurrentFrame, useVideoConfig} from 'remotion';
 
-import {duckDbAt, duckLinearGainAt, type DuckEnvelope} from '../audio/duckEnvelope';
+import {duckBaseDbAt, duckLinearGainAt, type DuckEnvelope} from '../audio/duckEnvelope';
 import {placementGainAt} from '../audio/placementGain';
 import {resolveMediaSrc} from '../lib/mediaSrc';
 
 /**
- * Full bed (0) ↔ VO-carved bed (1) from the stored duck envelope.
+ * Full bed (0) ↔ VO-carved bed (1) from the stored duck envelope. Reads the STATIC curve (duckBaseDbAt): the loudness correction moves the level, not the mix.
  * PARITY: identical to server/src/stages/music/carvedMix.ts (tested there). Pause and open → 0, speech → 1.
  */
 export function carvedMix(duckDb: number, speechDb: number, openDb: number, pauseDb?: number): number {
@@ -105,7 +105,7 @@ export const MusicBedTrack: React.FC<{
     const timeSec = globalFrame / fps;
     const base = volumeAt(globalFrame) * placementGainAt(timeSec, bed.musicEndSec, bed.musicEndFadeSec);
     const carvedSrc = bed.musicCarvedUrl && duck ? resolveMediaSrc(bed.musicCarvedUrl) : null;
-    const gains = carvedSrc && duck ? carvedGains(carvedMix(duckDbAt(duck, timeSec), duck.speechDb, duck.openDb, duck.pauseDb)) : {full: 1, carved: 0};
+    const gains = carvedSrc && duck ? carvedGains(carvedMix(duckBaseDbAt(duck, timeSec), duck.speechDb, duck.openDb, duck.pauseDb)) : {full: 1, carved: 0};
     const loopFrom = bed.musicLoopFromSec !== undefined && bed.musicLoopUrl ? Math.max(1, Math.round(bed.musicLoopFromSec * fps)) : null;
     const headFrames = loopFrom !== null ? Math.min(loopFrom, durationInFrames) : durationInFrames;
     return (
@@ -131,7 +131,7 @@ export const MusicBedTrack: React.FC<{
     const globalVolume = () => volumeAt(globalFrame);
     // Carved twin: only the full bed has a carved file, so the loop body stays uncarved.
     if (bed.musicCarvedUrl && duck) {
-      const mix = carvedMix(duckDbAt(duck, globalFrame / fps), duck.speechDb, duck.openDb, duck.pauseDb);
+      const mix = carvedMix(duckBaseDbAt(duck, globalFrame / fps), duck.speechDb, duck.openDb, duck.pauseDb);
       const gains = carvedGains(mix);
       const base = volumeAt(globalFrame);
       const twin = (
@@ -186,7 +186,7 @@ export const MusicBedTrack: React.FC<{
   if (bed.musicCarvedUrl && duck) {
     // Non-split path (pool hits, beds without a loop body): crossfade full and carved twins.
     const gainsAt = (frame: number) => {
-      const mix = carvedMix(duckDbAt(duck, frame / fps), duck.speechDb, duck.openDb, duck.pauseDb);
+      const mix = carvedMix(duckBaseDbAt(duck, frame / fps), duck.speechDb, duck.openDb, duck.pauseDb);
       return carvedGains(mix);
     };
     return (

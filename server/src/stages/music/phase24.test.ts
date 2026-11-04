@@ -202,6 +202,7 @@ describe('music.summary', () => {
       // Phase 3 fields are null for a blueprint with no brief or placement
       style: null, bedStyle: null, family: null, bpm: null, key: null, speechWpm: null, arc: null, measuredLiftSec: null, liftAtVideoSec: null, hookAtSec: null,
       startOffsetSec: null, startsOnDownbeat: null, placementScore: null, endType: null, fallbackTier: null, sfxSnapped: null, sfxDropped: null,
+      loudnessAware: false, loudnessCorrectionDb: null,
     });
   });
   it('shows a generation cost, a fallback reason, carved off and no master', () => {
@@ -224,12 +225,14 @@ describe('music.summary', () => {
       musicProvenance: {
         source: 'generated', mood: 'driving-electronic', costUsd: 0.0075, fallbackTier: 'style',
         brief: {style: 'driving-electronic', family: 'high-energy', bpm: 128, key: 'A minor', speechWpm: 184, arc: 'hook-then-steady', energy: 'high', hookAtSec: 2.5},
-        bedStyle: 'upbeat-pop', bedMeasuredLiftSec: 16.5, liftAtVideoSec: 2, startsOnDownbeat: true, sfxSnapped: 3, sfxDropped: 1,
+        bedStyle: 'upbeat-pop', bedMeasuredLiftSec: 16.5, liftAtVideoSec: 2, startsOnDownbeat: true, sfxSnapped: 3, sfxDropped: 1, loudnessDuck: {minDb: -2.5, maxDb: 3.5},
       },
+      duck: {...audio.duck!, bedLoudness: {stepSec: 0.1, lufs: [-16, -17]}},
     };
     expect(buildMusicSummary({audioDesign: personalised, env: {}})).toMatchObject({
       source: 'generated', costUsd: 0.0075, style: 'driving-electronic', bedStyle: 'upbeat-pop', family: 'high-energy', bpm: 128, key: 'A minor', speechWpm: 184, arc: 'hook-then-steady',
       measuredLiftSec: 16.5, liftAtVideoSec: 2, hookAtSec: 2.5, startOffsetSec: 14.5, startsOnDownbeat: true, placementScore: 0.83, endType: 'button', fallbackTier: 'style', sfxSnapped: 3, sfxDropped: 1,
+      loudnessAware: true, loudnessCorrectionDb: {minDb: -2.5, maxDb: 3.5},
     });
   });
   it('no bed means source none with a reason; an old blueprint without provenance still summarizes', () => {

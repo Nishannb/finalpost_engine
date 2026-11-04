@@ -910,6 +910,7 @@ export const timelineBlueprintSchema = z.object({
         holdSec: z.number(),
         releaseSec: z.number(),
         leadSec: z.number().optional(),
+        bedLoudness: z.object({stepSec: z.number().positive(), lufs: z.array(z.number())}).optional(),
         phrases: z.array(z.object({start: z.number(), end: z.number()})),
         durationSec: z.number(),
         voLufs: z.number().optional(),

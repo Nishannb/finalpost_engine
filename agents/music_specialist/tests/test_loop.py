@@ -23,14 +23,14 @@ def _rms(x: np.ndarray) -> float:
 
 
 def test_version_is_three():
-    assert POSTPROCESS_VERSION == 4
+    assert POSTPROCESS_VERSION == 5
 
 
 def test_click_bed_writes_both_files(tmp_path):
     raw = str(tmp_path / "raw.wav")
     write_click_bed(raw, 120)
     out = postprocess_bed(raw, str(tmp_path / "w" / "bed.wav"))
-    assert out["postprocess_version"] == 4
+    assert out["postprocess_version"] == 5
     for name in ("bed.wav", "bed_full.wav", "bed_loop.wav"):
         assert (tmp_path / "w" / name).exists()
     if out["loop_fallback"]:  # beat_track may fail on a pure click bed; that is allowed

@@ -45,7 +45,19 @@ Remotion rounds every volume to a multiple of 1/97, so a bed or SFX level can la
 - **Arc** is requested, then measured: under 25 s `hook-then-steady`, 25 to 60 s `build` (unless low energy), longer or low energy `steady`, sent as section tags in `settings.lyrics`. Placement never trusts the request: postprocess measures a per-bar energy map and the lift bar on the bed itself.
 - **Placement** (`placement.ts`): frame 0 lands on a bed downbeat. Candidates are scored 3.0 for the lift landing near the hook, 1.5 for the bed's energy following the video's intensity, 0.5 for a quiet intro bar, 0.2 for covering the video without a hand-off. The ending is the last bar line (a 120 ms fade, then silence) or, if that is more than 1.5 s early, a hold with a 400 ms fade. The loop hand-off is on a bar line.
 - **SFX** snap to the nearest beat within 60 ms; the 120 ms word mask always wins; with a catalog `hook` entry a hit plays on frame 0, with a `cta` entry on the bar line nearest the CTA. Cap and spacing hold.
-- **Voice-first guard:** placement and the brief write times, a tempo, a style and a fade length. They never write a gain. The duck envelope is in video time and is identical with placement on and off (a test checks it). The only level change placement can cause is the end fade, which is between 0 and 1.
+- **Voice-first guard (Phase 3.1):** placement and the brief write times, a tempo, a style and a fade length. Placement never writes a gain itself. **Gains are computed from the measured loudness of the bed section actually playing** (loudness-aware ducking, below), so the gap to the voice holds wherever on the bed placement starts. The only other level change is the end fade, which is between 0 and 1.
+
+### Loudness-aware ducking
+
+The static envelope assumed the bed sits at -16 LUFS everywhere. A real bed has quiet intros and loud sections, so the speech and pause gaps moved with whichever section placement put under the voice. Now:
+
+- `postprocess.py` (version 5) stores short-term LUFS **per bar**, aligned to the downbeats, for `bed_full`, `bed_carved` and `bed_loop` (`loudness_map`, `carved_loudness_map`, `loop_loudness_map` in `meta.json` and in the pool entry).
+- After placement, `bedLoudness.ts` builds the loudness of the section playing at each moment of the video: the full bed from the start offset, then the loop body from the hand-off; under speech the carved twin, mixed with the renderer's own crossfade weights. It is smoothed over about one bar and limited to 0.4 dB per frame (30 fps), and stored on the duck as `bedLoudness` (a sampled track).
+- The envelope (`duckEnvelope.ts`, and the same file in Remotion) adds a correction to the static curve: `gain(t) = clamp((voice + offset) - bedLoudness(t))` in dB, written as the static gain plus `(assumed -16) - bedLoudness(t)`. The correction is **never more than +6 dB** (a near-silent intro is not pumped up: it stays quieter than the target, never louder) and the total stays in [-40, 0] dB. Attack, hold, release and look-ahead are unchanged.
+- An older bed with no loudness map, an older blueprint, and every preset except `talking` get no correction: they behave exactly as before.
+- `music.summary` reports `loudnessAware` and the lowest and highest correction applied (`loudnessCorrectionDb`).
+
+Limit: the correction is capped at +6 dB, so a bed whose quiet section is more than 6 LU under its average will still sit a little under target there (the safe side).
 
 Pools are keyed by **style**. Fallback when generation fails, times out or misses the cost cap: the same style's bed with the nearest tempo, then the same family's, then no bed (`music.fallback {reason, tier}`).
 
@@ -69,6 +81,7 @@ Human-curated sounds live in `remotion/public/sfx-library/` (lowercase, delibera
 | `music.pool_appended` | a new bed joined a style pool, with the pool size |
 | `music.brief` | the brief for a new edit: style, family, tempo, key, speech pace, cut rate, energy, arc |
 | `music.placement` | start offset, where the lift lands against the hook, score, ending type, snap counts |
+| `music.summary` `loudnessAware`, `loudnessCorrectionDb` | whether the duck followed the bed section playing, and the range of dB it added to the static gain |
 | `sfx.beat_snap` | hits snapped to the beat, dropped by the mask or spacing, and whether a catalog hook / CTA hit was added |
 | `music.qc_speech_band` (meta.json) | the share of bed energy in 1–4 kHz and its spectral flux. Log only; never rejects |
 | `sfx.catalog_warning` | catalog problems (missing file, wrong duration, unknown cue) |

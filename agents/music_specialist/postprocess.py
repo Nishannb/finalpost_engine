@@ -11,7 +11,7 @@ from pydub import AudioSegment
 
 from .silence_trimmer import trim_segment, trim_trailing_segment
 
-POSTPROCESS_VERSION = 4
+POSTPROCESS_VERSION = 5
 FADE_OUT_MS = 150.0
 FADE_MIN_MS = 300.0
 TARGET_LUFS = -16.0
@@ -36,6 +36,9 @@ CARVE_DB = -3.0
 LIFT_RISE = 0.2
 LIFT_LOOKBACK_BARS = 4
 MIN_LAST_BAR_FRACTION = 0.5
+# Per-bar loudness (Phase 3.1): short-term LUFS of each bar, so the duck can follow the part of the bed that is actually playing.
+SILENT_LUFS = -70.0
+MIN_LOUDNESS_SEC = 0.4  # one BS.1770 block: the shortest chunk with a loudness of its own
 
 
 def write_click_bed(path: str, bpm: int, seconds: float = 60.0, rate: int = RATE) -> None:
@@ -120,6 +123,37 @@ def speech_band_stats(samples: np.ndarray, rate: int) -> dict:
     return {"energy_share": round(share, 4), "flux": round(float(np.mean(frame_flux)) / level, 4), "band_hz": list(SPEECH_BAND_HZ)}
 
 
+def bar_edges(total_sec: float, downbeat_times: list) -> list:
+    """Bar edges: each downbeat, plus the tail when it is at least half a bar. Bar i runs edges[i] to edges[i+1]. Shared by the energy map and the loudness maps."""
+    marks = [float(t) for t in downbeat_times if 0.0 <= t < total_sec]
+    if len(marks) < 2:
+        return []
+    bar_len = float(np.median(np.diff(marks)))
+    return marks + ([total_sec] if total_sec - marks[-1] >= MIN_LAST_BAR_FRACTION * bar_len else [])
+
+
+def chunk_lufs(chunk: np.ndarray, rate: int) -> float:
+    """Integrated BS.1770 loudness of one chunk (a bar). A silent or too-short chunk gets SILENT_LUFS / the nearest measurable loudness, never -inf."""
+    if chunk.shape[0] < MIN_LOUDNESS_SEC * rate:
+        return SILENT_LUFS
+    value = float(pyln.Meter(rate).integrated_loudness(chunk))
+    return round(value, 1) if np.isfinite(value) else SILENT_LUFS
+
+
+def bar_loudness_map(samples: np.ndarray, rate: int, edges: list) -> list:
+    """Short-term LUFS per bar, one value per bar of `edges` (aligned to the downbeats). Empty when there are no bars."""
+    return [chunk_lufs(samples[int(a * rate): int(b * rate)], rate) for a, b in zip(edges[:-1], edges[1:])]
+
+
+def loop_loudness_map(loop_audio: np.ndarray, rate: int, bars: int) -> list:
+    """Per-bar LUFS of the loop body: `bars` equal parts. With no bar grid, one value for the whole body."""
+    n = max(int(bars), 1)
+    size = loop_audio.shape[0] // n
+    if size <= 0:
+        return [chunk_lufs(loop_audio, rate)]
+    return [chunk_lufs(loop_audio[i * size:(i + 1) * size], rate) for i in range(n)]
+
+
 def energy_map_and_lift(samples: np.ndarray, rate: int, downbeat_times: list, env=None) -> dict:
     """Per-bar energy (0..1) and the lift bar, measured on the bed itself.
 
@@ -128,11 +162,10 @@ def energy_map_and_lift(samples: np.ndarray, rate: int, downbeat_times: list, en
     The lift bar is the first bar (after the first) whose energy is at least LIFT_RISE above the mean of the previous LIFT_LOOKBACK_BARS bars.
     """
     total = samples.shape[0] / rate
-    marks = [float(t) for t in downbeat_times if 0.0 <= t < total]
-    if len(marks) < 2:
+    edges = bar_edges(total, downbeat_times)
+    if not edges:
         return {"energy_map": [], "lift_bar": None, "lift_sec": None, "bar_sec": None}
-    bar_len = float(np.median(np.diff(marks)))
-    edges = marks + ([total] if total - marks[-1] >= MIN_LAST_BAR_FRACTION * bar_len else [])
+    bar_len = float(np.median(np.diff([float(t) for t in downbeat_times if 0.0 <= t < total])))
     mono = samples.mean(axis=1) if samples.ndim > 1 else samples
     rms = []
     onset = []
@@ -290,15 +323,22 @@ def postprocess_bed(src_path: str, dest_path: str) -> dict:
     _write(full_path, full, RATE)
     _write(loop_path, loop_audio, RATE)
     carved_path = os.path.join(out_dir, "bed_carved.wav")
-    _write(carved_path, carve_for_voice(full, RATE), RATE)
+    carved = carve_for_voice(full, RATE)
+    _write(carved_path, carved, RATE)
     shutil.copyfile(full_path, dest_path)
-    loudness = float(pyln.Meter(RATE).integrated_loudness(full))
+    loudness_edges = bar_edges(full.shape[0] / RATE, downbeat_times)
+    loudness = {
+        "full": bar_loudness_map(full, RATE, loudness_edges),
+        "carved": bar_loudness_map(carved, RATE, loudness_edges),
+        "loop": loop_loudness_map(loop_audio, RATE, bars) if loop is not None else [],
+    }
+    loudness_total = float(pyln.Meter(RATE).integrated_loudness(full))
     return {
         "bed_path": dest_path,
         "bed_full_path": full_path,
         "bed_loop_path": loop_path,
         "bed_carved_path": carved_path,
-        "integrated_lufs": round(loudness, 3),
+        "integrated_lufs": round(loudness_total, 3),
         "duration_sec": round(full.shape[0] / RATE, 3),
         "trailing_trimmed_sec": trailing_trimmed_sec,
         "loop_duration_sec": round(loop_audio.shape[0] / RATE, 3),
@@ -310,6 +350,12 @@ def postprocess_bed(src_path: str, dest_path: str) -> dict:
         "measured_bpm": round(measured_bpm, 2) if measured_bpm else None,
         "downbeat_times": downbeat_times,
         "qc_speech_band": speech_band_stats(full, RATE),
+        # Phase 3.1: short-term LUFS per bar for the three files the renderer can play. The full and carved maps share the bar edges of the downbeats;
+        # the loop map is per bar of the loop body. A bed without these (older) is ducked as if it sat at -16 LUFS everywhere.
+        "loudness_map": loudness["full"],
+        "carved_loudness_map": loudness["carved"],
+        "loop_loudness_map": loudness["loop"],
+        "loop_lufs": round(float(pyln.Meter(RATE).integrated_loudness(loop_audio)), 2),
         "energy_map": energy["energy_map"],
         "lift_bar": energy["lift_bar"],
         "lift_sec": energy["lift_sec"],

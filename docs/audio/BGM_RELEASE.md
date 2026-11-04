@@ -63,6 +63,7 @@ Do this once, on one real talking-head video, before announcing.
    | `style` / `family` / `bpm` / `key` / `arc` / `speechWpm` | The brief: a style that fits the video, a tempo near the pace of the speech (a multiple of 4), `hook-then-steady` under 25 s, `build` to 60 s, else `steady`. `bedStyle` equals `style` for a fresh bed. |
    | `measuredLiftSec` / `liftAtVideoSec` / `hookAtSec` | Where the bed lifts, and where that lands on the video. `liftAtVideoSec` should be within about half a bar of `hookAtSec` (the offset can only be a downbeat). `null` when the bed has no lift. |
    | `startOffsetSec` / `startsOnDownbeat` / `placementScore` / `endType` | A real offset, `true`, a score between 0 and 1, and `button` or `hold-fade`. `startsOnDownbeat: false` means the bed had no measured beat grid (an old pool bed). |
+   | `loudnessAware` / `loudnessCorrectionDb` | `true` for a bed made after Phase 3.1 (it carries a per-bar loudness map); the range of dB the duck added to the static gain, about -6 to +6 (never above +6). `false` for an older pool bed: it is ducked as if it sat at -16 LUFS. |
    | `sfxSnapped` / `sfxDropped` | How many hits moved to a beat and how many the mask or spacing removed. |
    | `voLufs` | A real number, not `-20` exactly. If it is exactly −20, look for `music.vo_lufs_assumed`. |
    | `intendedSpeechGapLu` / `intendedPauseGapLu` | `18` / `9` |

@@ -38,6 +38,10 @@ export type MusicSummary = {
   fallbackTier: string | null;
   sfxSnapped: number | null;
   sfxDropped: number | null;
+  /** Phase 3.1: the duck follows the loudness of the bed section playing (true), or assumes -16 LUFS everywhere (false: an older bed or personalisation off). */
+  loudnessAware: boolean;
+  /** Lowest and highest dB the loudness-aware duck added to the static gain. Null when not loudness-aware. */
+  loudnessCorrectionDb: {minDb: number; maxDb: number} | null;
 };
 
 /**
@@ -86,6 +90,8 @@ export function buildMusicSummary(input: {
     fallbackTier: provenance?.fallbackTier ?? null,
     sfxSnapped: provenance?.sfxSnapped ?? null,
     sfxDropped: provenance?.sfxDropped ?? null,
+    loudnessAware: Boolean(audio?.duck?.bedLoudness),
+    loudnessCorrectionDb: provenance?.loudnessDuck ?? null,
     fallbackReason: provenance?.fallbackReason ?? (source === 'none' ? 'no_bed' : null) ?? (input.masterRequested && !input.master && masterPassEnabled(input.env ?? process.env) ? 'master_not_applied' : null),
   };
 }

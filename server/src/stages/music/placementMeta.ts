@@ -15,4 +15,14 @@ export type BedPlacementMeta = {
   hasLoop: boolean;
   loopDurationSec: number | null;
   loopBars: number | null;
+  /**
+   * Short-term LUFS per bar (Phase 3.1), aligned to downbeatTimes (bar i starts at downbeatTimes[i]). Used to duck by the loudness of the part of the bed that is
+   * actually playing. Absent on older beds: they are ducked as if they sat at -16 LUFS everywhere.
+   */
+  loudnessMap?: number[];
+  /** Same bars, measured on the carved twin. */
+  carvedLoudnessMap?: number[];
+  /** Per bar of the loop body (loopBars equal parts), or one value for the whole body. */
+  loopLoudnessMap?: number[];
+  loopLufs?: number | null;
 };

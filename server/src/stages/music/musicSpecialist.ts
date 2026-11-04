@@ -167,6 +167,10 @@ function toPlan(result: MusicResult, url: string | null): MusicPlan {
             loopDurationSec: result.loop_duration_sec ?? null,
             loopBars: result.loop_bars ?? null,
             hasLoop: Boolean(result.bed_loop_path) && result.loop_fallback === false,
+            ...(result.loudness_map && result.loudness_map.length > 0 ? {loudnessMap: result.loudness_map} : {}),
+            ...(result.carved_loudness_map && result.carved_loudness_map.length > 0 ? {carvedLoudnessMap: result.carved_loudness_map} : {}),
+            ...(result.loop_loudness_map && result.loop_loudness_map.length > 0 ? {loopLoudnessMap: result.loop_loudness_map} : {}),
+            ...(result.loop_lufs !== undefined ? {loopLufs: result.loop_lufs} : {}),
           } satisfies BedPlacementMeta,
         }
       : {}),
@@ -209,6 +213,10 @@ export function poolPlan(bed: PoolBed, mood: string): MusicPlan {
             loopDurationSec: bed.loop_duration_sec ?? null,
             loopBars: bed.loop_bars ?? null,
             hasLoop: Boolean(bed.loop_url) && Boolean(bed.loop_duration_sec),
+            ...(bed.loudness_map && bed.loudness_map.length > 0 ? {loudnessMap: bed.loudness_map} : {}),
+            ...(bed.carved_loudness_map && bed.carved_loudness_map.length > 0 ? {carvedLoudnessMap: bed.carved_loudness_map} : {}),
+            ...(bed.loop_loudness_map && bed.loop_loudness_map.length > 0 ? {loopLoudnessMap: bed.loop_loudness_map} : {}),
+            ...(bed.loop_lufs !== undefined ? {loopLufs: bed.loop_lufs} : {}),
           },
         }
       : {}),
@@ -336,6 +344,10 @@ async function runMusicPlan(job: MusicJob): Promise<MusicPlan | null> {
       bar_sec: generated.bar_sec,
       loop_duration_sec: generated.loop_duration_sec,
       loop_bars: generated.loop_bars,
+      loudness_map: generated.loudness_map,
+      carved_loudness_map: generated.carved_loudness_map,
+      loop_loudness_map: generated.loop_loudness_map,
+      loop_lufs: generated.loop_lufs ?? undefined,
     };
     const spoolRoot = spoolDir();
     try {

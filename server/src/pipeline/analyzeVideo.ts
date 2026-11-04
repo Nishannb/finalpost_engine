@@ -19,6 +19,8 @@ import {densityTransitionClip, ensurePolishTransitionDensity, sentenceStartsOf} 
 import {schedulePolishSfxHits} from '../lib/polishSfx.ts';
 import {applyCatalogToHits, loadSfxCatalog, sfxVoiceOffsetLu} from '../lib/sfxCatalog.ts';
 import type {MusicBrief, MusicFamily} from '../stages/music/musicBrief.ts';
+import {buildBedLoudnessTrack, loudnessCorrectionRange} from '../stages/music/bedLoudness.ts';
+import type {DuckEnvelope} from '../stages/music/duckEnvelope.ts';
 import {planPlacement} from '../stages/music/personalize.ts';
 import {withPlacement, type Placement} from '../stages/music/placement.ts';
 import {snapHitsToBeats} from '../stages/music/sfxBeatSnap.ts';
@@ -2551,6 +2553,23 @@ async function analyzeVideoUnguarded(
           placementForSfx = planned.placement;
           placedBrief = planned.brief;
           audioDesign = withPlacement(audioDesign, planned.placement);
+          // Loudness-aware ducking: gain = (voice + offset) - the loudness of the bed section actually playing at that moment (after the offset, the carved
+          // crossfade and the loop hand-off). A bed without a loudness map gets no track and keeps the static gains.
+          let loudnessDuck: {minDb: number; maxDb: number} | undefined;
+          if (audioDesign.duck) {
+            const track = buildBedLoudnessTrack({
+              bed: musicPlan?.placement,
+              startOffsetSec: planned.placement.startOffsetSec,
+              loopFromSec: planned.placement.loopFromSec,
+              durationSec: timeline.outputDurationSec,
+              duck: audioDesign.duck as unknown as DuckEnvelope,
+              carved: Boolean(audioDesign.musicCarvedUrl),
+            });
+            if (track) {
+              audioDesign = {...audioDesign, duck: {...audioDesign.duck, bedLoudness: track}};
+              loudnessDuck = loudnessCorrectionRange(audioDesign.duck as unknown as DuckEnvelope) ?? undefined;
+            }
+          }
           audioDesign = {
             ...audioDesign,
             musicProvenance: {
@@ -2562,6 +2581,7 @@ async function analyzeVideoUnguarded(
               liftAtVideoSec: planned.placement.liftAtVideoSec,
               startsOnDownbeat: planned.placement.startsOnDownbeat,
               placementReason: planned.placement.reason,
+              ...(loudnessDuck ? {loudnessDuck} : {}),
             },
           };
           log.info(

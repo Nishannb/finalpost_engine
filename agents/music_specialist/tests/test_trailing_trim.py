@@ -24,7 +24,7 @@ def test_tone_then_digital_silence(tmp_path):
     out = postprocess_bed(str(tmp_path / "raw.wav"), str(tmp_path / "w" / "bed.wav"))
     assert out["trailing_trimmed_sec"] >= 2.5
     assert out["duration_sec"] < 2.4
-    assert out["postprocess_version"] == 4
+    assert out["postprocess_version"] == 5
 
 
 @pytest.mark.skipif(not SMOKE.exists(), reason="music-smoke-bed.wav missing")

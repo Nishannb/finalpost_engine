@@ -842,6 +842,8 @@ export type AudioDesign = {
     placementReason?: string;
     sfxSnapped?: number;
     sfxDropped?: number;
+    /** Phase 3.1: lowest and highest dB the loudness-aware duck added to the static gain over the video. Absent when the bed had no loudness map. */
+    loudnessDuck?: {minDb: number; maxDb: number};
   };
   /** Speech-gated integrated loudness of the creator audio (LUFS). Absent on older blueprints. */
   voLufs?: number;
@@ -856,6 +858,8 @@ export type AudioDesign = {
     releaseSec: number;
     /** Attack look-ahead in seconds. Absent on older blueprints (= 0, unchanged curve). */
     leadSec?: number;
+    /** Loudness-aware ducking (Phase 3.1): smoothed LUFS of the bed section playing, every stepSec from video t=0. Absent = the static gains. */
+    bedLoudness?: {stepSec: number; lufs: number[]};
     phrases: Array<{start: number; end: number}>;
     durationSec: number;
     voLufs?: number;
