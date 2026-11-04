@@ -1,3 +1,52 @@
+# Phase 3.1
+
+Branch: `bgm-phase-2`. Not pushed, merged or deployed. Date: 2026-11-04. Policy: [docs/audio/VOICE_FIRST.md](docs/audio/VOICE_FIRST.md) (the "Loudness-aware ducking" section is new).
+
+## 1. Spend proof
+
+- `agents/music_specialist/spend.log`: absent at the start, absent at the end. Unchanged. No Runware, LLM, Lambda, `first-video` or deploy.
+- **No renders.** Free disk was 10 GB (under your 15 GB limit) at the start and at the end, so I implemented and unit-tested only. **Step 5 (the 15 s on/off proof re-run) was skipped for that reason.** The numbers below come from the unit-test model, not from a render.
+
+## 2. What changed
+
+The duck now holds the voice-first gaps for whatever part of the bed is playing instead of assuming the bed sits at −16 LUFS everywhere.
+
+1. **`postprocess.py` (version 5).** Short-term LUFS **per bar**, aligned to the downbeats, for `bed_full`, `bed_carved` and `bed_loop`: `loudness_map`, `carved_loudness_map`, `loop_loudness_map` (and `loop_lufs`) in `meta.json`. It rides into the plan and the pool entry like the energy map. A silent or too-short bar reads −70, never −inf. A bed without the maps behaves exactly as before.
+2. **Envelope, server and Remotion together** (`duckEnvelope.ts` in both; parity checked at every 1/120 s). A new optional `bedLoudness` track on the duck. `duckDbAt` is now `duckBaseDbAt` (the static curve, unchanged) plus a correction, clamped to [−40, 0]:
+   - correction = (assumed −16 LUFS) − (bed loudness at that moment), **never more than +6 dB**. That is the same as gain = (voice + offset) − bed loudness. It applies to the `talking` preset only.
+   - `bedLoudness.ts` builds the track after placement: the bed position playing at each moment (the full bed from the start offset, then the loop body from the hand-off), the carved twin under speech mixed with the renderer's own crossfade weights, **smoothed over about one bar** and limited to **0.4 dB per frame at 30 fps** (so the correction never jumps).
+   - Attack, hold, release and look-ahead are unchanged (a test compares the static curve with and without a track).
+   - `MusicBedTrack` now reads the static curve for the carved crossfade, so the correction moves the level and not the mix. For an old envelope that is identical.
+3. **`VOICE_FIRST.md`** and `BGM_RELEASE.md` updated: "placement never changes gains" is now "gains are computed from the measured loudness of the bed section actually playing".
+4. **`music.summary`** gains `loudnessAware` and `loudnessCorrectionDb {minDb, maxDb}`.
+5. **Scope note.** The track is built for **every generated bed that has a map, whether or not it was placed** (so also with `MUSIC_PERSONALIZE=0`: the bed plays from 0 with the legacy loop hand-off). I read "expect on and off both near 18" as meaning that. It means `MUSIC_PERSONALIZE=0` is no longer byte-identical to Phase 2.4 for a bed made after this change. Say if you want it gated on the flag.
+6. `makePersonalizeProof.ts` builds the track for both the "on" and "off" blueprints, ready for the 15 s re-run.
+
+## 3. Tests and checks
+
+- **Old beds unchanged:** an inline snapshot of `duckDbAt` at 22 times, taken from the code *before* this change, still matches to 6 decimals for an envelope with no track; a bed without a map gets no track; other presets ignore a track.
+- **Synthetic bed, quiet first 8 bars then a loud section:** for **every** placement offset (20 downbeats) the speech gap is 18 ± 1 LU and the settled pause gap 9 ± 1 LU. A companion test shows the old static duck drifts outside that band for the same offsets (so the test can fail).
+- Also covered: the +6 dB boost cap (a near-silent intro stays quieter than target, never louder), the [−40, 0] clamp, the 0.4 dB/frame slew across a 12 LU step, smoothing over about a bar, loop hand-off, carved twin under speech and full bed in pauses, the log range, `render-blueprint`-style no-placement playback, and the wiring order in `analyzeVideo`.
+- pytest: 67 to **70** (the per-bar map matches a direct measurement of each bar; silence and short chunks; the three maps in `postprocess_bed`). Server music/lib/scripts/directorV2 suites plus the three `analyzeVideo`-pinning eval/broll tests: 640 passed, 1 failed (`assembler audit (Gabby)`, which also fails on `main`). Server `tsc` clean. Remotion `tsc`: only the 3 known errors. I did not re-run the full 7-chunk suite for this change; the only non-music file I touched is `analyzeVideo.ts`, and the tests that pin its source pass.
+- Commits: `fe90c42` (the feature), `621fe17` (independent of the flag, proof generator).
+
+## 4. Numbers (unit-test model, NOT a render)
+
+Mean gap over all speech moments and all settled pause moments, across the 20 possible start offsets, synthetic bed (quiet first 8 bars, loud after, per-bar LUFS as postprocess would measure them):
+
+| bed contrast | static duck: speech / pause | **loudness-aware: speech / pause** |
+|---|---|---|
+| −19.5 to −13.5 LUFS (6 LU) | 15.5..16.3 / 6.5..7.3 | **18.0..18.0 / 9.0..9.1** |
+| −21 to −12 LUFS (9 LU) | 14.0..14.9 / 5.0..5.9 | **17.9..18.0 / 8.9..9.1** |
+
+So the model holds 18 and 9 for any offset, where the static duck was 2 to 4 LU too close to the voice. Real renders also carry the Remotion 1/97 volume step and the −20.13 versus −20 voice measurement (about 0.4 LU together, seen in every earlier phase), so expect a render to read about 17.5 rather than 18.0.
+
+## 5. Limits and decisions
+
+- The +6 dB cap is deliberate (you asked for it): a bed whose quiet section is more than 6 LU under its average stays a little under target there, on the quiet side.
+- Beds made before this change have no map and keep the static gains (`loudnessAware: false`). The salvaged high-energy bed has none; it needs reprocessing to gain one (a pool backfill writes to R2, which I do not do).
+- The 15 s on/off proof re-run is still open: with at least 15 GB free, run `node --experimental-strip-types src/scripts/makePersonalizeProof.ts --write` in `server`, then `render-blueprint out/fixtures/personalize/punchy-15s/{off,on}.json --master 1 --measure 1` one at a time, and compare with `out/proof/phase3/results.json` (the pre-3.1 numbers: speech 22.0 off, 17.7 on). Expect both near 18 (about 17.5 after the render effects above).
+
 # Phase 3
 
 Branch: `bgm-phase-2` (Phase 3 was not split onto its own branch). Not pushed, merged or deployed. Date: 2026-11-04. Human checklist: [docs/audio/BGM_RELEASE.md](docs/audio/BGM_RELEASE.md). Policy: [docs/audio/VOICE_FIRST.md](docs/audio/VOICE_FIRST.md).
