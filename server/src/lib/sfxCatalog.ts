@@ -12,7 +12,9 @@ import {existsSync, readdirSync, readFileSync} from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
-import type {PolishSfxHit} from './polishSfx.ts';
+import {SFX_WORD_MASK_SEC, type PolishSfxHit} from './polishSfx.ts';
+
+export {SFX_WORD_MASK_SEC};
 
 export const SFX_CUES = ['cut', 'transition', 'zoom_in', 'zoom_out', 'caption_pop', 'kinetic_plate', 'emphasis', 'hook', 'cta', 'ui', 'ambience'] as const;
 export type SfxCue = (typeof SFX_CUES)[number];
@@ -33,8 +35,6 @@ export const SFX_SILENCE_DBFS = -50;
 /** The engine assumes each file peaks near 0 dBFS, so the level it sets is the peak level. */
 export const SFX_PEAK_RANGE_DBFS: readonly [number, number] = [-3, 0];
 
-/** No hit within this long after a word onset. Same constant as music/mergeHits.ts (which stays unwired). */
-export const SFX_WORD_MASK_SEC = 0.12;
 export const SFX_DEFAULT_VOICE_OFFSET_LU = -10;
 /** Hard ceiling: an SFX peak is never closer to the voice than this, whatever `gainDb` says. */
 export const SFX_MAX_PEAK_OVER_VOICE_LU = -6;

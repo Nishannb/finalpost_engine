@@ -20,6 +20,25 @@ This file is written for engineers and for AI agents working in this repo. `CLAU
 5. **SFX punctuate the edit. They never cover a word.** No hit within 120 ms after a word onset, a capped count, and a level set relative to the voice too (`SFX_VOICE_OFFSET_LU`, default −10).
 6. **Any new audio feature must log a number that proves it respects these rules.**
 
+## Production defaults (voice-first)
+
+Each is the default when unset and keeps its env override. They apply to **new** edits; a saved blueprint keeps the values it was saved with.
+
+| Setting | Default | Override |
+|---|---|---|
+| Duck preset, speech / pause / open | `talking`, −18 / −9 / −4 LU under the voice | `MUSIC_DUCK_PRESET`, `render-blueprint --speech-offset` etc. |
+| Release | 300 ms (hold 150 ms) | `MUSIC_DUCK_RELEASE_MS`, `--release-ms` |
+| Attack look-ahead | one frame (33 ms): the dip finishes before the word | `--lead-ms` |
+| Carved bed under speech | on | `MUSIC_CARVED_TWIN=0` |
+| Master pass (−14 LUFS, −1 dBTP), local **and** Lambda | on | `MUSIC_MASTER_PASS=0` |
+| Pool size per mood | 3 | `MUSIC_BED_POOL_SIZE` |
+
+Remotion rounds every volume to a multiple of 1/97, so a bed or SFX level can land up to about half a step off its target (about 0.3 dB at the −22 dB speech gain, up to about 1.5 dB for a −30 dBFS SFX). That is outside our control and is not corrected.
+
+## SFX library
+
+Human-curated sounds live in `remotion/public/sfx-library/` (lowercase, deliberately: `remotion/public/sfx/` holds the built-in wavs and `SFX` would be the same folder on macOS but a different one on Linux and Lambda). See its `README.md`. No hit lands within 120 ms after a word onset: built-in hits are masked when a new edit is scheduled, and catalog hits are masked again when a file is picked. Saved blueprints keep their stored hits.
+
 ## Numbers the engine already logs
 
 | Log | What it proves |
@@ -27,7 +46,9 @@ This file is written for engineers and for AI agents working in this repo. `CLAU
 | `music.mix_check` | the intended gaps (speech / pause) |
 | `music.mix_measured` | measured `speechGapLu`, `pauseGapLuAll`, `pauseGapLuSettled`, settled pause count, `bedOverVoiceWindows`, final LUFS and true peak |
 | `music.voice_fight` (warn) | one or more speech windows where the bed came within 6 LU of the voice |
-| `music.master_pass` | loudness and true peak before and after the master pass |
+| `music.master_pass` | loudness and true peak before and after the master pass (local and Lambda) |
+| `music.summary` | one line per render: source, cost, voice LUFS, intended gaps, carved, master, final LUFS / true peak, SFX by source, fallback reason |
+| `music.pool_appended` | a new bed joined a mood pool, with the pool size |
 | `music.qc_speech_band` (meta.json) | the share of bed energy in 1–4 kHz and its spectral flux. Log only; never rejects |
 | `sfx.catalog_warning` | catalog problems (missing file, wrong duration, unknown cue) |
 

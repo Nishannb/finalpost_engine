@@ -4,7 +4,7 @@
  * math (regionDb, afterPhraseDb, duckDbAt) identical. server/src/stages/music/musicBed.test.ts checks they agree.
  * speechDb / pauseDb / openDb are gain dB applied to the bed file (the server computes them;
  * for the talking preset they already account for the voice and bed loudness).
- * Attack ends at the phrase onset (look-ahead). Interpolation is in dB.
+ * Attack ends at the phrase onset minus leadSec (look-ahead; 0 on older blueprints). Interpolation is in dB.
  */
 
 export type DuckPresetName = 'talking' | 'default' | 'legacy_brief';
@@ -19,6 +19,8 @@ export type DuckEnvelope = {
   attackSec: number;
   holdSec: number;
   releaseSec: number;
+  /** Look-ahead: the attack ends this many seconds before the phrase onset. Absent (older blueprints) = 0, the old curve exactly. */
+  leadSec?: number;
   phrases: DuckPhrase[];
   durationSec: number;
   voLufs?: number;
@@ -80,15 +82,19 @@ function regionDb(envelope: DuckEnvelope, timeSec: number): number {
   return speechDb;
 }
 
-/** dB at a timeline second. The attack is a straight ramp that ends on the word. */
+/** dB at a timeline second. The attack is a straight ramp that ends leadSec before the word. */
 export function duckDbAt(envelope: DuckEnvelope, timeSec: number): number {
   const t = Math.min(Math.max(timeSec, 0), Math.max(envelope.durationSec, 0));
+  // leadSec (absent on older blueprints = 0): the attack finishes this long BEFORE the word, so the dip is complete when the word starts.
+  const lead = envelope.leadSec ?? 0;
   for (const phrase of envelope.phrases) {
-    const attackStart = phrase.start - envelope.attackSec;
-    if (t >= attackStart && t < phrase.start) {
+    const attackEnd = phrase.start - lead;
+    const attackStart = attackEnd - envelope.attackSec;
+    if (t >= attackStart && t < attackEnd) {
       const from = regionDb(envelope, attackStart);
       return lerp(from, envelope.speechDb, (t - attackStart) / envelope.attackSec);
     }
+    if (lead > 0 && t >= attackEnd && t < phrase.start) return envelope.speechDb;
   }
   return regionDb(envelope, t);
 }

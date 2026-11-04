@@ -79,6 +79,8 @@ describe('cli helpers', () => {
   it('parses hold and release in ms, defaults master on, and rejects out-of-range values', () => {
     expect(parseCliArgs(['f.json'])).toMatchObject({master: '1', measure: '0'});
     expect(parseCliArgs(['f.json', '--release-ms', '300', '--hold-ms=100'])).toMatchObject({releaseMs: 300, holdMs: 100});
+    expect(parseCliArgs(['f.json', '--lead-ms', '33.3']).leadMs).toBe(33.3);
+    expect(() => parseCliArgs(['f.json', '--lead-ms', '500'])).toThrow(/lead-ms/);
     expect(() => parseCliArgs(['f.json', '--release-ms', '0'])).toThrow(/release-ms/);
     expect(() => parseCliArgs(['f.json', '--hold-ms', 'x'])).toThrow(/number/);
   });
@@ -87,7 +89,16 @@ describe('cli helpers', () => {
     const out = applyDuckOverrides(bp, {releaseMs: 300, holdMs: 100});
     expect(out.rebuilt).toBe(true);
     expect(out.audioDesign?.duck).toMatchObject({releaseSec: 0.3, holdSec: 0.1});
-    expect(buildDuckEnvelope({words: [], durationSec: 1})).toMatchObject({releaseSec: 0.45, holdSec: 0.15});
+    expect(buildDuckEnvelope({words: [], durationSec: 1})).toMatchObject({releaseSec: 0.3, holdSec: 0.15, leadSec: 0.0333});
+  });
+  it('a rebuild keeps the timing the blueprint was saved with (an older blueprint keeps 450 ms and no look-ahead)', () => {
+    const old = buildDuckEnvelope({words: [{start: 1, end: 2}], durationSec: 6, releaseSec: 0.45, leadSec: 0});
+    const bp = {audioDesign: {musicSource: 'generated', musicUrl: 'u', duck: old}, captionWords: [{text: 'a', start: 1, end: 2}], outputDurationSec: 6} as never;
+    expect(applyDuckOverrides(bp, {speechOffset: -16}).audioDesign?.duck).toMatchObject({releaseSec: 0.45, leadSec: 0, holdSec: 0.15});
+    expect(applyDuckOverrides(bp, {speechOffset: -16, releaseMs: 300}).audioDesign?.duck).toMatchObject({releaseSec: 0.3, leadSec: 0});
+    const withLead = applyDuckOverrides(bp, {leadMs: 33.3}).audioDesign?.duck;
+    expect(withLead?.releaseSec).toBe(0.45);
+    expect(withLead?.leadSec).toBeCloseTo(0.0333, 6);
   });
   it('fails clearly on a missing prefetch path with no source', () => {
     expect(() => resolveVideoUrl('/prefetch/job/source.mp4', null, () => false)).toThrow(/sourceVideoPath/);

@@ -48,6 +48,8 @@ describe('mix windows', () => {
       durationSec: 10,
       voLufs: -20,
       bedLufs: -16,
+      releaseSec: 0.45,
+      leadSec: 0,
     });
     const windows = mixWindows(duck);
     expect(windows.pause).toEqual([[2, 4], [5, 5.8], [6.5, 7.5]]);
@@ -59,17 +61,24 @@ describe('mix windows', () => {
   });
 
   it('describes each pause by length and whether it settled', () => {
-    const duck = buildDuckEnvelope({words: [{start: 1, end: 2}, {start: 4, end: 5}, {start: 5.8, end: 6.5}], durationSec: 8, voLufs: -20, bedLufs: -16});
+    const duck = buildDuckEnvelope({words: [{start: 1, end: 2}, {start: 4, end: 5}, {start: 5.8, end: 6.5}], durationSec: 8, voLufs: -20, bedLufs: -16, releaseSec: 0.45, leadSec: 0});
     expect(describePauses(duck)).toEqual([
       {start: 2, end: 4, lengthSec: 2, settledSec: 1.28, settled: true},
       {start: 5, end: 5.8, lengthSec: 0.8, settledSec: 0, settled: false},
     ]);
   });
 
+  it('the look-ahead moves the end of the settled window earlier by leadSec', () => {
+    const words = [{start: 1, end: 2}, {start: 4, end: 5}];
+    const noLead = mixWindows(buildDuckEnvelope({words, durationSec: 6, voLufs: -20, bedLufs: -16, releaseSec: 0.3, leadSec: 0}));
+    const lead = mixWindows(buildDuckEnvelope({words, durationSec: 6, voLufs: -20, bedLufs: -16, releaseSec: 0.3}));
+    expect(noLead.pauseSettled[0]![1] - lead.pauseSettled[0]![1]).toBeCloseTo(0.0333, 3);
+  });
+
   it('a shorter release settles more pauses', () => {
     const words = [{start: 1, end: 2}, {start: 3, end: 4}];
-    const slow = mixWindows(buildDuckEnvelope({words, durationSec: 6, voLufs: -20, bedLufs: -16}));
-    const fast = mixWindows(buildDuckEnvelope({words, durationSec: 6, voLufs: -20, bedLufs: -16, releaseSec: 0.3, holdSec: 0.1}));
+    const slow = mixWindows(buildDuckEnvelope({words, durationSec: 6, voLufs: -20, bedLufs: -16, releaseSec: 0.45, leadSec: 0}));
+    const fast = mixWindows(buildDuckEnvelope({words, durationSec: 6, voLufs: -20, bedLufs: -16, releaseSec: 0.3, holdSec: 0.1, leadSec: 0}));
     expect(slow.pauseSettled).toEqual([]);
     expect(fast.pauseSettled).toEqual([[2.42, 2.9]]);
   });
@@ -124,8 +133,10 @@ describe('carved decision', () => {
   it('is not allowed when a gap is missing', () => {
     expect(carvedDecision(base, {speechGapLu: 17.3, pauseGapLuSettled: null})).toMatchObject({allowed: false, pauseDeltaLu: null});
   });
-  it('never turns the default on: the flag stays off with no env', () => {
-    expect(carvedTwinEnabled({})).toBe(false);
+  it('the flag is on by default (voice-first production default) and MUSIC_CARVED_TWIN=0 turns it off', () => {
+    expect(carvedTwinEnabled({})).toBe(true);
+    expect(carvedTwinEnabled({MUSIC_CARVED_TWIN: '1'})).toBe(true);
+    expect(carvedTwinEnabled({MUSIC_CARVED_TWIN: '0'})).toBe(false);
   });
 });
 

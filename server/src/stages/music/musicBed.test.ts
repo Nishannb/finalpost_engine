@@ -100,6 +100,24 @@ describe('duck envelope', () => {
     }
   });
 
+  it('look-ahead: the dip is complete one frame before the word; leadSec 0 (an older blueprint) keeps the old curve; both files agree', () => {
+    const words = [{start: 0.4, end: 1.1}, {start: 2, end: 2.2}];
+    const lead = buildDuckEnvelope({words, durationSec: 4, voLufs: -20});
+    const old = buildDuckEnvelope({words, durationSec: 4, voLufs: -20, leadSec: 0, releaseSec: 0.45});
+    expect(lead.leadSec).toBeCloseTo(0.0333, 4);
+    // one frame (1/30 s) before the 2.0 s onset: already at the speech gain with look-ahead, still ramping without it
+    expect(duckDbAt(lead, 2 - 1 / 30)).toBeCloseTo(lead.speechDb, 1);
+    expect(duckDbAt(old, 2 - 1 / 30)).toBeGreaterThan(old.speechDb + 1);
+    // a stored envelope with no leadSec at all is the old curve exactly
+    const {leadSec: _removed, ...stored} = old;
+    for (let frame = 0; frame < 4 * 120; frame += 1) {
+      const t = frame / 120;
+      expect(duckDbAt(stored as typeof old, t)).toBeCloseTo(duckDbAt(old, t), 9);
+      expect(duckDbAt(lead, t)).toBeCloseTo(remotionDuckDbAt(lead, t), 6);
+      expect(duckDbAt(stored as typeof old, t)).toBeCloseTo(remotionDuckDbAt(stored as typeof old, t), 6);
+    }
+  });
+
   it('default preset does not jump more than 1 dB per frame at 120 fps (9 dB over 80 ms)', () => {
     const envelope = buildDuckEnvelope({
       words: [{start: 0.5, end: 1.2}, {start: 2.4, end: 3}],

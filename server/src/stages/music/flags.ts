@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import {fileURLToPath} from 'node:url';
 import {stageLogger} from '../../lib/logger.ts';
+// Imported (not read with fs) so the production build emits the file next to flags.js: tsc copies imported JSON only. Python reads the same source file.
+import contentMoodMapJson from './contentMoodMap.json' with {type: 'json'};
 
 export type MusicMode = 'off' | 'dry' | 'live';
 export type MusicBedSource = 'auto' | 'licensed' | 'generated' | 'off';
@@ -60,13 +61,12 @@ export function mixMeasureEnabled(env: NodeJS.ProcessEnv = process.env): boolean
 }
 
 /**
- * MUSIC_CARVED_TWIN=1 plays the VO-carved bed (bed_carved.wav) under speech, crossfaded with the full bed.
- * Default OFF, whatever any measurement says. The carved bed changes tone (low end and the 2-4 kHz speech band), not loudness, so the
- * mix measurement can only say "carved did not move the level" (see carvedDecision). Whether it sounds better is an ear decision:
- * `render-blueprint --carved 0|1`.
+ * The VO-carved bed (bed_carved.wav) plays under speech, crossfaded with the full bed. Default ON (voice-first: the carved bed sits
+ * further under the voice, which is the goal for talking-head). MUSIC_CARVED_TWIN=0 turns it off. Any other value, or unset, is on.
+ * It only changes new blueprints: the URL is stored on the blueprint at analyze time, and `render-blueprint --carved 0|1` A/Bs it.
  */
 export function carvedTwinEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.MUSIC_CARVED_TWIN === '1';
+  return (env.MUSIC_CARVED_TWIN ?? '').trim() !== '0';
 }
 
 /**
@@ -75,6 +75,19 @@ export function carvedTwinEnabled(env: NodeJS.ProcessEnv = process.env): boolean
  */
 export function masterPassEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   return (env.MUSIC_MASTER_PASS ?? '').trim() !== '0';
+}
+
+/** MUSIC_BED_POOL_SIZE: the most beds one mood pool holds. A generated bed is appended only while the pool is under this. Default 3. */
+export function resolvePoolSize(env: NodeJS.ProcessEnv = process.env): number {
+  const parsed = Number(env.MUSIC_BED_POOL_SIZE ?? '3');
+  return Number.isInteger(parsed) && parsed >= 1 && parsed <= 20 ? parsed : 3;
+}
+
+/** MUSIC_DUCK_RELEASE_MS: how long the bed takes to come back up after a phrase. Default 300 (150 ms hold stays). Stored on each new blueprint. */
+export function resolveDuckReleaseSec(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = (env.MUSIC_DUCK_RELEASE_MS ?? '').trim();
+  const ms = Number(raw);
+  return raw !== '' && Number.isFinite(ms) && ms >= 10 && ms <= 3000 ? ms / 1000 : 0.3;
 }
 
 export const MUSIC_CALLER_ENV ='MUSIC_SPECIALIST_CALLER';
@@ -108,15 +121,10 @@ const MOOD_BUCKETS: Array<[string[], string]> = [
 ];
 
 const moodLog = stageLogger('music');
-let contentMoodMap: Record<string, string> | null = null;
 
 /** VisualMood → music mood. Single source of truth shared with agents/music_specialist/prompts.py. */
 export function loadContentMoodMap(): Record<string, string> {
-  if (!contentMoodMap) {
-    const file = path.join(path.dirname(fileURLToPath(import.meta.url)), 'contentMoodMap.json');
-    contentMoodMap = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, string>;
-  }
-  return contentMoodMap;
+  return contentMoodMapJson as Record<string, string>;
 }
 
 /**

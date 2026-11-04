@@ -36,10 +36,11 @@ describe('pool bed playback', () => {
     expect(out.musicFullUrl).toBe('https://r2.test/bed_full.wav');
   });
 
-  it('carved_url is used only when the flag is on', () => {
+  it('carved_url is used by default and dropped only when MUSIC_CARVED_TWIN=0', () => {
     const bed = {...BASE, loop_url: 'https://r2.test/bed_loop.wav', carved_url: 'https://r2.test/bed_carved.wav', duration_sec: 56.68};
     expect(design(bed, {MUSIC_CARVED_TWIN: '1'}).musicCarvedUrl).toBe('https://r2.test/bed_carved.wav');
-    expect(design(bed, {})).not.toHaveProperty('musicCarvedUrl');
+    expect(design(bed, {}).musicCarvedUrl).toBe('https://r2.test/bed_carved.wav');
+    expect(design(bed, {MUSIC_CARVED_TWIN: '0'})).not.toHaveProperty('musicCarvedUrl');
   });
 
   it('never sets musicCarvedUrl for a licensed bed', () => {

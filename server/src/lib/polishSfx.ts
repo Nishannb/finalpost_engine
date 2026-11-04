@@ -37,6 +37,8 @@ export type PolishSfxFramed = {
 
 /** Minimum gap between scheduled hits. */
 export const SFX_MIN_SPACING_SEC = 0.8;
+/** Voice-first: no hit within this long after a word onset, so a hit never covers the start of a word. Same constant as music/mergeHits.ts. */
+export const SFX_WORD_MASK_SEC = 0.12;
 /** Hard cap per edit. */
 export const SFX_MAX_HITS = 8;
 
@@ -55,7 +57,12 @@ export function schedulePolishSfxHits(input: {
   existing?: readonly PolishSfxHit[];
   maxHits?: number;
   minSpacingSec?: number;
-}): {hits: PolishSfxHit[]; added: number} {
+  /**
+   * Output-timeline word onsets. When given, a hit that would land within SFX_WORD_MASK_SEC after one is dropped here, before the cap and spacing,
+   * so the next candidate can take its place. Applied at scheduling time only: a saved blueprint keeps its stored hits. Absent → no mask (old behaviour).
+   */
+  wordOnsetsSec?: readonly number[];
+}): {hits: PolishSfxHit[]; added: number; maskedByWord: number} {
   const maxHits = input.maxHits ?? SFX_MAX_HITS;
   const minSpacing = input.minSpacingSec ?? SFX_MIN_SPACING_SEC;
   const proposed: PolishSfxHit[] = [];
@@ -109,8 +116,12 @@ export function schedulePolishSfxHits(input: {
     });
   }
 
-  const merged = [...(input.existing ?? []), ...proposed]
-    .filter(hit => Number.isFinite(hit.at) && hit.at >= 0)
+  const onsets = (input.wordOnsetsSec ?? []).filter(Number.isFinite);
+  const covers = (at: number) => onsets.some(onset => at > onset + 1e-6 && at <= onset + SFX_WORD_MASK_SEC + 1e-6);
+  const valid = [...(input.existing ?? []), ...proposed].filter(hit => Number.isFinite(hit.at) && hit.at >= 0);
+  const maskedByWord = valid.filter(hit => covers(hit.at)).length;
+  const merged = valid
+    .filter(hit => !covers(hit.at))
     .sort((a, b) => a.at - b.at || kindRank(a.kind) - kindRank(b.kind));
 
   const hits: PolishSfxHit[] = [];
@@ -128,7 +139,7 @@ export function schedulePolishSfxHits(input: {
 
   const existingKeys = new Set((input.existing ?? []).map(hit => `${hit.at}:${hit.kind}`));
   const added = hits.filter(hit => !existingKeys.has(`${hit.at}:${hit.kind}`)).length;
-  return {hits, added};
+  return {hits, added, maskedByWord};
 }
 
 const round = (value: number) => Math.round(value * 1000) / 1000;

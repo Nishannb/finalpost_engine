@@ -20,6 +20,7 @@ type DuckLike = {
   attackSec?: number;
   holdSec?: number;
   releaseSec?: number;
+  leadSec?: number;
 };
 
 /** A settled stretch shorter than this is not measured: too short to carry a loudness number. */
@@ -39,7 +40,7 @@ export function mixWindows(duck: DuckLike): MixWindows {
   const phrases = [...duck.phrases].sort((a, b) => a.start - b.start);
   const hold = duck.holdSec ?? DUCK_HOLD_SEC;
   const release = duck.releaseSec ?? DUCK_RELEASE_SEC;
-  const attack = duck.attackSec ?? DUCK_ATTACK_SEC;
+  const attack = (duck.attackSec ?? DUCK_ATTACK_SEC) + (duck.leadSec ?? 0);
   const speech: Window[] = [];
   const pause: Window[] = [];
   const pauseSettled: Window[] = [];
