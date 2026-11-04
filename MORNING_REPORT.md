@@ -44,7 +44,7 @@ Branch: `bgm-phase-2`. Not pushed.
 - Files: `saveBlueprint.ts` (+ test), `renderBlueprint.ts` (+ test), `duckEnvelope.ts` (optional talking offset overrides), `analyzeVideo.ts` (save just before return), root and server `package.json` scripts, `.gitignore` for `out/blueprints/` and `out/renders/`.
 - Tests: vitest renderBlueprint + saveBlueprint 18 passed; full music suite was 99 before the carved strip, then 18 again after. Server tsc clean. Remotion tsc only the 3 known errors. Pytest 41 passed.
 - `render-blueprint` source ban: no analyzeVideo, Runware, Anthropic, Groq, Gemini, or Lambda strings. `--carved 0` strips `musicCarvedUrl`; `--carved 1` never invents a URL. Mix and master numbers stay in the engine log under the printed `renderJobId`.
-- Commit: filled after the commit.
+- Commit: `ed9fe69`.
 
 ## 3. R2 objects written
 
