@@ -1,3 +1,91 @@
+# Phase 2.3
+
+Branch: `bgm-phase-2`. Not pushed. Date: 2026-11-04.
+
+## 1. Spend proof
+
+- `agents/music_specialist/spend.log`: absent at the start, absent at the end (0 lines, unchanged).
+- Runware calls: 0. LLM calls: 0. Lambda renders: 0. R2 writes: 0. No audio file was added, downloaded or generated. The existing pool bed was not touched. The only renders were one local Remotion probe (bed stem) for the shortfall investigation.
+
+## 2. Per task
+
+### 1. Voice-first policy
+- Status: done. `docs/audio/VOICE_FIRST.md` (rules, the logs that prove them, a checklist for new audio features) and an "Audio policy" section in `CLAUDE.md`.
+- `CLAUDE.md` is still **untracked** in git (it was before this task), so the edit is on disk but not committed. Decide whether to commit that file.
+- Commit: `7d3d8f5` (doc, with tasks 2 and 3).
+
+### 2. Supportive music prompts
+- Status: done. `PROMPT_VERSION` 3. Every caption now carries `background underscore, minimal, sparse arrangement, no lead melody, supportive`. The negative prompt gains `lead, solo, busy arpeggio, vocal chops, loud drums`.
+- Every caption is exactly 12 tags. Adding 5 tags to the old 10–11 cannot fit in 12 by dropping only production tags, so the order of what is dropped is: all production tags, then `instrumental` (redundant with `no vocals`), and high-energy's third instrument `supersaw lead` (it contradicts "no lead melody"). `no vocals` and the `<bpm> bpm` tag stay.
+- high-energy bpm 128 → **120** (÷4, still inside synthwave's range, calmer under a voice). Say if you would rather keep 128.
+- New cache keys, as expected. The salvaged pool bed is untouched and stays in the pool.
+- Files: `prompts.py`, `models.py`. Tests: existing suite passes unchanged.
+
+### 3. Measuring "fighting the voice"
+- Status: done. Commit `7d3d8f5`.
+- `music.qc_speech_band`: `speech_band_stats()` in `postprocess.py` (energy share in 1–4 kHz, and spectral flux in that band: mean positive frame-to-frame rise over mean band level). Log only, never rejects. It is in the postprocess result, logged by the agent and the server, and written into the bed's `meta.json` (`qc_speech_band`) on the next generated bed. Existing pool beds get it when they are next processed; I did not rewrite the pool.
+- `music.mix_measured` now has `bedOverVoiceWindows` (speech windows where voice − bed is under 6 LU), `minSpeechWindowGapLu`, `speechWindowsUnmeasured` (windows under 0.4 s have no loudness of their own and are counted apart, never as a pass), plus `intendedSpeechGapLu` and `speechGapShortfallLu`. `music.voice_fight` warns when the count is above 0.
+- Files: `postprocess.py`, `agent.py`, `vo_lufs.py`, `schema.ts`, `musicSpecialist.ts`, `mixMeasure.ts`, tests.
+
+### 4. The 0.7 LU speech shortfall (17.3 measured vs 18 intended)
+- **Cause: not our envelope and not the measurement.** It is Remotion's volume handling. Rendering the bed-only probe locally and comparing it with the ideal gain, frame by frame:
+  1. **Volume rounding.** `@remotion/renderer` rounds every volume to a multiple of 1/97 (`round-volume-to-avoid-stack-overflow.js`, to keep the ffmpeg expression shallow). The −22 dB speech gain is 0.0794. It becomes 8/97 = 0.0825 = −21.7 dB. That is a steady **+0.28 dB** across every speech window. It is bigger at lower gains (a −30 dB gain would round to 3/97).
+  2. **Late attack.** The gain lands about one frame (33 ms) later than the envelope says. At the 0.5 s onset the envelope has −22 dB at frame 15 and the render plays −14.2 dB; at 3.9 s it plays −15.9 dB at frame 117. The first ~40 ms of each phrase has the bed up to 8 dB too loud. About **+0.3 dB** over the windows.
+  3. **Voice side:** the VO measures −20.13 LUFS in the render against the −20 the envelope was built from: 0.13 LU.
+  Together: 0.28 + 0.29 on the bed plus 0.13 on the voice, about 0.7.
+- Fix: **none applied.** It is outside the envelope and the measurement, and I did not touch the −18 default. Nothing here lets the bed pass the voice. The numbers are now logged side by side (`intendedSpeechGapLu`, `speechGapLu`, `speechGapShortfallLu`) so it stays visible.
+- Option if you want it closed: add a one-frame look-ahead to the attack (an optional field, old blueprints unchanged), and pick the speech gain from the 1/97 grid. Not done; it changes the envelope in two files and the parity tests.
+- Remotion rounds the SFX volume the same way. A −30 dBFS hit (0.0316) lands on 3/97, so the "10 LU under the voice" is about ±1.5 dB. Fine for an "about" rule.
+
+### 5. SFX library
+- Status: done. Commit `73df0b5`.
+- **Final path: `remotion/public/sfx-library/`** (see decision 1 below). It holds `README.md` and `sfxinfo.json` (`[]`) and no audio.
+- Built-in wavs stay in `remotion/public/sfx/` (`SfxTrack.tsx` still points there).
+- `npm run sfx:check` (root and `server`): read-only. Checks missing file, real duration against `duration` (50 ms), unknown `tobeused`, files with no entry, leading silence over 10 ms. Extra: warns when a file's peak is outside −3…0 dBFS, because the level logic assumes about −1. It prints suggestions and never edits. Exit 1 only on an error (missing or unreadable file, bad catalog).
+- Engine startup runs the same check and logs `sfx.catalog_warning` (non-fatal). Missing folder or empty `[]` is silent.
+- Wiring (`server/src/lib/sfxCatalog.ts`, called in `analyzeVideo.ts` after the bed block): only when the catalog has entries. For each hit `polishSfx` scheduled, it maps the hit to a cue, picks an entry deterministically from `hash(videoId + cue + time)`, and otherwise keeps today's built-in hit. Level: peak at `voLufs + SFX_VOICE_OFFSET_LU (−10) + gainDb`, never closer to the voice than −6 LU. A catalog hit within 120 ms after a word onset is dropped. It never adds a hit, so cap and spacing are unchanged. It logs `sfx.catalog_applied` with `maxPeakVsVoiceLu`, `maskedByWord`, `clamped`, and how many came from the catalog.
+- Blueprint `hits[]` gained an optional `durationSec` (catalog hits only), so a longer file is not cut at 0.45 s. `polishSfx.ts` is untouched; `mergeHits` stays unwired; `MUSIC_SPECIALIST_SFX` stays off.
+- Cues the engine fires today: `cut`, `transition`, `zoom_in`, `kinetic_plate`, `emphasis`. `hook`, `cta`, `ui`, `caption_pop`, `zoom_out`, `ambience` are accepted and checked but not scheduled by anything yet. Mapping is `cueForHit()`.
+- Tests: `sfxCatalog.test.ts`, 20 tests. Parsing and the string-to-array rule; unknown cue is a warning; empty catalog gives the same hits (snapshot of the scheduler, deep-equal through `applyCatalogToHits`); a two-entry fixture with synthetic tones in a temp dir picks the right file, stable across runs and catalog order; the 120 ms mask and the −6 LU ceiling; `sfx:check` flags a missing file, a wrong duration and leading silence and leaves the files byte-identical; the real folder ships with no audio.
+
+## 3. How to add a sound
+1. Copy the wav/mp3/m4a into `remotion/public/sfx-library/` (starts at 0.0 s, peak about −1 dBFS) and add an entry to `sfxinfo.json` (`fileName`, `duration`, `tobeused`, optional `gainDb`).
+2. Run `npm run sfx:check` and fix what it suggests. The README in that folder has the cue table.
+
+## 4. Checks
+- pytest `music_specialist/tests`: 44 passed. Server tsc: clean. Remotion tsc: only the 3 known errors.
+- Server vitest (music, scripts, render, `sfxCatalog`, existing SFX suites): 235 passed, **2 failed, both pre-existing**. I reproduced both with my changes stashed:
+  - `wp12dSfxHits.test.ts` "wiring pins": `analyzeVideo.ts` has not had the comment it searches for (`musicMood intentionally omitted` / `No music bed`) since at least `a064742`.
+  - `wp17FlashCards.test.ts` "caption exclusivity" fails the same way before my changes.
+  I did not fix them (out of scope); they need a look.
+- I did not run the whole server suite (it exceeds the tool time limit); I ran the music, scripts, render, lib and SFX-related suites.
+
+## 5. Needs a human decision
+- **Folder name.** You asked for `SFX`. `remotion/public/sfx/` already exists, and on macOS `SFX` and `sfx` are the same folder while on Linux/Lambda they are not, so I asked and went with `remotion/public/sfx-library/` (your answer).
+- **Word mask scope.** The 120 ms rule exists only in `mergeHits` (unwired); `polishSfx` never had it. Applying it to today's built-in hits would change old renders, so it applies to catalog hits only. Say if you want it on built-ins too.
+- high-energy bpm 128 → 120, and the dropped caption tags (above).
+- Whether to close the 0.7 LU shortfall with a one-frame look-ahead (above).
+- Commit `CLAUDE.md`?
+- The 2 failing pin tests.
+
+## 6. `render-blueprint` A/B commands for your real edit
+Use your saved blueprint for `<bp>`. Master pass is on by default; add `--measure 1` to log the numbers (`music.mix_measured`, including `bedOverVoiceWindows`, in `logs/engine.log`).
+
+```
+# speech offset
+npm run render-blueprint -- <bp> --speech-offset -16
+npm run render-blueprint -- <bp> --speech-offset -18
+npm run render-blueprint -- <bp> --speech-offset -20
+
+# carved twin
+npm run render-blueprint -- <bp> --carved 0
+npm run render-blueprint -- <bp> --carved 1
+
+# release
+npm run render-blueprint -- <bp> --release-ms 450
+npm run render-blueprint -- <bp> --release-ms 300
+```
+
 # Phase 2.2
 
 Branch: `bgm-phase-2`. Not pushed. Date: 2026-11-04.
