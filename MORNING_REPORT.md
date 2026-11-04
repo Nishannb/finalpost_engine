@@ -1,3 +1,42 @@
+# Phase 2.1
+
+Branch: `bgm-phase-2`. Not pushed.
+
+## 1. Spend proof
+
+- `agents/music_specialist/spend.log` at the start of Phase 2.1: absent (0 lines).
+- After A: absent (0 lines).
+- Runware calls: 0. LLM calls: 0. Lambda renders: 0.
+
+## 2. Per task
+
+### A. Trim trailing silence
+
+- Status: done.
+- Files: `silence_trimmer.py` (`trim_trailing_segment`), `postprocess.py` (`POSTPROCESS_VERSION` 3, 150 ms fade on `bed_full` only), `test_trailing_trim.py`, `test_loop.py` version pin, optional `trailing_trimmed_sec` on the music result schema.
+- Tests: pytest 37 passed. Vitest 75 passed (`src/stages/music` plus wp27). Server tsc clean. Remotion tsc only the 3 known errors.
+- Salvaged bed, reprocessed locally: `trailing_trimmed_sec` 3.25, `duration_sec` 56.68, measured bpm 129.2, 16-bar loop 29.094 s, −16.0 LUFS, `loop_fallback` false. The hand-off time is that 56.68 s, which is the end of the audible file.
+- Listen files (gitignored): `remotion/out/music-loop/bed_full.wav`, `bed_loop.wav`, `bed_loop_x3.wav`, `bed_carved.wav`.
+- Commit: filled after the commit.
+
+## 3. R2 objects written
+
+None yet.
+
+## 4. Task E table
+
+Not run.
+
+## 5. Listen list
+
+v3 files are written after task A passes. The Phase 2 files are still at `remotion/out/music-loop/`.
+
+## 6. Commands for the human
+
+Filled in at the end. Do not run them during this phase.
+
+---
+
 # BGM Phase 2 morning report
 
 Branch: `bgm-phase-2`. Not pushed.

@@ -9,9 +9,11 @@ import numpy as np
 import pyloudnorm as pyln
 from pydub import AudioSegment
 
-from .silence_trimmer import trim_segment
+from .silence_trimmer import trim_segment, trim_trailing_segment
 
-POSTPROCESS_VERSION = 2
+POSTPROCESS_VERSION = 3
+FADE_OUT_MS = 150.0
+FADE_MIN_MS = 300.0
 TARGET_LUFS = -16.0
 PEAK_CEILING_DBFS = -1.5
 SEAM_MS = 40.0
@@ -154,6 +156,8 @@ def _bar_loop(samples: np.ndarray, rate: int, downbeats: np.ndarray, env: np.nda
 def postprocess_bed(src_path: str, dest_path: str) -> dict:
     segment = AudioSegment.from_file(src_path)
     segment, _trimmed = trim_segment(segment)
+    segment, trailing_ms = trim_trailing_segment(segment)
+    trailing_trimmed_sec = round(trailing_ms / 1000.0, 3) if trailing_ms else 0
     if len(segment) < 400:
         raise RuntimeError("bed is empty after silence trim")
     segment = segment.set_frame_rate(RATE).set_channels(2).set_sample_width(2)
@@ -178,6 +182,7 @@ def postprocess_bed(src_path: str, dest_path: str) -> dict:
         full = _limit_peak(loop_seam(samples, RATE, SEAM_MS))
         loop_audio = full
         loop_start, loop_end, bars, drum_led = 0.0, full.shape[0] / RATE, 0, False
+    full = _fade_out(full, RATE)  # bed_full only; loop_audio is untouched
     out_dir = os.path.dirname(dest_path) or "."
     os.makedirs(out_dir, exist_ok=True)
     full_path = os.path.join(out_dir, "bed_full.wav")
@@ -195,6 +200,7 @@ def postprocess_bed(src_path: str, dest_path: str) -> dict:
         "bed_carved_path": carved_path,
         "integrated_lufs": round(loudness, 3),
         "duration_sec": round(full.shape[0] / RATE, 3),
+        "trailing_trimmed_sec": trailing_trimmed_sec,
         "loop_duration_sec": round(loop_audio.shape[0] / RATE, 3),
         "loop_start_sec": round(loop_start, 3),
         "loop_end_sec": round(loop_end, 3),
@@ -206,6 +212,16 @@ def postprocess_bed(src_path: str, dest_path: str) -> dict:
         "postprocess_version": POSTPROCESS_VERSION,
         "sample_rate": RATE,
     }
+
+
+def _fade_out(samples: np.ndarray, rate: int, fade_ms: float = FADE_OUT_MS) -> np.ndarray:
+    """Linear fade to zero over the last 150 ms. Files under 300 ms are left alone."""
+    if samples.shape[0] < int(rate * FADE_MIN_MS / 1000.0):
+        return samples
+    n = int(rate * fade_ms / 1000.0)
+    out = samples.copy()
+    out[-n:] *= np.linspace(1.0, 0.0, n)[:, None]
+    return out
 
 
 def _normalize(samples: np.ndarray, rate: int) -> np.ndarray:

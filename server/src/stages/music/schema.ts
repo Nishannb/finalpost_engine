@@ -16,6 +16,7 @@ export const musicResultSchema = z.object({
   bed_path: z.string().optional(),
   integrated_lufs: z.number().optional(),
   duration_sec: z.number().optional(),
+  trailing_trimmed_sec: z.number().optional(),
   bed_loop_path: z.string().optional(),
   loop_duration_sec: z.number().optional(),
   loop_fallback: z.boolean().optional(),

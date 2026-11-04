@@ -22,15 +22,15 @@ def _rms(x: np.ndarray) -> float:
     return float(np.sqrt(np.mean(np.square(x)))) or 1e-12
 
 
-def test_version_is_two():
-    assert POSTPROCESS_VERSION == 2
+def test_version_is_three():
+    assert POSTPROCESS_VERSION == 3
 
 
 def test_click_bed_writes_both_files(tmp_path):
     raw = str(tmp_path / "raw.wav")
     write_click_bed(raw, 120)
     out = postprocess_bed(raw, str(tmp_path / "w" / "bed.wav"))
-    assert out["postprocess_version"] == 2
+    assert out["postprocess_version"] == 3
     for name in ("bed.wav", "bed_full.wav", "bed_loop.wav"):
         assert (tmp_path / "w" / name).exists()
     if out["loop_fallback"]:  # beat_track may fail on a pure click bed; that is allowed
