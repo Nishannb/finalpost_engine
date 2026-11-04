@@ -35,7 +35,7 @@ Branch: `bgm-phase-2`. Not pushed.
 - Files: `uploadBed.ts` (`uploadBedDetailed`, `mergePoolEntry`, optional `full_url`/`loop_url`/`carved_url`), `musicSpecialist.ts` (`poolPlan` + generated upload paths), `toAudioDesign.ts` (`playbackFromPlan`), `analyzeVideo.ts` uses `playbackFromPlan`, `ShortVideo.tsx` passes `musicCarvedUrl` only (not lines 286/299/300), `schema.ts` bed paths, `poolPlayback.test.ts`, `backfillSalvagedBed.ts` (gated on `--write-r2`).
 - Tests: pytest 41 passed. Vitest 84 passed (music + wp27). Server tsc clean. Remotion tsc only the 3 known errors.
 - Old pool entries with only `url` keep single-file playback. Carved is only attached when `MUSIC_CARVED_TWIN=1`.
-- Commit: filled after the commit.
+- Commit: `a064742`.
 
 ## 3. R2 objects written
 
