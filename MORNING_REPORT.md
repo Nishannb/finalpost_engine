@@ -55,7 +55,7 @@ Branch: `bgm-phase-2`. Not pushed.
 - Four local `render-blueprint` burns with `--measure 1`. Salvaged bed URLs from the backfilled pool. Intended `music.mix_check` was speechGapLu 18 / pauseGapLu 9 on every run.
 - `MusicMixProbe` only passes `musicUrl` into `MusicBedTrack`, so bed-stem `mix_measured` cannot see the carved twin. Final LUFS still barely moved between carved 0 and 1 (−22.0 vs −21.9 before master).
 - `MUSIC_CARVED_TWIN` stays **default off**. Reason: measured pauseGapLu was 12.4 on carved=1 (and on carved=0), outside the 9 ± 1.5 LU band required to flip the default on. SpeechGapLu 17.3 was inside 18 ± 1.5.
-- Commit: filled after the commit.
+- Commit: `a607609`.
 
 ## 3. R2 objects written
 
