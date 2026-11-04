@@ -156,20 +156,26 @@ def energy_map_and_lift(samples: np.ndarray, rate: int, downbeat_times: list, en
             break
     lift_sec = None
     if lift_bar is not None:
-        # The bar that contains the change can start up to a bar early. Refine to the beat: the first quarter of the lift bar whose rms is
-        # at least halfway from the earlier bars to the next bar.
+        # The bar that was detected can be the bar AFTER the change, because the bar that holds the change is only partly loud. Refine to the beat over the
+        # previous bar and the detected bar: the first quarter whose rms is at least halfway from the earlier bars to the detected bar.
         top = max(rms) or 1.0
         rms_n = [v / top for v in rms]
-        prior = float(np.mean(rms_n[max(0, lift_bar - LIFT_LOOKBACK_BARS): lift_bar]))
-        target = rms_n[lift_bar + 1] if lift_bar + 1 < len(rms_n) else rms_n[lift_bar]
-        threshold = prior + 0.5 * (target - prior)
+        first = max(0, lift_bar - 1)
+        earlier = rms_n[max(0, first - LIFT_LOOKBACK_BARS): first]
+        prior = float(np.mean(earlier)) if earlier else 0.0
+        threshold = prior + 0.5 * (rms_n[lift_bar] - prior)
         quarter = bar_len / 4.0
         lift_sec = edges[lift_bar]
-        for k in range(4):
-            a = edges[lift_bar] + k * quarter
-            chunk = mono[int(a * rate): int((a + quarter) * rate)]
-            if chunk.size and float(np.sqrt(np.mean(np.square(chunk)))) / top >= threshold:
-                lift_sec = a
+        found = False
+        for bar in (first, lift_bar):
+            for k in range(4):
+                a = edges[bar] + k * quarter
+                chunk = mono[int(a * rate): int((a + quarter) * rate)]
+                if chunk.size and float(np.sqrt(np.mean(np.square(chunk)))) / top >= threshold:
+                    lift_sec = a
+                    found = True
+                    break
+            if found:
                 break
     return {
         "energy_map": energy,

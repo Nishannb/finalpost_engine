@@ -199,6 +199,9 @@ describe('music.summary', () => {
     expect(summary).toEqual({
       source: 'pool', mood: 'high-energy', costUsd: 0, voLufs: -20, intendedSpeechGapLu: 18, intendedPauseGapLu: 9,
       carvedApplied: true, masterApplied: true, finalLufs: -14, finalTruePeak: -2.7, sfxHits: {catalog: 1, builtIn: 1}, fallbackReason: null,
+      // Phase 3 fields are null for a blueprint with no brief or placement
+      style: null, bedStyle: null, family: null, bpm: null, key: null, speechWpm: null, arc: null, measuredLiftSec: null, liftAtVideoSec: null, hookAtSec: null,
+      startOffsetSec: null, startsOnDownbeat: null, placementScore: null, endType: null, fallbackTier: null, sfxSnapped: null, sfxDropped: null,
     });
   });
   it('shows a generation cost, a fallback reason, carved off and no master', () => {
@@ -209,6 +212,25 @@ describe('music.summary', () => {
       env: {MUSIC_CARVED_TWIN: '0'},
     });
     expect(summary).toMatchObject({source: 'generated', costUsd: 0.0075, carvedApplied: false, masterApplied: false, finalLufs: null, fallbackReason: 'timeout'});
+  });
+  it('reports the brief, the measured lift, the offset, the score, the ending and the SFX snap counts for a personalised edit', () => {
+    const personalised: AudioDesign = {
+      ...audio,
+      musicStartOffsetSec: 14.5,
+      musicEndSec: 18.12,
+      musicEndFadeSec: 0.12,
+      musicEndType: 'button',
+      musicPlacementScore: 0.83,
+      musicProvenance: {
+        source: 'generated', mood: 'driving-electronic', costUsd: 0.0075, fallbackTier: 'style',
+        brief: {style: 'driving-electronic', family: 'high-energy', bpm: 128, key: 'A minor', speechWpm: 184, arc: 'hook-then-steady', energy: 'high', hookAtSec: 2.5},
+        bedStyle: 'upbeat-pop', bedMeasuredLiftSec: 16.5, liftAtVideoSec: 2, startsOnDownbeat: true, sfxSnapped: 3, sfxDropped: 1,
+      },
+    };
+    expect(buildMusicSummary({audioDesign: personalised, env: {}})).toMatchObject({
+      source: 'generated', costUsd: 0.0075, style: 'driving-electronic', bedStyle: 'upbeat-pop', family: 'high-energy', bpm: 128, key: 'A minor', speechWpm: 184, arc: 'hook-then-steady',
+      measuredLiftSec: 16.5, liftAtVideoSec: 2, hookAtSec: 2.5, startOffsetSec: 14.5, startsOnDownbeat: true, placementScore: 0.83, endType: 'button', fallbackTier: 'style', sfxSnapped: 3, sfxDropped: 1,
+    });
   });
   it('no bed means source none with a reason; an old blueprint without provenance still summarizes', () => {
     expect(buildMusicSummary({audioDesign: {sfx: []}})).toMatchObject({source: 'none', fallbackReason: 'no_bed', costUsd: 0});

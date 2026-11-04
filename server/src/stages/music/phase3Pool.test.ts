@@ -113,8 +113,11 @@ describe('fallback tiers and pool-first (fake pool, never R2)', () => {
   it('pool-first: a style pool with beds is a $0 hit on the nearest tempo, with the measured placement meta attached', async () => {
     const withMeta = bed('b', 84, {downbeat_times: [0.5, 2.5, 4.5], energy_map: [0.1, 0.2, 0.9], lift_sec: 4.5, lift_bar: 2, bar_sec: 2, duration_sec: 50});
     const {mod, infos} = await load({'lofi-chill': [bed('a', 72), withMeta]});
+    // Hermetic: the engine .env is loaded with override and may set any of these.
     vi.stubEnv('MUSIC_SPECIALIST', 'dry');
     vi.stubEnv('POLISH_MUSIC_BED_URL', '');
+    vi.stubEnv('MUSIC_BED_FRESH', '0');
+    vi.stubEnv('MUSIC_BED_SOURCE', 'auto');
     const plan = await mod.startMusicPlan({transcript_segments: [], visual_cuts: [], emotional_tone: 'calm', canvas_sec: 20, video_id: 'v', brief});
     vi.unstubAllEnvs();
     expect(plan).toMatchObject({fromPool: true, costUsd: 0, cacheKey: withMeta.cache_key});

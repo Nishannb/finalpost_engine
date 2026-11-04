@@ -81,6 +81,14 @@ export function parseCliArgs(argv: string[]): CliOptions {
   return opts;
 }
 
+/** The env this CLI needs for one render. Pure on the env it is given. Called after the engine config has loaded .env, so the flags win over .env. */
+export function applyRenderEnv(opts: Pick<CliOptions, 'carved' | 'master' | 'measure'>, env: NodeJS.ProcessEnv): void {
+  if (opts.carved !== undefined) env.MUSIC_CARVED_TWIN = opts.carved;
+  env.MUSIC_MASTER_PASS = opts.master;
+  env.MUSIC_MIX_MEASURE = opts.measure;
+  env.LOCAL_RENDER_SKIP_R2 = '1'; // a free re-render never uploads
+}
+
 export function resolveBlueprintPath(file: string): string {
   return path.isAbsolute(file) ? file : path.resolve(REPO_ROOT, file);
 }
@@ -167,16 +175,13 @@ async function main(): Promise<void> {
   if (carvedWarning) console.warn(carvedWarning);
   blueprint = {...blueprint, videoUrl, ...(audioDesign ? {audioDesign} : {})};
 
-  // Env for this process only; .env is never touched.
-  if (opts.carved !== undefined) process.env.MUSIC_CARVED_TWIN = opts.carved;
-  process.env.MUSIC_MASTER_PASS = opts.master;
-  process.env.MUSIC_MIX_MEASURE = opts.measure;
-  process.env.LOCAL_RENDER_SKIP_R2 = '1';
-
   const [{renderLocally, localServedRenderPath}, {DEFAULT_RENDER_STYLE}] = await Promise.all([
     import('../stages/render/localRender.ts'),
     import('../http/schemas.ts'),
   ]);
+  // Env for this process only; .env is never touched. This MUST come after the imports above: config/env.ts loads the engine's .env with
+  // override: true when they load, so anything set before them is silently replaced by a MUSIC_* value in .env (and LOCAL_RENDER_SKIP_R2 would be too).
+  applyRenderEnv(opts, process.env);
 
   const videoId = loaded.videoId ?? blueprint.blueprintId;
   const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..*$/, '');

@@ -4,7 +4,7 @@ import {fileURLToPath} from 'node:url';
 import {describe, expect, it} from 'vitest';
 
 import {buildDuckEnvelope} from '../stages/music/duckEnvelope.ts';
-import {applyCarvedOverride, applyDuckOverrides,parseCliArgs, resolveBlueprintPath, resolveVideoUrl} from './renderBlueprint.ts';
+import {applyCarvedOverride, applyDuckOverrides, applyRenderEnv, parseCliArgs, resolveBlueprintPath, resolveVideoUrl} from './renderBlueprint.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -104,5 +104,23 @@ describe('cli helpers', () => {
     expect(() => resolveVideoUrl('/prefetch/job/source.mp4', null, () => false)).toThrow(/sourceVideoPath/);
     expect(resolveVideoUrl('/prefetch/job/source.mp4', '/a/b.mp4', p => p === '/a/b.mp4')).toBe('/a/b.mp4');
     expect(resolveVideoUrl('https://x/y.mp4', null, () => false)).toBe('https://x/y.mp4');
+  });
+});
+
+describe('the CLI flags win over .env', () => {
+  it('applyRenderEnv sets the flags and the R2 skip, and leaves carved alone when it was not asked for', () => {
+    const env: NodeJS.ProcessEnv = {MUSIC_MIX_MEASURE: '0', MUSIC_MASTER_PASS: '0', MUSIC_CARVED_TWIN: '0', LOCAL_RENDER_SKIP_R2: '0'};
+    applyRenderEnv({carved: undefined, master: '1', measure: '1'}, env);
+    expect(env).toMatchObject({MUSIC_MIX_MEASURE: '1', MUSIC_MASTER_PASS: '1', MUSIC_CARVED_TWIN: '0', LOCAL_RENDER_SKIP_R2: '1'});
+    applyRenderEnv({carved: '1', master: '0', measure: '0'}, env);
+    expect(env).toMatchObject({MUSIC_CARVED_TWIN: '1', MUSIC_MASTER_PASS: '0', MUSIC_MIX_MEASURE: '0'});
+  });
+  it('applies the env only AFTER the modules that load .env with override are imported (a regression: --measure was silently ignored)', () => {
+    const source = readFileSync(path.join(here, 'renderBlueprint.ts'), 'utf8');
+    const imports = source.indexOf("import('../stages/render/localRender.ts')");
+    const apply = source.indexOf('applyRenderEnv(opts, process.env);');
+    expect(imports).toBeGreaterThan(0);
+    expect(apply).toBeGreaterThan(imports);
+    expect(source.slice(0, imports)).not.toMatch(/process\.env\.[A-Z_]+ =/);
   });
 });

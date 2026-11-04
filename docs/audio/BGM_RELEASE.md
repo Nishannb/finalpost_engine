@@ -13,7 +13,9 @@ Set these on the engine host. Never commit values. The defaults in the last colu
 | `POLISH_MUSIC_BED_URL` | **empty** | A licensed URL here wins over the generated bed. Leave it empty unless you want one licensed bed on every edit. |
 | `MUSIC_SPECIALIST_MAX_USD` | `0.02` (default) | Cost cap per generation (~$0.0075 per bed). Above it the edit falls back to the pool or to no bed. |
 | `MUSIC_SPECIALIST_TIMEOUT_MS` | `45000` (default) | How long an edit waits for a bed. The generation is not killed; a late bed lands in the pool for the next edit. |
-| `MUSIC_BED_POOL_SIZE` | `3` (default) | The most beds one mood pool holds. A QC-passing generated bed is appended only while the pool is under this. Nothing is ever removed. |
+| `MUSIC_PERSONALIZE` | `1` (default) | Per-video brief, bed made for it, placement on the video, SFX on the beat. New edits only. `0` = the Phase 2.4 behaviour. |
+| `MUSIC_BED_FRESH` | **`1` in production** | Generate a bed for every new edit from its own brief (about $0.0075 per video). Re-rendering the same video is a $0 cache hit (the key is style, tempo, key, arc and a seed from the video id). With `0` the pooled bed of the video's style is reused for $0. |
+| `MUSIC_BED_POOL_SIZE` | `3` (default) | The most beds one **style** pool holds. A QC-passing generated bed is appended only while that pool is under this; once full it stops appending and the bed is still used for that video. Nothing is ever removed. |
 | `MUSIC_DUCK_PRESET` | `talking` (default) | Bed sits 18 / 9 / 4 LU under the measured voice (speech / pause / open). |
 | `MUSIC_DUCK_RELEASE_MS` | `300` (default) | Lets short pauses settle. Plus a one-frame attack look-ahead (33 ms), stored on each new blueprint. |
 | `MUSIC_CARVED_TWIN` | `1` (default) | Carved bed under speech. `0` = off. |
@@ -27,7 +29,7 @@ Also required: R2 credentials and `R2_PUBLIC_BASE_URL` set to a public **https**
 ### What the production image needs (Phase 2.4 findings and fix)
 
 - `contentMoodMap.json` was read with `fs` from beside the compiled file, but `tsc` does not copy JSON. In a built image `resolveMoodPool` would have thrown and the music plan would have failed open on every edit. It is now imported, so the build emits it. Verified with a real `tsc` build.
-- The `Dockerfile` shipped only `server/dist`: no `agents/`, no Python packages. Pool beds would still play, but a mood with an empty pool could not generate, and the voice loudness would fall back to an assumed −20 LUFS (`music.vo_lufs_assumed`). The `Dockerfile` now copies `agents/music_specialist`, the mood map, and builds `/app/agents/.venv` with `pydub pyloudnorm numpy scipy librosa`, and makes `agents/music_specialist` writable for `spend.log`. **This Dockerfile change has not been built.** Before deploying: `docker build -t kinmel-engine .` and then `docker run --rm kinmel-engine /app/agents/.venv/bin/python -c "import librosa, pyloudnorm, pydub, scipy"` (run it from `/app/agents` for `-m music_specialist.vo_lufs`). The venv pulls librosa and numba, which makes the image larger.
+- The `Dockerfile` shipped only `server/dist`: no `agents/`, no Python packages. Pool beds would still play, but a mood with an empty pool could not generate, and the voice loudness would fall back to an assumed −20 LUFS (`music.vo_lufs_assumed`). The `Dockerfile` now copies `agents/music_specialist`, the mood map and `briefRules.json`, and builds `/app/agents/.venv` with `pydub pyloudnorm numpy scipy librosa`, and makes `agents/music_specialist` writable for `spend.log`. **This Dockerfile change has not been built.** Before deploying: `docker build -t kinmel-engine .` and then `docker run --rm kinmel-engine /app/agents/.venv/bin/python -c "import librosa, pyloudnorm, pydub, scipy"` (run it from `/app/agents` for `-m music_specialist.vo_lufs`). The venv pulls librosa and numba, which makes the image larger.
 - ffmpeg is already in the image, and the Lambda master pass needs it.
 
 ## 2. Redeploy the Remotion site (needed before the first Lambda edit)
@@ -52,15 +54,20 @@ Do this once, on one real talking-head video, before announcing.
    MUSIC_SPECIALIST=live npm run first-video -- /path/to/talking-head.mp4
    ```
 
-   Run it on a video whose mood is `high-energy` first.
+   With `MUSIC_BED_FRESH=1` this generates one bed for this video (one Runware call). Use a short video first.
 2. Find the line in `logs/engine.log`: `grep music.summary logs/engine.log | tail -1`.
 
    | Field | Expect |
    |---|---|
-   | `source` | `pool` for high-energy (the salvaged bed is in that pool) with `costUsd` `0`. For a mood with an empty pool: `generated`, `costUsd` ≈ `0.0075`, and a `music.pool_appended` line. |
+   | `source` | `generated`, with `costUsd` ≈ `0.0075` (with `MUSIC_BED_FRESH=1`); `pool` and `0` for a re-render that hits the cache or for `MUSIC_BED_FRESH=0` on a style that has a bed. A `music.pool_appended` line appears while that style's pool is under its size. |
+   | `style` / `family` / `bpm` / `key` / `arc` / `speechWpm` | The brief: a style that fits the video, a tempo near the pace of the speech (a multiple of 4), `hook-then-steady` under 25 s, `build` to 60 s, else `steady`. `bedStyle` equals `style` for a fresh bed. |
+   | `measuredLiftSec` / `liftAtVideoSec` / `hookAtSec` | Where the bed lifts, and where that lands on the video. `liftAtVideoSec` should be within about half a bar of `hookAtSec` (the offset can only be a downbeat). `null` when the bed has no lift. |
+   | `startOffsetSec` / `startsOnDownbeat` / `placementScore` / `endType` | A real offset, `true`, a score between 0 and 1, and `button` or `hold-fade`. `startsOnDownbeat: false` means the bed had no measured beat grid (an old pool bed). |
+   | `sfxSnapped` / `sfxDropped` | How many hits moved to a beat and how many the mask or spacing removed. |
    | `voLufs` | A real number, not `-20` exactly. If it is exactly −20, look for `music.vo_lufs_assumed`. |
    | `intendedSpeechGapLu` / `intendedPauseGapLu` | `18` / `9` |
    | `carvedApplied` / `masterApplied` | `true` / `true` |
+   | `fallbackTier` | `null` normally; `style` or `family` when generation failed and a pool bed was used. |
    | `finalLufs` / `finalTruePeak` | ≈ `−14` / at or under `−1` (about −2 to −3 is typical) |
    | `sfxHits` | Built-in hits are expected; `catalog` is `0` until you add sounds. |
    | `fallbackReason` | `null` |
@@ -69,8 +76,13 @@ Do this once, on one real talking-head video, before announcing.
    - the voice is always clearly on top;
    - the music is audible in the pauses, and drops before each phrase (not into it);
    - no click where the loop repeats (videos over about 58 s);
-   - no sound effect lands on the start of a word.
+   - no sound effect lands on the start of a word;
+   - the music starts on a beat with the picture, steps up near the hook and ends on a bar line (or fades over the last 400 ms), with no long silent tail.
 5. For a Lambda edit (after §2), the same `music.summary` appears with `where: "lambda"`, followed by `music.master_pass` with `where: "lambda"`. If you see `music.master_pass_failed`, the unmastered file was served and the job has the warning `music:master_not_applied`.
+
+## 3b. Tuning the rules
+
+`server/src/stages/music/briefRules.json` holds the styles, tempo ranges, keys, arc cut-offs, pace thresholds and the mood x type -> style matrix. See "Tuning `briefRules.json`" in [VOICE_FIRST.md](VOICE_FIRST.md). Edit, run the server tests, redeploy the server image (the Python side reads the same file from the image). Existing beds and blueprints are not changed.
 
 ## 4. Fine-tuning by ear
 

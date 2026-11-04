@@ -35,6 +35,24 @@ Each is the default when unset and keeps its env override. They apply to **new**
 
 Remotion rounds every volume to a multiple of 1/97, so a bed or SFX level can land up to about half a step off its target (about 0.3 dB at the −22 dB speech gain, up to about 1.5 dB for a −30 dBFS SFX). That is outside our control and is not corrected.
 
+## Personalised music (Phase 3)
+
+`MUSIC_PERSONALIZE` (default `1`) applies to **new** edits only; a saved blueprint renders exactly as before. `0` restores Phase 2.4 (5 family moods, no placement).
+
+- **MusicBrief** (`server/src/stages/music/musicBrief.ts`): a pure function of data the director already has: caption words, content mood and type, duration, the cuts known so far. No extra LLM call. Output is logged as `music.brief`.
+- **Styles** (`briefRules.json`): 10 styles, each in one of the 5 families, each with at most 12 caption tags including the voice-first ones (no lead melody, no vocals), a tempo range, a preferred mode and 4 or 5 roots. Every visual mood x content type maps to a style (a test fails on any gap). A style's family is its pool fallback.
+- **Tempo** from the creator's speech pace (speech time only, pauses over 600 ms excluded): under 130 wpm the low end of the style's range, 130 to 170 the middle, over 170 the high end, one band up when the cut rate is over 30 a minute, always a multiple of 4 inside the range. **Key**: the style's mode, a root from `hash(videoId)`: varied across videos, stable across re-renders.
+- **Arc** is requested, then measured: under 25 s `hook-then-steady`, 25 to 60 s `build` (unless low energy), longer or low energy `steady`, sent as section tags in `settings.lyrics`. Placement never trusts the request: postprocess measures a per-bar energy map and the lift bar on the bed itself.
+- **Placement** (`placement.ts`): frame 0 lands on a bed downbeat. Candidates are scored 3.0 for the lift landing near the hook, 1.5 for the bed's energy following the video's intensity, 0.5 for a quiet intro bar, 0.2 for covering the video without a hand-off. The ending is the last bar line (a 120 ms fade, then silence) or, if that is more than 1.5 s early, a hold with a 400 ms fade. The loop hand-off is on a bar line.
+- **SFX** snap to the nearest beat within 60 ms; the 120 ms word mask always wins; with a catalog `hook` entry a hit plays on frame 0, with a `cta` entry on the bar line nearest the CTA. Cap and spacing hold.
+- **Voice-first guard:** placement and the brief write times, a tempo, a style and a fade length. They never write a gain. The duck envelope is in video time and is identical with placement on and off (a test checks it). The only level change placement can cause is the end fade, which is between 0 and 1.
+
+Pools are keyed by **style**. Fallback when generation fails, times out or misses the cost cap: the same style's bed with the nearest tempo, then the same family's, then no bed (`music.fallback {reason, tier}`).
+
+### Tuning `briefRules.json`
+
+One file, read by the server and by `agents/music_specialist/prompts.py`; no code change needed. Edit a style's `bpmRange` (ends must be multiples of 4), `roots`, `mode` or tags (keep the total at 12 or fewer and keep `no lead melody`), the `pace` thresholds, the `arc` cut-offs or the `matrix` (visual mood x content type -> style). `npm test` in `server` fails if any combination is unmapped, a tempo end is not a multiple of 4, or a style breaks the tag budget. Any change to a style's tags or an arc's lyrics changes the generation cache key by design; bump `PROMPT_VERSION` in `agents/music_specialist/models.py` when you change what the model is asked for. The file is imported (not read with `fs`), so the production build emits it; the Dockerfile copies it for Python.
+
 ## SFX library
 
 Human-curated sounds live in `remotion/public/sfx-library/` (lowercase, deliberately: `remotion/public/sfx/` holds the built-in wavs and `SFX` would be the same folder on macOS but a different one on Linux and Lambda). See its `README.md`. No hit lands within 120 ms after a word onset: built-in hits are masked when a new edit is scheduled, and catalog hits are masked again when a file is picked. Saved blueprints keep their stored hits.
@@ -48,7 +66,10 @@ Human-curated sounds live in `remotion/public/sfx-library/` (lowercase, delibera
 | `music.voice_fight` (warn) | one or more speech windows where the bed came within 6 LU of the voice |
 | `music.master_pass` | loudness and true peak before and after the master pass (local and Lambda) |
 | `music.summary` | one line per render: source, cost, voice LUFS, intended gaps, carved, master, final LUFS / true peak, SFX by source, fallback reason |
-| `music.pool_appended` | a new bed joined a mood pool, with the pool size |
+| `music.pool_appended` | a new bed joined a style pool, with the pool size |
+| `music.brief` | the brief for a new edit: style, family, tempo, key, speech pace, cut rate, energy, arc |
+| `music.placement` | start offset, where the lift lands against the hook, score, ending type, snap counts |
+| `sfx.beat_snap` | hits snapped to the beat, dropped by the mask or spacing, and whether a catalog hook / CTA hit was added |
 | `music.qc_speech_band` (meta.json) | the share of bed energy in 1–4 kHz and its spectral flux. Log only; never rejects |
 | `sfx.catalog_warning` | catalog problems (missing file, wrong duration, unknown cue) |
 

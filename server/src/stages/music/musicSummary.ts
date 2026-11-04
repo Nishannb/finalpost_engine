@@ -19,6 +19,25 @@ export type MusicSummary = {
   finalTruePeak: number | null;
   sfxHits: {catalog: number; builtIn: number};
   fallbackReason: string | null;
+  /** Phase 3. Null on a blueprint without a brief or placement (MUSIC_PERSONALIZE=0, or saved before it). */
+  style: string | null;
+  bedStyle: string | null;
+  family: string | null;
+  bpm: number | null;
+  key: string | null;
+  speechWpm: number | null;
+  arc: string | null;
+  /** Where the bed itself lifts, measured (bed seconds), and where that lands on the video. */
+  measuredLiftSec: number | null;
+  liftAtVideoSec: number | null;
+  hookAtSec: number | null;
+  startOffsetSec: number | null;
+  startsOnDownbeat: boolean | null;
+  placementScore: number | null;
+  endType: 'button' | 'hold-fade' | null;
+  fallbackTier: string | null;
+  sfxSnapped: number | null;
+  sfxDropped: number | null;
 };
 
 /**
@@ -50,6 +69,23 @@ export function buildMusicSummary(input: {
     finalLufs: input.master?.afterLufs ?? null,
     finalTruePeak: input.master?.afterTruePeak ?? null,
     sfxHits: {catalog: fromCatalog, builtIn: hits.length - fromCatalog},
+    style: provenance?.brief?.style ?? null,
+    bedStyle: provenance?.bedStyle ?? null,
+    family: provenance?.brief?.family ?? null,
+    bpm: provenance?.brief?.bpm ?? null,
+    key: provenance?.brief?.key ?? null,
+    speechWpm: provenance?.brief?.speechWpm ?? null,
+    arc: provenance?.brief?.arc ?? null,
+    measuredLiftSec: provenance?.bedMeasuredLiftSec ?? null,
+    liftAtVideoSec: provenance?.liftAtVideoSec ?? null,
+    hookAtSec: provenance?.brief?.hookAtSec ?? null,
+    startOffsetSec: audio?.musicStartOffsetSec ?? null,
+    startsOnDownbeat: provenance?.startsOnDownbeat ?? null,
+    placementScore: audio?.musicPlacementScore ?? null,
+    endType: audio?.musicEndType ?? null,
+    fallbackTier: provenance?.fallbackTier ?? null,
+    sfxSnapped: provenance?.sfxSnapped ?? null,
+    sfxDropped: provenance?.sfxDropped ?? null,
     fallbackReason: provenance?.fallbackReason ?? (source === 'none' ? 'no_bed' : null) ?? (input.masterRequested && !input.master && masterPassEnabled(input.env ?? process.env) ? 'master_not_applied' : null),
   };
 }

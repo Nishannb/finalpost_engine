@@ -40,3 +40,6 @@ out/renders/
 
 # synthetic proof fixtures
 out/fixtures/
+
+# personalisation proof beds (generated)
+remotion/public/_proof-beds/
