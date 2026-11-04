@@ -20,6 +20,13 @@ export const musicResultSchema = z.object({
   bed_loop_path: z.string().optional(),
   loop_duration_sec: z.number().optional(),
   loop_fallback: z.boolean().optional(),
+  qc_silence_sec: z.number().nullable().optional(),
+  qc_true_peak_dbfs: z.number().nullable().optional(),
+  qc_bpm_error_ratio: z.number().nullable().optional(),
+  qc_seam_db: z.number().nullable().optional(),
+  qc_vocal_score: z.number().nullable().optional(),
+  qc_passed: z.boolean().optional(),
+  qc_retried: z.boolean().optional(),
 });
 
 export type MusicResult = z.infer<typeof musicResultSchema>;

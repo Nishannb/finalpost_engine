@@ -109,7 +109,9 @@ export function spawnMusic(
         return;
       }
       try {
-        resolve(musicResultSchema.parse(JSON.parse(out)));
+        const parsed = musicResultSchema.parse(JSON.parse(out));
+        if (typeof parsed.qc_vocal_score === 'number') log.info({score: parsed.qc_vocal_score}, 'music.qc_vocal_score');
+        resolve(parsed);
       } catch (error) {
         reject(new Error(`music schema: ${redactSecrets(error instanceof Error ? error.message : String(error), secret)}`));
       }

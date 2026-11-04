@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any, Dict, List, Optional
 
@@ -7,10 +8,25 @@ from .ffmpeg_cmd import build_ffmpeg_argv
 from .models import BGM_DURATION_SEC, MAX_SFX, MIN_SFX_GAP_MS, PROMPT_VERSION, SFX_COST_USD, MusicPayload, SfxEvent
 from .postprocess import POSTPROCESS_VERSION, postprocess_bed, write_click_bed
 from .prompts import LYRICS, NEGATIVE_PROMPT, cache_key, caption_for, derive_seed, resolve_mood
+from .qc import qc_bed
 from .runware import DryRunTransport, bgm_task, classify_sfx, sfx_task
 from .spend import append_spend, bgm_cap_cost
 from .silence_trimmer import trim_leading_silence
 from .timeline import build_schema
+
+
+_log = logging.getLogger("music_specialist")
+
+
+def _run_qc(metrics: Dict[str, Any], requested_bpm: float) -> Dict[str, Any]:
+    try:
+        return qc_bed(bed_full_path=metrics["bed_full_path"], bed_loop_path=metrics["bed_loop_path"],
+                      measured_bpm=metrics.get("measured_bpm"), requested_bpm=requested_bpm,
+                      loop_fallback=bool(metrics.get("loop_fallback")))
+    except Exception as exc:  # QC must never take the process down
+        _log.warning("music.qc_error %s", type(exc).__name__)
+        return {"silence_sec": None, "true_peak_dbfs": None, "bpm_error_ratio": None, "seam_db": None,
+                "vocal_score": None, "passed": False}
 
 
 class AIMusicSpecialistAgent:
@@ -80,6 +96,20 @@ class AIMusicSpecialistAgent:
             write_click_bed(raw_path, spec.bpm)
         bed_path = os.path.join(workdir, "bed.wav")
         metrics = postprocess_bed(raw_path, bed_path)
+        qc = _run_qc(metrics, spec.bpm)
+        qc_retried = False
+        if live and not qc["passed"]:
+            # One retry, same seed, bed only, and only if a second bed fits the existing cap.
+            first_cost = float(getattr(self.transport, "last_cost", None) or bgm_cap_cost())
+            if first_cost + bgm_cap_cost() <= max_usd:
+                qc_retried = True
+                url = self.transport.post(bgm_task(caption, seed=seed, bpm=spec.bpm, key_scale=spec.key), "bgm")
+                append_spend(video_id=video_id, cache_key=key, seed=seed,
+                             cost=getattr(self.transport, "last_cost", None), duration_sec=BGM_DURATION_SEC)
+                self.transport.download(url, raw_path)
+                metrics = postprocess_bed(raw_path, bed_path)
+                qc = _run_qc(metrics, spec.bpm)
+        _log.info("music.qc_vocal_score %s", qc["vocal_score"])
 
         events: List[SfxEvent] = []
         for index, cut in enumerate(cuts):
@@ -105,6 +135,12 @@ class AIMusicSpecialistAgent:
         schema["cost_breakdown"] = schema.pop("cost_usd")
         schema.update(base)
         schema.update(metrics)
+        schema.update({
+            "qc_silence_sec": qc["silence_sec"], "qc_true_peak_dbfs": qc["true_peak_dbfs"],
+            "qc_bpm_error_ratio": qc["bpm_error_ratio"], "qc_seam_db": qc["seam_db"],
+            "qc_vocal_score": qc["vocal_score"], "qc_passed": qc["passed"],
+            "qc_retried": qc_retried, "qc": qc,
+        })
         schema["mode"] = mode
         schema["cost_usd"] = measured
         return schema

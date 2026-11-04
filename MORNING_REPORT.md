@@ -6,6 +6,7 @@ Branch: `bgm-phase-2`. Not pushed.
 
 - `agents/music_specialist/spend.log` at the start of Phase 2.1: absent (0 lines).
 - After A: absent (0 lines).
+- After B: absent (0 lines).
 - Runware calls: 0. LLM calls: 0. Lambda renders: 0.
 
 ## 2. Per task
@@ -18,6 +19,14 @@ Branch: `bgm-phase-2`. Not pushed.
 - Salvaged bed, reprocessed locally: `trailing_trimmed_sec` 3.25, `duration_sec` 56.68, measured bpm 129.2, 16-bar loop 29.094 s, −16.0 LUFS, `loop_fallback` false. The hand-off time is that 56.68 s, which is the end of the audible file.
 - Listen files (gitignored): `remotion/out/music-loop/bed_full.wav`, `bed_loop.wav`, `bed_loop_x3.wav`, `bed_carved.wav`.
 - Commit: `dc737d7`.
+
+### B. QC gate
+
+- Status: done. Vocal score is log-only. Live retry is implemented and was not run.
+- Files: `qc.py`, `agent.py` (one live retry, dry never retries), `test_qc.py`, schema qc fields, `musicSpecialist.ts` logs `music.qc_vocal_score`.
+- Tests: pytest 41 passed. Vitest 75 passed. Server tsc clean. Remotion tsc only the 3 known errors.
+- Salvaged bed after the v3 trim: `passed` true, silence 0.04 s, true peak −4.119 dBFS, bpm error 0.94%, seam 0.867 dB, vocal score 0.5956 (recorded, not a reject).
+- Commit: filled after the commit.
 
 ## 3. R2 objects written
 
