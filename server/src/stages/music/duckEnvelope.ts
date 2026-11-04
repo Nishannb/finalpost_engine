@@ -76,6 +76,9 @@ export function buildDuckEnvelope(input: {
   speechOffsetLu?: number;
   pauseOffsetLu?: number;
   openOffsetLu?: number;
+  /** Optional A/B overrides of the hold and release times (seconds). The defaults are DUCK_HOLD_SEC / DUCK_RELEASE_SEC. Stored on the envelope, so Remotion needs no change. */
+  holdSec?: number;
+  releaseSec?: number;
 }): DuckEnvelope {
   const preset = input.preset ?? 'talking';
   const voLufs = input.voLufs ?? VO_LUFS_ASSUMED;
@@ -92,8 +95,8 @@ export function buildDuckEnvelope(input: {
     ...gains,
     ...(preset === 'talking' ? {voLufs, bedLufs} : {}),
     attackSec: DUCK_ATTACK_SEC,
-    holdSec: DUCK_HOLD_SEC,
-    releaseSec: DUCK_RELEASE_SEC,
+    holdSec: input.holdSec ?? DUCK_HOLD_SEC,
+    releaseSec: input.releaseSec ?? DUCK_RELEASE_SEC,
     phrases: mergeSpeechPhrases(input.words),
     durationSec: Math.max(0, input.durationSec),
   };

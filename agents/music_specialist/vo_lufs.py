@@ -55,20 +55,35 @@ def measure_file(path: str, intervals: Iterable[Sequence[float]]) -> Optional[fl
     return speech_gated_lufs(samples, rate, intervals)
 
 
-def measure_mix(bed_path: str, vo_path: str, speech: Sequence[Sequence[float]], pause: Sequence[Sequence[float]]) -> dict:
-    """Loudness of the stems inside speech and pause windows. Offline. A value is None when its windows are too short to gate."""
+def measure_mix(
+    bed_path: str,
+    vo_path: str,
+    speech: Sequence[Sequence[float]],
+    pause: Sequence[Sequence[float]],
+    pause_settled: Optional[Sequence[Sequence[float]]] = None,
+) -> dict:
+    """Loudness of the stems inside speech and pause windows. Offline. A value is None when its windows are too short to gate.
+
+    bed_pause_lufs is the whole pause window (hold and release ramps included). bed_pause_settled_lufs is only the part
+    where the envelope has reached the pause gain; it is None when no pause was long enough to settle.
+    """
+    bed, rate = read_audio(bed_path)
+    settled = list(pause_settled or [])
     return {
         "vo_speech_lufs": measure_file(vo_path, speech),
-        "bed_speech_lufs": measure_file(bed_path, speech),
-        "bed_pause_lufs": measure_file(bed_path, pause),
+        "bed_speech_lufs": speech_gated_lufs(bed, rate, speech),
+        "bed_pause_lufs": speech_gated_lufs(bed, rate, pause),
+        "bed_pause_settled_lufs": speech_gated_lufs(bed, rate, settled) if settled else None,
+        "settled_pause_count": len(settled),
+        "settled_pause_sec": round(sum(max(0.0, e - s) for s, e in settled), 3),
     }
 
 
 def mix_main() -> None:
-    """CLI: python -m music_specialist.vo_lufs --mix <bed.wav> <vo.wav> <windows.json>; windows = {"speech": [[s,e]], "pause": [[s,e]]}."""
+    """CLI: python -m music_specialist.vo_lufs --mix <bed.wav> <vo.wav> <windows.json>; windows = {"speech": [[s,e]], "pause": [[s,e]], "pauseSettled": [[s,e]]}."""
     with open(sys.argv[4], encoding="utf-8") as handle:
         windows = json.load(handle)
-    result = measure_mix(sys.argv[2], sys.argv[3], windows.get("speech", []), windows.get("pause", []))
+    result = measure_mix(sys.argv[2], sys.argv[3], windows.get("speech", []), windows.get("pause", []), windows.get("pauseSettled", []))
     json.dump({key: None if value is None else round(value, 2) for key, value in result.items()}, sys.stdout)
 
 

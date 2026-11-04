@@ -3,7 +3,9 @@
  *
  *   npm run render-blueprint -- <blueprint.json> [--duck-preset talking|default|legacy_brief]
  *     [--speech-offset -18] [--pause-offset -9] [--open-offset -4]
+ *     [--release-ms 450] [--hold-ms 150]   (duck timing A/B; defaults unchanged: hold 150, release 450)
  *     [--carved 0|1] [--master 0|1] [--measure 0|1]
+ *   --master defaults to 1 (the master pass is on for local renders); --master 0 turns it off.
  *
  * <blueprint.json> is a raw TimelineBlueprint or a SavedBlueprintEnvelope (top-level `blueprint` object).
  * Output: out/renders/{videoId}-{preset}-{timestamp}.mp4. mix_measured / master_pass numbers are in the engine log for the job id.
@@ -25,6 +27,8 @@ export type CliOptions = {
   speechOffset?: number;
   pauseOffset?: number;
   openOffset?: number;
+  holdMs?: number;
+  releaseMs?: number;
   carved?: '0' | '1';
   master: '0' | '1';
   measure: '0' | '1';
@@ -35,7 +39,7 @@ type Envelope = {videoId?: string; sourceVideoPath?: string | null; voLufs?: num
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 
 export function parseCliArgs(argv: string[]): CliOptions {
-  const opts: CliOptions = {file: '', master: '0', measure: '0'};
+  const opts: CliOptions = {file: '', master: '1', measure: '0'};
   const num = (flag: string, raw: string | undefined): number => {
     const value = Number(raw);
     if (raw === undefined || raw === '' || !Number.isFinite(value)) throw new Error(`${flag} needs a number`);
@@ -59,6 +63,8 @@ export function parseCliArgs(argv: string[]): CliOptions {
       case '--speech-offset': opts.speechOffset = num(flag, value()); break;
       case '--pause-offset': opts.pauseOffset = num(flag, value()); break;
       case '--open-offset': opts.openOffset = num(flag, value()); break;
+      case '--hold-ms': opts.holdMs = num(flag, value()); if (opts.holdMs < 0 || opts.holdMs > 2000) throw new Error('--hold-ms must be 0..2000'); break;
+      case '--release-ms': opts.releaseMs = num(flag, value()); if (opts.releaseMs < 10 || opts.releaseMs > 3000) throw new Error('--release-ms must be 10..3000'); break;
       case '--carved': opts.carved = bit(flag, value()); break;
       case '--master': opts.master = bit(flag, value()); break;
       case '--measure': opts.measure = bit(flag, value()); break;
@@ -68,7 +74,7 @@ export function parseCliArgs(argv: string[]): CliOptions {
         opts.file = arg;
     }
   }
-  if (!opts.file) throw new Error('Usage: npm run render-blueprint -- <blueprint.json> [--duck-preset ...] [--speech-offset N] [--pause-offset N] [--open-offset N] [--carved 0|1] [--master 0|1] [--measure 0|1]');
+  if (!opts.file) throw new Error('Usage: npm run render-blueprint -- <blueprint.json> [--duck-preset ...] [--speech-offset N] [--pause-offset N] [--open-offset N] [--hold-ms N] [--release-ms N] [--carved 0|1] [--master 0|1] [--measure 0|1]');
   return opts;
 }
 
@@ -95,13 +101,13 @@ export function resolveVideoUrl(videoUrl: string, sourceVideoPath: string | null
 }
 
 export function duckOverridesRequested(opts: CliOptions): boolean {
-  return opts.duckPreset !== undefined || opts.speechOffset !== undefined || opts.pauseOffset !== undefined || opts.openOffset !== undefined;
+  return opts.duckPreset !== undefined || opts.speechOffset !== undefined || opts.pauseOffset !== undefined || opts.openOffset !== undefined || opts.holdMs !== undefined || opts.releaseMs !== undefined;
 }
 
 /** Pure: returns an AudioDesign with the duck rebuilt when asked (or when it is missing but words and a generated bed exist). Otherwise returns the input untouched. */
 export function applyDuckOverrides(
   blueprint: TimelineBlueprint,
-  opts: Pick<CliOptions, 'duckPreset' | 'speechOffset' | 'pauseOffset' | 'openOffset'>,
+  opts: Pick<CliOptions, 'duckPreset' | 'speechOffset' | 'pauseOffset' | 'openOffset' | 'holdMs' | 'releaseMs'>,
   envelopeVoLufs?: number | null,
 ): {audioDesign: AudioDesign | undefined; rebuilt: boolean} {
   const audio = blueprint.audioDesign;
@@ -122,6 +128,8 @@ export function applyDuckOverrides(
     speechOffsetLu: opts.speechOffset,
     pauseOffsetLu: opts.pauseOffset,
     openOffsetLu: opts.openOffset,
+    ...(opts.holdMs !== undefined ? {holdSec: opts.holdMs / 1000} : {}),
+    ...(opts.releaseMs !== undefined ? {releaseSec: opts.releaseMs / 1000} : {}),
   });
   return {audioDesign: {...audio, duck, voLufs: audio.voLufs ?? voLufs}, rebuilt: true};
 }
@@ -166,7 +174,7 @@ async function main(): Promise<void> {
 
   const videoId = loaded.videoId ?? blueprint.blueprintId;
   const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..*$/, '');
-  const preset = `${audioDesign?.duck?.preset ?? 'none'}-c${process.env.MUSIC_CARVED_TWIN === '1' ? 1 : 0}-m${opts.master}`;
+  const preset = `${audioDesign?.duck?.preset ?? 'none'}-r${Math.round((audioDesign?.duck?.releaseSec ?? 0.45) * 1000)}-c${process.env.MUSIC_CARVED_TWIN === '1' ? 1 : 0}-m${opts.master}`;
   const renderJobId = `rb_${videoId}_${stamp}`.replace(/[^A-Za-z0-9_-]/g, '_');
 
   await renderLocally({

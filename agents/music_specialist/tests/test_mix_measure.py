@@ -81,3 +81,47 @@ def test_gain_applied_fixture_gaps(tmp_path: Path) -> None:
     pause_gap = measured["vo_speech_lufs"] - measured["bed_pause_lufs"]
     assert speech_gap == pytest.approx(18.0, abs=1.0)
     assert pause_gap == pytest.approx(9.0, abs=1.0)
+
+
+def _ramp_gain(rate: int, n: int, start: float, end: float, hold: float, release: float, attack: float, speech_db: float, pause_db: float) -> np.ndarray:
+    """Per-sample linear gain for one phrase end -> next phrase start, the way duckEnvelope.ts shapes it (dB interpolation)."""
+    t = np.arange(n) / rate
+    db = np.full(n, pause_db)
+    db[t < end + hold] = speech_db
+    ramp = (t >= end + hold) & (t < end + hold + release)
+    db[ramp] = speech_db + (pause_db - speech_db) * (t[ramp] - end - hold) / release
+    att = (t >= start - attack) & (t < start)
+    db[att] = pause_db + (speech_db - pause_db) * (t[att] - (start - attack)) / attack
+    db[t >= start] = speech_db
+    return 10 ** (db / 20)
+
+
+def test_settled_pause_gap_is_nine_on_a_two_second_pause(tmp_path: Path) -> None:
+    """Synthetic 2 s pause with the real hold/release/attack. The whole-window gap reads high; the settled gap is the preset's 9 LU."""
+    rate, seconds = 48000, 6.0
+    rng = np.random.default_rng(3)
+    bed = rng.standard_normal(int(seconds * rate))
+    bed *= 10 ** ((-16.0 - pyln.Meter(rate).integrated_loudness(bed)) / 20)  # -16 LUFS bed, like the postprocess target
+    speech, pause = [[0.5, 2.0], [4.0, 5.5]], [[2.0, 4.0]]
+    hold, release, attack = 0.15, 0.45, 0.08
+    speech_db, pause_db = VO_LUFS - 18.0 - (-16.0), VO_LUFS - 9.0 - (-16.0)  # -22, -13
+    gain = _ramp_gain(rate, len(bed), 4.0, 2.0, hold, release, attack, speech_db, pause_db)
+    bed_path, vo_path = tmp_path / "bed.wav", tmp_path / "vo.wav"
+    _write(bed_path, bed * gain, rate)
+    voice = np.zeros_like(bed)
+    for start, end in speech:
+        a, b = int(start * rate), int(end * rate)
+        chunk = rng.standard_normal(b - a)
+        voice[a:b] = chunk * 10 ** ((-20.0 - pyln.Meter(rate).integrated_loudness(chunk)) / 20)
+    _write(vo_path, voice, rate)
+
+    settled = [[2.0 + hold + release + 0.02, 4.0 - attack - 0.02]]
+    measured = measure_mix(str(bed_path), str(vo_path), speech, pause, settled)
+    vo = measured["vo_speech_lufs"]
+    assert vo == pytest.approx(-20.0, abs=0.5)
+    assert vo - measured["bed_speech_lufs"] == pytest.approx(18.0, abs=1.0)
+    assert vo - measured["bed_pause_settled_lufs"] == pytest.approx(9.0, abs=1.0)
+    assert vo - measured["bed_pause_lufs"] > vo - measured["bed_pause_settled_lufs"] + 0.3  # ramps run quieter than the pause gain, so the whole-window gap reads high
+    assert measured["settled_pause_count"] == 1
+    assert measured["settled_pause_sec"] == pytest.approx(1.28, abs=0.01)
+    assert measure_mix(str(bed_path), str(vo_path), speech, pause)["bed_pause_settled_lufs"] is None

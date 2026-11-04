@@ -76,6 +76,19 @@ describe('cli helpers', () => {
     const o = parseCliArgs(['f.json', '--duck-preset', 'default', '--speech-offset=-16', '--carved', '0', '--master', '1']);
     expect(o).toMatchObject({file: 'f.json', duckPreset: 'default', speechOffset: -16, carved: '0', master: '1', measure: '0'});
   });
+  it('parses hold and release in ms, defaults master on, and rejects out-of-range values', () => {
+    expect(parseCliArgs(['f.json'])).toMatchObject({master: '1', measure: '0'});
+    expect(parseCliArgs(['f.json', '--release-ms', '300', '--hold-ms=100'])).toMatchObject({releaseMs: 300, holdMs: 100});
+    expect(() => parseCliArgs(['f.json', '--release-ms', '0'])).toThrow(/release-ms/);
+    expect(() => parseCliArgs(['f.json', '--hold-ms', 'x'])).toThrow(/number/);
+  });
+  it('hold and release rebuild the duck without touching the defaults', () => {
+    const bp = {audioDesign: {musicSource: 'generated', musicUrl: 'u', duck: buildDuckEnvelope({words: [{start: 1, end: 2}], durationSec: 6})}, captionWords: [{text: 'a', start: 1, end: 2}], outputDurationSec: 6} as never;
+    const out = applyDuckOverrides(bp, {releaseMs: 300, holdMs: 100});
+    expect(out.rebuilt).toBe(true);
+    expect(out.audioDesign?.duck).toMatchObject({releaseSec: 0.3, holdSec: 0.1});
+    expect(buildDuckEnvelope({words: [], durationSec: 1})).toMatchObject({releaseSec: 0.45, holdSec: 0.15});
+  });
   it('fails clearly on a missing prefetch path with no source', () => {
     expect(() => resolveVideoUrl('/prefetch/job/source.mp4', null, () => false)).toThrow(/sourceVideoPath/);
     expect(resolveVideoUrl('/prefetch/job/source.mp4', '/a/b.mp4', p => p === '/a/b.mp4')).toBe('/a/b.mp4');

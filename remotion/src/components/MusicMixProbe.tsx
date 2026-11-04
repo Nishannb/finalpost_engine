@@ -18,6 +18,16 @@ export const musicMixProbeSchema = z.object({
   bedUrl: z.string(),
   voUrl: z.string(),
   duck: z.any().nullable().optional(),
+  /** Optional: the generated-bed fields of the real AudioDesign, so the bed stem plays what the final render plays (split/loop/carved twin). Absent → the bare musicUrl, as before. */
+  bedSpec: z
+    .object({
+      musicFullUrl: z.string().optional(),
+      musicLoopUrl: z.string().optional(),
+      musicCarvedUrl: z.string().optional(),
+      musicFullDurationSec: z.number().optional(),
+      musicSource: z.enum(['licensed', 'generated']).optional(),
+    })
+    .optional(),
   durationSec: z.number().positive(),
   /** Optional keep segments so a trimmed render's dialogue lands on the output timeline. */
   voSegments: z
@@ -29,11 +39,11 @@ export type MusicMixProbeProps = z.infer<typeof musicMixProbeSchema>;
 
 export const mixProbeFrames = (durationSec: number) => Math.max(1, Math.ceil(durationSec * MIX_PROBE_FPS));
 
-export const MusicMixProbe: React.FC<MusicMixProbeProps> = ({stem, bedUrl, voUrl, duck, voSegments}) => {
+export const MusicMixProbe: React.FC<MusicMixProbeProps> = ({stem, bedUrl, voUrl, duck, voSegments, bedSpec}) => {
   if (stem === 'bed') {
     return (
       <AbsoluteFill>
-        <MusicBedTrack bed={{musicUrl: bedUrl}} duck={(duck ?? null) as DuckEnvelope | null} />
+        <MusicBedTrack bed={{musicUrl: bedUrl, ...(bedSpec ?? {})}} duck={(duck ?? null) as DuckEnvelope | null} />
       </AbsoluteFill>
     );
   }
