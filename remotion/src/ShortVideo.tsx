@@ -475,6 +475,7 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({blueprint, style}) => {
                 ducking: blueprint.audioDesign.ducking,
                 ...(blueprint.audioDesign.musicFullUrl ? {musicFullUrl: blueprint.audioDesign.musicFullUrl} : {}),
                 ...(blueprint.audioDesign.musicLoopUrl ? {musicLoopUrl: blueprint.audioDesign.musicLoopUrl} : {}),
+                ...(blueprint.audioDesign.musicCarvedUrl ? {musicCarvedUrl: blueprint.audioDesign.musicCarvedUrl} : {}),
                 ...(blueprint.audioDesign.musicFullDurationSec ? {musicFullDurationSec: blueprint.audioDesign.musicFullDurationSec} : {}),
                 ...(blueprint.audioDesign.musicSource ? {musicSource: blueprint.audioDesign.musicSource} : {}),
               }

@@ -7,6 +7,7 @@ Branch: `bgm-phase-2`. Not pushed.
 - `agents/music_specialist/spend.log` at the start of Phase 2.1: absent (0 lines).
 - After A: absent (0 lines).
 - After B: absent (0 lines).
+- After C: absent (0 lines).
 - Runware calls: 0. LLM calls: 0. Lambda renders: 0.
 
 ## 2. Per task
@@ -26,11 +27,28 @@ Branch: `bgm-phase-2`. Not pushed.
 - Files: `qc.py`, `agent.py` (one live retry, dry never retries), `test_qc.py`, schema qc fields, `musicSpecialist.ts` logs `music.qc_vocal_score`.
 - Tests: pytest 41 passed. Vitest 75 passed. Server tsc clean. Remotion tsc only the 3 known errors.
 - Salvaged bed after the v3 trim: `passed` true, silence 0.04 s, true peak −4.119 dBFS, bpm error 0.94%, seam 0.867 dB, vocal score 0.5956 (recorded, not a reject).
+- Commit: `eafdbbc`.
+
+### C. Wire loop and carved end to end
+
+- Status: done. R2 backfill already applied for the salvaged bed (rule 3 only).
+- Files: `uploadBed.ts` (`uploadBedDetailed`, `mergePoolEntry`, optional `full_url`/`loop_url`/`carved_url`), `musicSpecialist.ts` (`poolPlan` + generated upload paths), `toAudioDesign.ts` (`playbackFromPlan`), `analyzeVideo.ts` uses `playbackFromPlan`, `ShortVideo.tsx` passes `musicCarvedUrl` only (not lines 286/299/300), `schema.ts` bed paths, `poolPlayback.test.ts`, `backfillSalvagedBed.ts` (gated on `--write-r2`).
+- Tests: pytest 41 passed. Vitest 84 passed (music + wp27). Server tsc clean. Remotion tsc only the 3 known errors.
+- Old pool entries with only `url` keep single-file playback. Carved is only attached when `MUSIC_CARVED_TWIN=1`.
 - Commit: filled after the commit.
 
 ## 3. R2 objects written
 
-None yet.
+Allowed keys only (salvaged cache key `108abbca…`):
+
+- `music/beds/108abbca07e0c08d977649dbd1d1d842c072e564986b495f627caf07bfb55a53/bed_full.wav` (HEAD 200)
+- `music/beds/108abbca07e0c08d977649dbd1d1d842c072e564986b495f627caf07bfb55a53/bed_loop.wav` (HEAD 200)
+- `music/beds/108abbca07e0c08d977649dbd1d1d842c072e564986b495f627caf07bfb55a53/bed_carved.wav` (HEAD 200)
+- `music/beds/108abbca07e0c08d977649dbd1d1d842c072e564986b495f627caf07bfb55a53/meta.json` (`postprocess_version` 3, trim 3.25 s, QC scores, derived URLs; original licence kept)
+- `music/beds/pool/high-energy.json` (same cache key patched with `full_url`/`loop_url`/`carved_url`, `duration_sec` 56.68)
+- Backup: `music/beds/pool/high-energy.json.bak-2026-11-04` (HEAD 200) and local `remotion/out/music-loop/high-energy.json.bak-2026-11-04`
+
+`bed.wav` was not rewritten. No other pool moods were touched.
 
 ## 4. Task E table
 

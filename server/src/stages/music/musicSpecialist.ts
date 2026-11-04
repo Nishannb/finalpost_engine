@@ -17,7 +17,7 @@ import {
 } from './flags.ts';
 import {musicResultSchema, type MusicResult} from './schema.ts';
 import {flushSpool, removeSpool, spoolDir, writeSpool} from './spool.ts';
-import {cachedMoodBed, findUploadedBed, pickPoolBed, readPool, uploadBed, type PoolBed} from './uploadBed.ts';
+import {cachedMoodBed, findUploadedBed, pickPoolBed, readPool, uploadBed, uploadBedDetailed, type PoolBed} from './uploadBed.ts';
 
 const log = stageLogger('music');
 
@@ -50,6 +50,10 @@ export type MusicPlan = {
   fromPool?: boolean;
   /** Public URL of the loop body. Unset until an upload provides one. */
   loopUrl?: string | null;
+  /** Public URL of bed_full.wav (the trimmed bed). Unset until an upload provides one. */
+  fullUrl?: string | null;
+  /** Public URL of bed_carved.wav. Played under speech only when MUSIC_CARVED_TWIN=1. */
+  carvedUrl?: string | null;
   /** Local bar-aligned loop wav from the specialist. */
   loopFilePath?: string;
   /** Duration of the full bed, set when a clean loop exists. */
@@ -141,7 +145,7 @@ function toPlan(result: MusicResult, url: string | null): MusicPlan {
   };
 }
 
-function poolPlan(bed: PoolBed, mood: string): MusicPlan {
+export function poolPlan(bed: PoolBed, mood: string): MusicPlan {
   return {
     cacheKey: bed.cache_key,
     seed: bed.seed ?? 0,
@@ -156,6 +160,9 @@ function poolPlan(bed: PoolBed, mood: string): MusicPlan {
     promptVersion: 0,
     source: 'generated',
     fromPool: true,
+    ...(bed.full_url ? {fullUrl: bed.full_url} : {}),
+    ...(bed.carved_url ? {carvedUrl: bed.carved_url} : {}),
+    ...(bed.loop_url ? {loopUrl: bed.loop_url, ...(bed.duration_sec !== undefined ? {fullDurationSec: bed.duration_sec} : {})} : {}),
   };
 }
 
@@ -216,7 +223,7 @@ async function runMusicPlan(job: MusicJob): Promise<MusicPlan | null> {
     }
     const generated = await spawnMusic(decision.mode, {...jobWithSfx, seed: plan.seed});
     if (!generated.bed_path) return failOpen(mood, 'no_bed', videoId);
-    let url: string;
+    let uploaded: Awaited<ReturnType<typeof uploadBedDetailed>>;
     const uploadMeta = {
       prompt: generated.caption,
       seed: generated.seed,
@@ -228,6 +235,13 @@ async function runMusicPlan(job: MusicJob): Promise<MusicPlan | null> {
       key: generated.key,
       prompt_version: generated.prompt_version,
       postprocess_version: generated.postprocess_version,
+      trailing_trimmed_sec: generated.trailing_trimmed_sec,
+      qc_passed: generated.qc_passed,
+      qc_silence_sec: generated.qc_silence_sec,
+      qc_true_peak_dbfs: generated.qc_true_peak_dbfs,
+      qc_bpm_error_ratio: generated.qc_bpm_error_ratio,
+      qc_seam_db: generated.qc_seam_db,
+      qc_vocal_score: generated.qc_vocal_score,
     };
     const spoolRoot = spoolDir();
     try {
@@ -236,14 +250,30 @@ async function runMusicPlan(job: MusicJob): Promise<MusicPlan | null> {
       log.warn({reason: error instanceof Error ? error.message : String(error)}, 'music.spool_write_failed');
     }
     try {
-      url = await uploadBed({filePath: generated.bed_path, cacheKey: generated.cache_key, mood: generated.mood ?? mood, dry, meta: uploadMeta});
+      const loopOk = Boolean(generated.bed_loop_path) && generated.loop_fallback === false;
+      uploaded = await uploadBedDetailed({
+        filePath: generated.bed_path,
+        cacheKey: generated.cache_key,
+        mood: generated.mood ?? mood,
+        dry,
+        meta: uploadMeta,
+        ...(loopOk ? {loopFilePath: generated.bed_loop_path} : {}),
+        ...(generated.bed_full_path ? {fullFilePath: generated.bed_full_path} : {}),
+        ...(generated.bed_carved_path ? {carvedFilePath: generated.bed_carved_path} : {}),
+      });
       await removeSpool(spoolRoot, generated.cache_key).catch(() => undefined);
     } catch (error) {
       const reason = error instanceof Error && error.message === 'r2_unconfigured' ? 'r2_unconfigured' : 'upload';
       return failOpen(mood, reason, videoId);
     }
     log.info({cost_usd: generated.cost_usd ?? 0, cache_key: generated.cache_key, bpm: generated.bpm, seed: generated.seed}, 'music.generated');
-    return toPlan(generated, url);
+    const plan2 = toPlan(generated, uploaded.url);
+    return {
+      ...plan2,
+      ...(uploaded.fullUrl ? {fullUrl: uploaded.fullUrl} : {}),
+      ...(uploaded.loopUrl && generated.duration_sec !== undefined ? {loopUrl: uploaded.loopUrl, fullDurationSec: generated.duration_sec} : {}),
+      ...(uploaded.carvedUrl ? {carvedUrl: uploaded.carvedUrl} : {}),
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const reason = /timeout|SIGKILL|exited null/i.test(message) ? 'timeout' : 'spawn';

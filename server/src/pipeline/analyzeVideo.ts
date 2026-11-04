@@ -23,7 +23,7 @@ import {resolveMusicBed} from '../stages/music/resolveMusicBed.ts';
 import {agentsDir as musicAgentsDir, awaitMusicPlan} from '../stages/music/musicSpecialist.ts';
 import {measureVoLufs} from '../stages/music/measureVoLufs.ts';
 import {VO_LUFS_ASSUMED} from '../stages/music/duckEnvelope.ts';
-import {toAudioDesign} from '../stages/music/toAudioDesign.ts';
+import {playbackFromPlan, toAudioDesign} from '../stages/music/toAudioDesign.ts';
 import {ctaWindowsOf, moneyWindowsOf, planVoCutGrammar} from '../stages/broll/voCutGrammar.ts';
 import {LOOK_CAPTION_TYPE, pickShortFormLookId, preferVideoEditLook} from '../lib/shortFormLook.ts';
 import {polishAccumulateCaptions} from '../lib/polishAccumulateCaptions.ts';
@@ -2498,7 +2498,7 @@ async function analyzeVideoUnguarded(
           }
           duck = buildDuckEnvelope({words: captionWords, durationSec: timeline.outputDurationSec, preset, voLufs, bedLufs: resolved.integratedLufs});
         }
-        audioDesign = toAudioDesign({existing: audioDesign, resolved, duck, mood: musicPlan?.mood, voLufs, ...(musicPlan?.loopUrl && musicPlan.fullDurationSec ? {loop: {loopUrl: musicPlan.loopUrl, fullDurationSec: musicPlan.fullDurationSec}} : {})});
+        audioDesign = toAudioDesign({existing: audioDesign, resolved, duck, mood: musicPlan?.mood, voLufs, ...playbackFromPlan(musicPlan)});
         warnings.push(resolved.source === 'licensed' ? 'polish_music:bed:env' : 'music:bed:generated');
       }
     }

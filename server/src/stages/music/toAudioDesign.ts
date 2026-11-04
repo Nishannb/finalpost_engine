@@ -1,6 +1,23 @@
 import type {AudioDesign} from '../../types/blueprint.ts';
 import type {DuckEnvelope} from './duckEnvelope.ts';
+import {carvedTwinEnabled} from './flags.ts';
+import type {MusicPlan} from './musicSpecialist.ts';
 import type {ResolvedMusicBed} from './resolveMusicBed.ts';
+
+/** Playback inputs from a plan. Carved is passed only when MUSIC_CARVED_TWIN=1. */
+export function playbackFromPlan(
+  plan: Pick<MusicPlan, 'url' | 'loopUrl' | 'fullUrl' | 'fullDurationSec' | 'carvedUrl'> | null | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): {loop?: {fullUrl: string; loopUrl: string; fullDurationSec: number}; carvedUrl?: string} {
+  if (!plan) return {};
+  const fullUrl = plan.fullUrl ?? plan.url;
+  return {
+    ...(plan.loopUrl && plan.fullDurationSec && fullUrl
+      ? {loop: {fullUrl, loopUrl: plan.loopUrl, fullDurationSec: plan.fullDurationSec}}
+      : {}),
+    ...(carvedTwinEnabled(env) && plan.carvedUrl ? {carvedUrl: plan.carvedUrl} : {}),
+  };
+}
 
 /**
  * Maps a single resolved bed onto AudioDesign.
@@ -15,6 +32,8 @@ export function toAudioDesign(input: {
   voLufs?: number;
   /** Generated beds only. Absent → single looping musicUrl, as before. */
   loop?: {fullUrl?: string; loopUrl: string; fullDurationSec: number} | null;
+  /** Generated beds only. Public URL of bed_carved.wav; ignored when empty. */
+  carvedUrl?: string | null;
 }): AudioDesign {
   const existing = input.existing;
   const base: AudioDesign = {
@@ -49,6 +68,7 @@ export function toAudioDesign(input: {
           musicFullDurationSec: input.loop.fullDurationSec,
         }
       : {}),
+    ...(input.carvedUrl ? {musicCarvedUrl: input.carvedUrl} : {}),
     ...(input.duck ? {duck: input.duck} : {}),
     ...(input.voLufs !== undefined ? {voLufs: input.voLufs} : {}),
   };

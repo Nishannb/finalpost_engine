@@ -23,6 +23,10 @@ export type PoolBed = {
   integrated_lufs?: number;
   duration_sec?: number;
   added_at?: string;
+  /** Trimmed full bed. Absent on old entries, which keep single-file playback from `url`. */
+  full_url?: string;
+  loop_url?: string;
+  carved_url?: string;
 };
 
 /** Dry (synthetic click) beds live under their own prefix and never enter a real pool. */
@@ -76,42 +80,93 @@ export async function readPool(mood: string, dry = false): Promise<PoolBed[]> {
   }
 }
 
-async function appendToPool(mood: string, entry: PoolBed, dry: boolean): Promise<void> {
+/** Keys a later upload may add to an existing pool entry. */
+export type PoolPatch = Partial<Pick<PoolBed, 'full_url' | 'loop_url' | 'carved_url' | 'duration_sec'>>;
+
+/**
+ * Pure. An existing cache key is patched in place (every original key kept, only defined patch
+ * values written, no second element). A new cache key is appended with the patch applied.
+ */
+export function mergePoolEntry(beds: readonly PoolBed[], entry: PoolBed, patch: PoolPatch = {}): {beds: PoolBed[]; changed: boolean} {
+  const defined = Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined)) as PoolPatch;
+  const index = beds.findIndex(bed => bed.cache_key === entry.cache_key);
+  if (index < 0) return {beds: [...beds, {...entry, ...defined}], changed: true};
+  if (Object.keys(defined).length === 0) return {beds: [...beds], changed: false};
+  const current = beds[index];
+  if (!current) return {beds: [...beds], changed: false};
+  const next = beds.map(bed => ({...bed}));
+  next[index] = {...current, ...defined};
+  return {beds: next, changed: true};
+}
+
+async function appendToPool(mood: string, entry: PoolBed, dry: boolean, patch: PoolPatch = {}): Promise<void> {
   const beds = await readPool(mood, dry);
-  if (beds.some(bed => bed.cache_key === entry.cache_key)) return;
+  const merged = mergePoolEntry(beds, entry, patch);
+  if (!merged.changed) return;
   const file = path.join(os.tmpdir(), `music-pool-${dry ? 'dry-' : ''}${moodSlug(mood)}.json`);
-  await fs.writeFile(file, JSON.stringify({beds: [...beds, entry]}));
+  await fs.writeFile(file, JSON.stringify({beds: merged.beds}));
   await uploadPublicFile(file, poolObjectKey(mood, dry), 'application/json');
 }
 
-/**
- * Uploads an existing file on disk (no generation) with meta.json, then appends it to the mood pool.
- * `mood` is the MoodSpec name (the pool key). Dry beds go to a separate, never-picked prefix.
- */
-export async function uploadBed(input: {
+async function readExistingMeta(cacheKey: string, dry: boolean): Promise<Record<string, unknown>> {
+  try {
+    const response = await fetch(`${publicUrlForKey(`music/beds/${dry ? 'dry/' : ''}${cacheKey}/meta.json`)}?t=${Date.now()}`);
+    if (!response.ok) return {};
+    const body = await response.json() as unknown;
+    return body && typeof body === 'object' && !Array.isArray(body) ? body as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
+}
+
+export type UploadBedResult = {url: string; fullUrl?: string; loopUrl?: string; carvedUrl?: string};
+
+export type UploadBedInput = {
   filePath: string;
   cacheKey: string;
+  /** Carries postprocess_version, trailing_trimmed_sec, duration_sec and flat qc_* scores when known. */
   meta: Record<string, unknown>;
   mood: string;
   dry?: boolean;
   /** Optional bar-aligned loop wav. Uploaded to bedLoopObjectKey; url goes on meta as loop_url. */
   loopFilePath?: string;
-}): Promise<string> {
+  /** Optional trimmed full bed. Uploaded as bed_full.wav even when bed.wav already exists. */
+  fullFilePath?: string;
+  /** Optional VO-carved bed. Uploaded as bed_carved.wav even when bed.wav already exists. */
+  carvedFilePath?: string;
+};
+
+/**
+ * Uploads an existing file on disk (no generation) with meta.json, then adds it to the mood pool.
+ * `mood` is the MoodSpec name (the pool key). Dry beds go to a separate, never-picked prefix.
+ * bed.wav is never re-uploaded. Derived files upload even when bed.wav exists, and then
+ * meta.json is rewritten and the pool entry patched in place.
+ */
+export async function uploadBedDetailed(input: UploadBedInput): Promise<UploadBedResult> {
   if (!r2Configured()) throw new Error('r2_unconfigured');
   const dry = Boolean(input.dry);
+  const prefix = `music/beds/${dry ? 'dry/' : ''}${input.cacheKey}`;
   const existing = await findUploadedBed(input.cacheKey, dry);
   let url = existing;
   if (!url) {
     const uploaded = await uploadPublicFile(input.filePath, bedObjectKey(input.cacheKey, dry), 'audio/wav');
     url = uploaded.publicUrl;
+  }
+  const up = async (file: string | undefined, key: string) => (file ? (await uploadPublicFile(file, key, 'audio/wav')).publicUrl : undefined);
+  const fullUrl = await up(input.fullFilePath, `${prefix}/bed_full.wav`);
+  const loopUrl = await up(input.loopFilePath, bedLoopObjectKey(input.cacheKey, dry));
+  const carvedUrl = await up(input.carvedFilePath, `${prefix}/bed_carved.wav`);
+  const derived = {
+    ...(fullUrl ? {full_url: fullUrl} : {}),
+    ...(loopUrl ? {loop_url: loopUrl} : {}),
+    ...(carvedUrl ? {carved_url: carvedUrl} : {}),
+  };
+  const hasDerived = Object.keys(derived).length > 0;
+  if (!existing || hasDerived) {
+    const previous = existing ? await readExistingMeta(input.cacheKey, dry) : {};
     const metaPath = path.join(os.tmpdir(), `music-meta-${input.cacheKey}.json`);
-    let loopUrl: string | undefined;
-    if (input.loopFilePath) {
-      const loopUploaded = await uploadPublicFile(input.loopFilePath, bedLoopObjectKey(input.cacheKey, dry), 'audio/wav');
-      loopUrl = loopUploaded.publicUrl;
-    }
-    await fs.writeFile(metaPath, JSON.stringify({licence: LICENCE, ...input.meta, url, ...(loopUrl ? {loop_url: loopUrl} : {})}));
-    await uploadPublicFile(metaPath, `music/beds/${dry ? 'dry/' : ''}${input.cacheKey}/meta.json`, 'application/json');
+    await fs.writeFile(metaPath, JSON.stringify({licence: LICENCE, ...previous, ...input.meta, url, ...derived}));
+    await uploadPublicFile(metaPath, `${prefix}/meta.json`, 'application/json');
   }
   const meta = input.meta as Record<string, unknown>;
   const num = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : undefined);
@@ -126,8 +181,12 @@ export async function uploadBed(input: {
     integrated_lufs: num(meta.integrated_lufs ?? meta.lufs),
     duration_sec: num(meta.duration_sec),
     added_at: new Date().toISOString(),
-  }, dry);
-  return url;
+  }, dry, {...derived, ...(hasDerived ? {duration_sec: num(meta.duration_sec)} : {})});
+  return {url, ...(fullUrl ? {fullUrl} : {}), ...(loopUrl ? {loopUrl} : {}), ...(carvedUrl ? {carvedUrl} : {})};
+}
+
+export async function uploadBed(input: UploadBedInput): Promise<string> {
+  return (await uploadBedDetailed(input)).url;
 }
 
 /** Any bed in this mood's pool, used only when generation fails. */
