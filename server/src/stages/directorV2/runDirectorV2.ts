@@ -6,7 +6,8 @@ import type {Occupancy} from '../layout/occupancy.ts';
 import type {VisualDirection} from '../broll/geminiDirector.ts';
 import {fallbackVisualDirection} from '../broll/geminiDirector.ts';
 import {startMusicPlan, type MusicPlan} from '../music/musicSpecialist.ts';
-import {sfxEnabled} from '../music/flags.ts';
+import {personalizeEnabled, resolveMoodPool, sfxEnabled} from '../music/flags.ts';
+import {buildMusicBrief} from '../music/musicBrief.ts';
 import {collectVisualCuts} from '../music/mergeHits.ts';
 import {buildPerceptionPack} from './perception.ts';
 import {analyzeStory} from './storyAnalyst.ts';
@@ -62,10 +63,26 @@ export async function runDirectorV2(input: {
   kineticType?: {prompt: string};
 }): Promise<DirectorV2Result> {
   const ms = (sec: number) => Math.round(sec * 1000);
+  // Personalised music (MUSIC_PERSONALIZE, default on): the brief is built from this video's own data. Real cuts and zooms do not exist yet (music starts
+  // first, to overlap the director), so sentence starts stand in for the cut rate here; placement later uses the real events.
+  const musicTone = input.lookBias?.mood || 'neutral talking-head';
+  const musicBrief = input.editLooks && input.videoId && personalizeEnabled()
+    ? buildMusicBrief({
+        videoId: input.videoId,
+        captionWords: input.captionWords,
+        durationSec: Math.min(input.timeline.outputDurationSec, 180),
+        visualMood: input.lookBias?.mood,
+        contentType: input.lookBias?.contentType,
+        fallbackFamily: resolveMoodPool(musicTone) as import('../music/musicBrief.ts').MusicFamily,
+        cutCount: new Set(input.captionWords.map(word => word.sentenceIndex)).size,
+      })
+    : null;
+  if (musicBrief) log.info({videoId: input.videoId, ...musicBrief}, 'music.brief');
   const musicPending = input.editLooks ? startMusicPlan({
     transcript_segments: input.captionWords.map(word => ({text: word.text, start_ms: ms(word.start), end_ms: ms(word.end)})),
     visual_cuts: collectVisualCuts({captionWords: input.captionWords}),
-    emotional_tone: input.lookBias?.mood || 'neutral talking-head',
+    emotional_tone: musicTone,
+    ...(musicBrief ? {brief: {style: musicBrief.style, family: musicBrief.family, bpm: musicBrief.bpm, key: musicBrief.key, arc: musicBrief.arc}} : {}),
     canvas_sec: Math.min(input.timeline.outputDurationSec, 180),
     include_sfx: sfxEnabled(),
     ...(input.videoId ? {video_id: input.videoId} : {}),

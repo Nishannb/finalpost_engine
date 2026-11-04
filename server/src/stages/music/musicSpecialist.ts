@@ -17,6 +17,8 @@ import {
 } from './flags.ts';
 import {musicResultSchema, type MusicResult} from './schema.ts';
 import {flushSpool, removeSpool, spoolDir, writeSpool} from './spool.ts';
+import type {MusicBrief} from './musicBrief.ts';
+import type {BedPlacementMeta} from './placementMeta.ts';
 import {cachedMoodBed, findUploadedBed, pickPoolBed, readPool, uploadBed, uploadBedDetailed, type PoolBed} from './uploadBed.ts';
 
 const log = stageLogger('music');
@@ -30,6 +32,8 @@ export type MusicJob = {
   seed?: number;
   /** Stable per source video. Seeds the bed and picks the pool bed. Never the blueprint id. */
   video_id?: string;
+  /** Personalised generation: the brief for this video. Absent = the family mood from emotional_tone, as before. */
+  brief?: Pick<MusicBrief, 'style' | 'family' | 'bpm' | 'key' | 'arc'>;
 };
 
 export type MusicPlan = {
@@ -46,6 +50,14 @@ export type MusicPlan = {
   promptVersion: number;
   postprocessVersion?: number;
   source: 'generated';
+  /** Personalised: the style this bed was made for (or picked for), its family and the arc that was REQUESTED. */
+  style?: string;
+  family?: string;
+  arc?: string;
+  /** Measured on the bed (downbeats, energy map, lift). Absent on old pool entries. */
+  placement?: BedPlacementMeta;
+  /** Which fallback tier supplied this bed when generation failed: the same style, or the same family. */
+  fallbackTier?: 'style' | 'family';
   /** Why this plan is a fallback (a pool bed used because generation failed). Absent on a normal plan. */
   fallbackReason?: string;
   /** True when the bed came from the mood pool (no generation, $0). */
@@ -139,6 +151,24 @@ function toPlan(result: MusicResult, url: string | null): MusicPlan {
     estimatedCostUsd: result.estimated_cost_usd ?? 0,
     ...(result.integrated_lufs !== undefined ? {integratedLufs: result.integrated_lufs} : {}),
     ...(result.duration_sec !== undefined ? {durationSec: result.duration_sec} : {}),
+    ...(result.style ? {style: result.style} : {}),
+    ...(result.family ? {family: result.family} : {}),
+    ...(result.arc ? {arc: result.arc} : {}),
+    ...(result.downbeat_times && result.downbeat_times.length > 0
+      ? {
+          placement: {
+            downbeatTimes: result.downbeat_times,
+            energyMap: result.energy_map ?? [],
+            liftSec: result.lift_sec ?? null,
+            liftBar: result.lift_bar ?? null,
+            barSec: result.bar_sec ?? null,
+            fullDurationSec: result.duration_sec ?? null,
+            loopDurationSec: result.loop_duration_sec ?? null,
+            loopBars: result.loop_bars ?? null,
+            hasLoop: Boolean(result.bed_loop_path) && result.loop_fallback === false,
+          } satisfies BedPlacementMeta,
+        }
+      : {}),
     promptVersion: result.prompt_version,
     ...(result.postprocess_version !== undefined ? {postprocessVersion: result.postprocess_version} : {}),
     source: 'generated',

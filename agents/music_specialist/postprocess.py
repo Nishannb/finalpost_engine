@@ -11,7 +11,7 @@ from pydub import AudioSegment
 
 from .silence_trimmer import trim_segment, trim_trailing_segment
 
-POSTPROCESS_VERSION = 3
+POSTPROCESS_VERSION = 4
 FADE_OUT_MS = 150.0
 FADE_MIN_MS = 300.0
 TARGET_LUFS = -16.0
@@ -32,6 +32,10 @@ HIGHPASS_HZ = 200.0
 CARVE_HZ = 3000.0
 CARVE_BW_HZ = 2000.0
 CARVE_DB = -3.0
+# Energy map and lift bar (Phase 3). The arc is only REQUESTED from the model; placement uses what is measured here.
+LIFT_RISE = 0.2
+LIFT_LOOKBACK_BARS = 4
+MIN_LAST_BAR_FRACTION = 0.5
 
 
 def write_click_bed(path: str, bpm: int, seconds: float = 60.0, rate: int = RATE) -> None:
@@ -116,6 +120,65 @@ def speech_band_stats(samples: np.ndarray, rate: int) -> dict:
     return {"energy_share": round(share, 4), "flux": round(float(np.mean(frame_flux)) / level, 4), "band_hz": list(SPEECH_BAND_HZ)}
 
 
+def energy_map_and_lift(samples: np.ndarray, rate: int, downbeat_times: list, env=None) -> dict:
+    """Per-bar energy (0..1) and the lift bar, measured on the bed itself.
+
+    A bar runs from one downbeat to the next (the tail after the last downbeat counts when it is at least half a bar).
+    energy = 0.5 * rms (normalised to the loudest bar) + 0.5 * onset density (normalised the same way); rms only when no onset envelope is given.
+    The lift bar is the first bar (after the first) whose energy is at least LIFT_RISE above the mean of the previous LIFT_LOOKBACK_BARS bars.
+    """
+    total = samples.shape[0] / rate
+    marks = [float(t) for t in downbeat_times if 0.0 <= t < total]
+    if len(marks) < 2:
+        return {"energy_map": [], "lift_bar": None, "lift_sec": None, "bar_sec": None}
+    bar_len = float(np.median(np.diff(marks)))
+    edges = marks + ([total] if total - marks[-1] >= MIN_LAST_BAR_FRACTION * bar_len else [])
+    mono = samples.mean(axis=1) if samples.ndim > 1 else samples
+    rms = []
+    onset = []
+    for a, b in zip(edges[:-1], edges[1:]):
+        chunk = mono[int(a * rate): int(b * rate)]
+        rms.append(float(np.sqrt(np.mean(np.square(chunk)))) if chunk.size else 0.0)
+        if env is not None:
+            fa, fb = int(a * ANALYSIS_RATE / HOP), max(int(a * ANALYSIS_RATE / HOP) + 1, int(b * ANALYSIS_RATE / HOP))
+            seg = env[fa:fb]
+            onset.append(float(np.mean(seg)) if len(seg) else 0.0)
+    def norm(values):
+        top = max(values) if values else 0.0
+        return [v / top if top > 0 else 0.0 for v in values]
+    energy = [0.5 * r + 0.5 * o for r, o in zip(norm(rms), norm(onset))] if env is not None else norm(rms)
+    energy = [round(float(v), 3) for v in energy]
+    lift_bar = None
+    for i in range(1, len(energy)):
+        prior = energy[max(0, i - LIFT_LOOKBACK_BARS): i]
+        if energy[i] - float(np.mean(prior)) >= LIFT_RISE:
+            lift_bar = i
+            break
+    lift_sec = None
+    if lift_bar is not None:
+        # The bar that contains the change can start up to a bar early. Refine to the beat: the first quarter of the lift bar whose rms is
+        # at least halfway from the earlier bars to the next bar.
+        top = max(rms) or 1.0
+        rms_n = [v / top for v in rms]
+        prior = float(np.mean(rms_n[max(0, lift_bar - LIFT_LOOKBACK_BARS): lift_bar]))
+        target = rms_n[lift_bar + 1] if lift_bar + 1 < len(rms_n) else rms_n[lift_bar]
+        threshold = prior + 0.5 * (target - prior)
+        quarter = bar_len / 4.0
+        lift_sec = edges[lift_bar]
+        for k in range(4):
+            a = edges[lift_bar] + k * quarter
+            chunk = mono[int(a * rate): int((a + quarter) * rate)]
+            if chunk.size and float(np.sqrt(np.mean(np.square(chunk)))) / top >= threshold:
+                lift_sec = a
+                break
+    return {
+        "energy_map": energy,
+        "lift_bar": lift_bar,
+        "lift_sec": round(lift_sec, 3) if lift_sec is not None else None,
+        "bar_sec": round(bar_len, 3),
+    }
+
+
 def _measure_beats(samples: np.ndarray, rate: int):
     """Return (bpm, beat_frames, onset_env) or None when no usable beat grid is found."""
     import librosa
@@ -196,10 +259,13 @@ def postprocess_bed(src_path: str, dest_path: str) -> dict:
     loop = None
     downbeat_times: list = []
     measured_bpm = None
+    energy: dict = {"energy_map": [], "lift_bar": None, "lift_sec": None, "bar_sec": None}
     if beats is not None:
         measured_bpm, frames, env = beats
         downbeats = _downbeat_frames(frames, env)
         downbeat_times = [round(float(f) * HOP / ANALYSIS_RATE, 3) for f in downbeats]
+        # Measured on the normalised bed, before the peak limiter and the fade (neither changes the shape).
+        energy = energy_map_and_lift(samples, RATE, downbeat_times, env)
         loop = _bar_loop(samples, RATE, downbeats, env)
     if loop is not None:
         full = _limit_peak(samples)
@@ -238,6 +304,10 @@ def postprocess_bed(src_path: str, dest_path: str) -> dict:
         "measured_bpm": round(measured_bpm, 2) if measured_bpm else None,
         "downbeat_times": downbeat_times,
         "qc_speech_band": speech_band_stats(full, RATE),
+        "energy_map": energy["energy_map"],
+        "lift_bar": energy["lift_bar"],
+        "lift_sec": energy["lift_sec"],
+        "bar_sec": energy["bar_sec"],
         "postprocess_version": POSTPROCESS_VERSION,
         "sample_rate": RATE,
     }

@@ -20,7 +20,7 @@ _DEFAULT_PROMPTS = {
 }
 
 
-def bgm_task(prompt: str, *, seed: int, bpm: int, key_scale: str) -> Dict[str, Any]:
+def bgm_task(prompt: str, *, seed: int, bpm: int, key_scale: str, lyrics: str = LYRICS) -> Dict[str, Any]:
     if BGM_CFG <= 1:
         raise RuntimeError("negativePrompt requires CFGScale > 1")
     return {
@@ -43,7 +43,7 @@ def bgm_task(prompt: str, *, seed: int, bpm: int, key_scale: str) -> Dict[str, A
             "keyScale": key_scale,
             "timeSignature": TIME_SIGNATURE,
             "vocalLanguage": "unknown",
-            "lyrics": LYRICS,
+            "lyrics": lyrics,
         },
     }
 

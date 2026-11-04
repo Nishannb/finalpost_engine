@@ -32,6 +32,11 @@ class MoodSpec:
     production: tuple[str, ...]
     bpm: int
     key: str
+    family: str = ""
+
+    @property
+    def pool_family(self) -> str:
+        return self.family or self.name
 
 
 MOODS: dict[str, MoodSpec] = {
@@ -72,6 +77,42 @@ _BUCKETS = (
 
 
 _log = logging.getLogger("music_specialist")
+BRIEF_RULES_PATH = (
+    Path(__file__).resolve().parents[2] / "server" / "src" / "stages" / "music" / "briefRules.json"
+)
+_brief_rules: dict | None = None
+
+
+def brief_rules() -> dict:
+    """Styles, arcs and the mood x type matrix. The same file the server reads (server/src/stages/music/briefRules.json)."""
+    global _brief_rules
+    if _brief_rules is None:
+        _brief_rules = json.loads(BRIEF_RULES_PATH.read_text(encoding="utf-8"))
+    return _brief_rules
+
+
+def lyrics_for_arc(arc: str | None) -> str:
+    """settings.lyrics for an arc. Unknown or missing arc keeps the legacy value. Every value is at least 10 characters."""
+    return brief_rules()["arc"]["lyrics"].get(arc or "", LYRICS)
+
+
+def spec_for_brief(brief: dict) -> MoodSpec | None:
+    """A MoodSpec for one video's brief: the style's tags, the brief's tempo and key. None when the style is unknown (the caller falls back to the family mood)."""
+    rules = brief_rules()
+    style = rules["styles"].get(str(brief.get("style") or ""))
+    if not style:
+        return None
+    lo, hi = style["bpmRange"]
+    try:
+        bpm = int(brief.get("bpm"))
+    except (TypeError, ValueError):
+        bpm = (lo + hi) // 2
+    bpm = min(hi, max(lo, round(bpm / 4) * 4))
+    key = str(brief.get("key") or "").strip() or f"{style['roots'][0]} {style['mode']}"
+    return MoodSpec(
+        str(brief["style"]), style["genre"], tuple(style["moodWords"]), tuple(style["instruments"]), (),
+        bpm, key, family=style["family"],
+    )
 CONTENT_MOOD_MAP_PATH = (
     Path(__file__).resolve().parents[2] / "server" / "src" / "stages" / "music" / "contentMoodMap.json"
 )
@@ -118,13 +159,15 @@ def build_bgm_prompt(tone: str) -> str:
     return caption_for(resolve_mood(tone))
 
 
-def cache_material(spec: MoodSpec, seed: int) -> dict:
+def cache_material(spec: MoodSpec, seed: int, arc: str | None = None) -> dict:
     return {
+        "style": spec.name,
+        "arc": arc,
         "model": BGM_MODEL,
         "prompt_version": PROMPT_VERSION,
         "caption": caption_for(spec),
         "negative_prompt": NEGATIVE_PROMPT,
-        "lyrics": LYRICS,
+        "lyrics": lyrics_for_arc(arc),
         "bpm": spec.bpm,
         "key": spec.key,
         "time_signature": TIME_SIGNATURE,
@@ -136,6 +179,6 @@ def cache_material(spec: MoodSpec, seed: int) -> dict:
     }
 
 
-def cache_key(spec: MoodSpec, seed: int) -> str:
-    raw = json.dumps(cache_material(spec, seed), sort_keys=True, separators=(",", ":"))
+def cache_key(spec: MoodSpec, seed: int, arc: str | None = None) -> str:
+    raw = json.dumps(cache_material(spec, seed, arc), sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(raw.encode()).hexdigest()

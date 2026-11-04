@@ -77,6 +77,15 @@ export function masterPassEnabled(env: NodeJS.ProcessEnv = process.env): boolean
   return (env.MUSIC_MASTER_PASS ?? '').trim() !== '0';
 }
 
+/**
+ * MUSIC_PERSONALIZE (default 1): each NEW edit gets a MusicBrief (style, tempo, key, arc) built from its own data, and the bed is placed on the video
+ * (starts on a beat, lifts at the hook, ends on a bar line). 0 restores the Phase 2.4 behaviour: the 5 family moods and no placement.
+ * Saved blueprints are never affected: the brief and the placement are stored on the blueprint at analyze time.
+ */
+export function personalizeEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return (env.MUSIC_PERSONALIZE ?? '').trim() !== '0';
+}
+
 /** MUSIC_BED_POOL_SIZE: the most beds one mood pool holds. A generated bed is appended only while the pool is under this. Default 3. */
 export function resolvePoolSize(env: NodeJS.ProcessEnv = process.env): number {
   const parsed = Number(env.MUSIC_BED_POOL_SIZE ?? '3');

@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 from .ffmpeg_cmd import build_ffmpeg_argv
 from .models import BGM_DURATION_SEC, MAX_SFX, MIN_SFX_GAP_MS, PROMPT_VERSION, SFX_COST_USD, MusicPayload, SfxEvent
 from .postprocess import POSTPROCESS_VERSION, postprocess_bed, write_click_bed
-from .prompts import LYRICS, NEGATIVE_PROMPT, cache_key, caption_for, derive_seed, resolve_mood
+from .prompts import LYRICS, NEGATIVE_PROMPT, cache_key, caption_for, derive_seed, lyrics_for_arc, resolve_mood, spec_for_brief
 from .qc import qc_bed
 from .runware import DryRunTransport, bgm_task, classify_sfx, sfx_task
 from .spend import append_spend, bgm_cap_cost
@@ -52,7 +52,12 @@ class AIMusicSpecialistAgent:
             raise RuntimeError(f"unknown music mode: {mode}")
         include_sfx = True if not isinstance(payload, dict) else bool(raw.get("include_sfx", True))
         max_usd = float(raw.get("max_usd", 0.02)) if isinstance(payload, dict) else 0.02
-        spec = resolve_mood(plan.emotional_tone)
+        # Personalised: the server sends a brief (style, tempo, key, arc) built from this video. Without one, or with an unknown style, the family mood is used as before.
+        brief = raw.get("brief") if isinstance(payload, dict) and isinstance(raw.get("brief"), dict) else None
+        spec = spec_for_brief(brief) if brief else None
+        arc = (str(brief.get("arc")) if brief and brief.get("arc") else None) if spec else None
+        spec = spec or resolve_mood(plan.emotional_tone)
+        lyrics = lyrics_for_arc(arc)
         video_id = str(raw.get("video_id") or "") if isinstance(payload, dict) else ""
         if isinstance(payload, dict) and raw.get("seed") is not None:
             seed = int(raw["seed"])
@@ -61,7 +66,7 @@ class AIMusicSpecialistAgent:
         if mode == "live" and not video_id:
             raise RuntimeError("live mode needs a stable video_id (seed is derived from it)")
         caption = caption_for(spec)
-        key = cache_key(spec, seed)
+        key = cache_key(spec, seed, arc)
         cuts = self.select_cuts(plan.visual_cuts) if include_sfx else []
         estimate = round(bgm_cap_cost() + len(cuts) * SFX_COST_USD, 6)
         base = {
@@ -70,9 +75,12 @@ class AIMusicSpecialistAgent:
             "bpm": spec.bpm,
             "key": spec.key,
             "mood": spec.name,
+            "style": spec.name if arc is not None else None,
+            "family": spec.pool_family,
+            "arc": arc,
             "caption": caption,
             "negative_prompt": NEGATIVE_PROMPT,
-            "lyrics": LYRICS,
+            "lyrics": lyrics,
             "prompt_version": PROMPT_VERSION,
             "postprocess_version": POSTPROCESS_VERSION,
             "estimated_cost_usd": estimate,
@@ -88,7 +96,7 @@ class AIMusicSpecialistAgent:
             raise RuntimeError("live mode requires a live Runware transport")
         raw_path = os.path.join(workdir, "bgm_raw.wav")
         if live:
-            url = self.transport.post(bgm_task(caption, seed=seed, bpm=spec.bpm, key_scale=spec.key), "bgm")
+            url = self.transport.post(bgm_task(caption, seed=seed, bpm=spec.bpm, key_scale=spec.key, lyrics=lyrics), "bgm")
             append_spend(video_id=video_id, cache_key=key, seed=seed,
                          cost=getattr(self.transport, "last_cost", None), duration_sec=BGM_DURATION_SEC)
             self.transport.download(url, raw_path)
@@ -103,7 +111,7 @@ class AIMusicSpecialistAgent:
             first_cost = float(getattr(self.transport, "last_cost", None) or bgm_cap_cost())
             if first_cost + bgm_cap_cost() <= max_usd:
                 qc_retried = True
-                url = self.transport.post(bgm_task(caption, seed=seed, bpm=spec.bpm, key_scale=spec.key), "bgm")
+                url = self.transport.post(bgm_task(caption, seed=seed, bpm=spec.bpm, key_scale=spec.key, lyrics=lyrics), "bgm")
                 append_spend(video_id=video_id, cache_key=key, seed=seed,
                              cost=getattr(self.transport, "last_cost", None), duration_sec=BGM_DURATION_SEC)
                 self.transport.download(url, raw_path)

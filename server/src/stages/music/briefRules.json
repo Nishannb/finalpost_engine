@@ -1,0 +1,392 @@
+{
+  "_comment": "Tunable without code. Read by server/src/stages/music/musicBrief.ts and by agents/music_specialist/prompts.py (same file). Every bpmRange end must be divisible by 4. matrix[visualMood][contentType] must name a style: a test fails on any gap.",
+  "version": 1,
+  "families": [
+    "high-energy",
+    "nostalgic",
+    "calm",
+    "tense",
+    "neutral"
+  ],
+  "familyDefaultStyle": {
+    "high-energy": "upbeat-pop",
+    "nostalgic": "warm-keys",
+    "calm": "lofi-chill",
+    "tense": "cinematic-pulse",
+    "neutral": "corporate-light"
+  },
+  "styles": {
+    "upbeat-pop": {
+      "family": "high-energy",
+      "genre": "upbeat pop",
+      "moodWords": [
+        "bright",
+        "playful"
+      ],
+      "instruments": [
+        "pluck synth",
+        "light drums"
+      ],
+      "bpmRange": [
+        100,
+        124
+      ],
+      "mode": "major",
+      "roots": [
+        "C",
+        "G",
+        "D",
+        "A",
+        "F"
+      ]
+    },
+    "driving-electronic": {
+      "family": "high-energy",
+      "genre": "driving electronic",
+      "moodWords": [
+        "driving",
+        "steady"
+      ],
+      "instruments": [
+        "four on the floor kick",
+        "soft synth pad"
+      ],
+      "bpmRange": [
+        112,
+        128
+      ],
+      "mode": "minor",
+      "roots": [
+        "A",
+        "D",
+        "E",
+        "G",
+        "C"
+      ]
+    },
+    "lofi-chill": {
+      "family": "calm",
+      "genre": "lo-fi hip hop",
+      "moodWords": [
+        "chill",
+        "warm"
+      ],
+      "instruments": [
+        "dusty drums",
+        "rhodes piano"
+      ],
+      "bpmRange": [
+        72,
+        88
+      ],
+      "mode": "minor",
+      "roots": [
+        "D",
+        "F",
+        "G",
+        "A",
+        "C"
+      ]
+    },
+    "soft-acoustic": {
+      "family": "calm",
+      "genre": "soft acoustic",
+      "moodWords": [
+        "gentle",
+        "calm"
+      ],
+      "instruments": [
+        "fingerpicked guitar",
+        "light percussion"
+      ],
+      "bpmRange": [
+        76,
+        96
+      ],
+      "mode": "major",
+      "roots": [
+        "G",
+        "D",
+        "C",
+        "A",
+        "E"
+      ]
+    },
+    "warm-keys": {
+      "family": "nostalgic",
+      "genre": "warm piano",
+      "moodWords": [
+        "warm",
+        "nostalgic"
+      ],
+      "instruments": [
+        "felt piano",
+        "soft strings"
+      ],
+      "bpmRange": [
+        68,
+        88
+      ],
+      "mode": "major",
+      "roots": [
+        "C",
+        "F",
+        "D",
+        "G",
+        "A"
+      ]
+    },
+    "indie-dream": {
+      "family": "nostalgic",
+      "genre": "dream pop",
+      "moodWords": [
+        "airy",
+        "dreamy"
+      ],
+      "instruments": [
+        "clean electric guitar",
+        "soft reverb pad"
+      ],
+      "bpmRange": [
+        80,
+        100
+      ],
+      "mode": "major",
+      "roots": [
+        "A",
+        "E",
+        "D",
+        "G"
+      ]
+    },
+    "cinematic-pulse": {
+      "family": "tense",
+      "genre": "cinematic electronic",
+      "moodWords": [
+        "tense",
+        "dark"
+      ],
+      "instruments": [
+        "low synth pulse",
+        "soft strings"
+      ],
+      "bpmRange": [
+        88,
+        108
+      ],
+      "mode": "minor",
+      "roots": [
+        "D",
+        "E",
+        "A",
+        "C",
+        "G"
+      ]
+    },
+    "minimal-tech": {
+      "family": "neutral",
+      "genre": "minimal electronic",
+      "moodWords": [
+        "clean",
+        "steady"
+      ],
+      "instruments": [
+        "clean pluck",
+        "subtle clicks"
+      ],
+      "bpmRange": [
+        96,
+        116
+      ],
+      "mode": "minor",
+      "roots": [
+        "A",
+        "D",
+        "E",
+        "G",
+        "C"
+      ]
+    },
+    "corporate-light": {
+      "family": "neutral",
+      "genre": "light corporate",
+      "moodWords": [
+        "light",
+        "positive"
+      ],
+      "instruments": [
+        "soft keys",
+        "gentle claps"
+      ],
+      "bpmRange": [
+        92,
+        112
+      ],
+      "mode": "major",
+      "roots": [
+        "C",
+        "G",
+        "D",
+        "F",
+        "A"
+      ]
+    },
+    "ambient-bed": {
+      "family": "neutral",
+      "genre": "ambient",
+      "moodWords": [
+        "calm",
+        "spacious"
+      ],
+      "instruments": [
+        "soft synth pad",
+        "warm drone"
+      ],
+      "bpmRange": [
+        60,
+        76
+      ],
+      "mode": "major",
+      "roots": [
+        "C",
+        "D",
+        "F",
+        "G",
+        "A"
+      ]
+    }
+  },
+  "matrix": {
+    "warm_intimate": {
+      "relationship_emotional": "warm-keys",
+      "personal_story": "warm-keys",
+      "testimonial": "soft-acoustic",
+      "motivational": "indie-dream",
+      "educational_tips": "soft-acoustic",
+      "tutorial": "soft-acoustic",
+      "sales_pitch": "indie-dream",
+      "opinion": "soft-acoustic",
+      "announcement": "indie-dream",
+      "comedy": "indie-dream",
+      "other": "soft-acoustic"
+    },
+    "calm_cool": {
+      "relationship_emotional": "ambient-bed",
+      "personal_story": "ambient-bed",
+      "testimonial": "lofi-chill",
+      "motivational": "minimal-tech",
+      "educational_tips": "lofi-chill",
+      "tutorial": "lofi-chill",
+      "sales_pitch": "minimal-tech",
+      "opinion": "lofi-chill",
+      "announcement": "minimal-tech",
+      "comedy": "minimal-tech",
+      "other": "lofi-chill"
+    },
+    "bold_energetic": {
+      "relationship_emotional": "corporate-light",
+      "personal_story": "corporate-light",
+      "testimonial": "upbeat-pop",
+      "motivational": "driving-electronic",
+      "educational_tips": "upbeat-pop",
+      "tutorial": "upbeat-pop",
+      "sales_pitch": "driving-electronic",
+      "opinion": "upbeat-pop",
+      "announcement": "driving-electronic",
+      "comedy": "driving-electronic",
+      "other": "upbeat-pop"
+    },
+    "clean_light": {
+      "relationship_emotional": "soft-acoustic",
+      "personal_story": "soft-acoustic",
+      "testimonial": "corporate-light",
+      "motivational": "upbeat-pop",
+      "educational_tips": "corporate-light",
+      "tutorial": "corporate-light",
+      "sales_pitch": "upbeat-pop",
+      "opinion": "corporate-light",
+      "announcement": "upbeat-pop",
+      "comedy": "upbeat-pop",
+      "other": "corporate-light"
+    },
+    "dark_cinematic": {
+      "relationship_emotional": "ambient-bed",
+      "personal_story": "ambient-bed",
+      "testimonial": "cinematic-pulse",
+      "motivational": "driving-electronic",
+      "educational_tips": "cinematic-pulse",
+      "tutorial": "cinematic-pulse",
+      "sales_pitch": "driving-electronic",
+      "opinion": "cinematic-pulse",
+      "announcement": "driving-electronic",
+      "comedy": "driving-electronic",
+      "other": "cinematic-pulse"
+    },
+    "earthy_natural": {
+      "relationship_emotional": "soft-acoustic",
+      "personal_story": "soft-acoustic",
+      "testimonial": "lofi-chill",
+      "motivational": "warm-keys",
+      "educational_tips": "lofi-chill",
+      "tutorial": "lofi-chill",
+      "sales_pitch": "warm-keys",
+      "opinion": "lofi-chill",
+      "announcement": "warm-keys",
+      "comedy": "warm-keys",
+      "other": "lofi-chill"
+    },
+    "soft_pastel": {
+      "relationship_emotional": "indie-dream",
+      "personal_story": "indie-dream",
+      "testimonial": "lofi-chill",
+      "motivational": "soft-acoustic",
+      "educational_tips": "lofi-chill",
+      "tutorial": "lofi-chill",
+      "sales_pitch": "soft-acoustic",
+      "opinion": "lofi-chill",
+      "announcement": "soft-acoustic",
+      "comedy": "soft-acoustic",
+      "other": "lofi-chill"
+    },
+    "tech_sharp": {
+      "relationship_emotional": "minimal-tech",
+      "personal_story": "minimal-tech",
+      "testimonial": "corporate-light",
+      "motivational": "driving-electronic",
+      "educational_tips": "corporate-light",
+      "tutorial": "corporate-light",
+      "sales_pitch": "driving-electronic",
+      "opinion": "corporate-light",
+      "announcement": "driving-electronic",
+      "comedy": "driving-electronic",
+      "other": "corporate-light"
+    }
+  },
+  "pace": {
+    "slowBelowWpm": 130,
+    "fastAboveWpm": 170,
+    "defaultWpm": 150,
+    "pauseGapSec": 0.6,
+    "cutsHighPerMin": 30,
+    "cutsLowPerMin": 12,
+    "minWordsForWpm": 3
+  },
+  "arc": {
+    "hookThenSteadyUnderSec": 25,
+    "buildUpToSec": 60,
+    "lyrics": {
+      "hook-then-steady": "[intro]\n\n[drop]\n\n[inst]",
+      "build": "[intro]\n\n[build-up]\n\n[drop]\n\n[inst]",
+      "steady": "[intro]\n\n[inst]\n\n[inst]"
+    }
+  },
+  "hookAtSecDefault": 2.5,
+  "supportTags": [
+    "background underscore",
+    "minimal",
+    "sparse arrangement",
+    "no lead melody",
+    "supportive"
+  ],
+  "maxCaptionTags": 12
+}

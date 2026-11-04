@@ -10,7 +10,7 @@ BGM_CFG = 10
 # Observed includeCost of the 2026-11-03 smoke (seed 1056912958, ~23 s wall clock, 60 s / 100 steps / WAV).
 # It is one run, not a second measurement. Runware's docs estimated $0.0039 for that shape; billing follows compute time.
 BGM_COST_USD = 0.0075
-PROMPT_VERSION = 3
+PROMPT_VERSION = 4
 SFX_COST_USD = 0.0005
 MAX_CANVAS_SEC = 180.0
 MAX_SFX = 12
