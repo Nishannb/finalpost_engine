@@ -87,6 +87,7 @@ import {stat as statFile} from 'node:fs/promises';
 import {formatKineticTypeForDirector} from '../stages/broll/kineticTypeCapabilities.ts';
 import {LIBRARY_COMPOSITION_IDS} from '../stages/motionDirector/libraryRegistry.ts';
 import {mapPolishSkillToMotionTemplateSkill} from '../stages/broll/motionTemplateCatalog.ts';
+import {effectiveFlagsFromEnv, type EffectiveFlags} from '../lib/effectiveFlags.ts';
 import {planStillnessFrameInsets} from '../stages/broll/stillnessFrameInsets.ts';
 import {labeledAssetWarnings, mediaKindOfUrl, planLabeledAssetPlacements} from '../stages/broll/labeledAssetPlacement.ts';
 import {coveredFraction, editorialRunRanges, planEditorialStillMontage} from '../stages/broll/editorialStillMontage.ts';
@@ -268,6 +269,11 @@ export type AnalyzeInput = {
   userBrollOnly?: boolean;
   /** WP1: the product editing profile (lib/productEditProfile.ts). `mvp` makes a Claude spend bound mandatory for generated graphics and lets a failed Director video proxy degrade. Absent = legacy. */
   editProfile?: ProductEditProfile;
+  /**
+   * Every per-job switch, resolved once per job by the caller (lib/effectiveFlags.ts): read here instead of the global env, because analyses run
+   * concurrently. Its `profile` wins over `editProfile` (basicCaptions still forces legacy). Absent = exactly what env says (effectiveFlagsFromEnv).
+   */
+  effectiveFlags?: EffectiveFlags;
 };
 
 /** Coarse stage reporting so the app can show real progress, not a spinner. */
@@ -303,6 +309,9 @@ async function analyzeVideoUnguarded(
   input: AnalyzeInput,
   hooks: AnalyzeHooks = {},
 ): Promise<TimelineBlueprint> {
+  if (input.effectiveFlags && !input.basicCaptions && input.effectiveFlags.profile !== input.editProfile) {
+    input = {...input, editProfile: input.effectiveFlags.profile};
+  }
   if (input.basicCaptions) {
     input = {
       ...input,
@@ -320,6 +329,8 @@ async function analyzeVideoUnguarded(
     };
   }
   const basicCaptions = Boolean(input.basicCaptions);
+  // EffectiveFlags: the one per-job view of every switch below (never the global env, never mutated). The profile is the one this job really runs.
+  const flags: EffectiveFlags = {...(input.effectiveFlags ?? effectiveFlagsFromEnv(env, input.editProfile ?? 'legacy')), profile: input.editProfile ?? 'legacy'};
   const stage = (name: AnalysisStage, progress: number) =>
     hooks.onStage?.(name, progress);
   const timings: Record<string, number> = {};
@@ -327,10 +338,10 @@ async function analyzeVideoUnguarded(
   const startedAll = Date.now();
   // WP8L: on polish a captions-only list (what the HTTP route and the CLI hand over for "no edits named") is expanded like an omitted one; say so once.
   if (input.editProfile === 'polish' && isCaptionsOnlyEdits(input.requestedEdits)) {
-    warnings.push(env.POLISH_DEFAULT_EDITS === 'all' ? 'polish_edits_expanded:captions_to_all' : 'polish_edits_expanded:captions_to_lean');
+    warnings.push(flags.polishDefaultEdits === 'all' ? 'polish_edits_expanded:captions_to_all' : 'polish_edits_expanded:captions_to_lean');
   }
   // WP8I: on polish an omitted edit list means the polish default (not captions-only), the same function the HTTP runner uses for its cache key; every other profile is unchanged.
-  const requestedEdits = input.editProfile === 'polish' ? polishRequestedEdits(input.requestedEdits, env.POLISH_DEFAULT_EDITS) : defaultRequestedEdits(input.requestedEdits, env.PIPELINE_MODE);
+  const requestedEdits = input.editProfile === 'polish' ? polishRequestedEdits(input.requestedEdits, flags.polishDefaultEdits) : defaultRequestedEdits(input.requestedEdits, env.PIPELINE_MODE);
   // WP7A: the cuts-first profile (lib/productEditProfile.ts). It forces the trim ON (silence, fillers, transcript retakes), reduces background noise, and runs NO visual edit: no Director, no B-roll,
   // no generated or motion graphics, no delivery shaping. Every other profile is unchanged.
   // WP8A: the cuts profile is split into two switches. `speechCutsOn` (cuts AND polish) is Stage A, the speech path: denoise, AI keep-plan, fluency scrub, retakes, forced trim, debug dump.
@@ -740,7 +751,7 @@ async function analyzeVideoUnguarded(
       activeDurationSec,
     );
     // Decide what kind of video this is before any edit is planned.
-    const motionGraphicsRequested = !cutsOnlyVisualsOff && (input.generatedGraphicsEnabled ?? env.MOTION_GRAPHICS_ENABLED);
+    const motionGraphicsRequested = !cutsOnlyVisualsOff && (input.generatedGraphicsEnabled ?? flags.motionGraphics);
     // WP1: how Claude calls for this edit are bounded. Legacy without a configured cap is unchanged; mvp without one switches generated graphics off (fail closed).
     const claudeBound = decideClaudeBound({
       profile: input.editProfile ?? 'legacy',
@@ -966,9 +977,9 @@ async function analyzeVideoUnguarded(
       assertNoBillingBlock(input.strictAiDirection, 'speaker_occupancy');
       if (polishPath) warnings.push('polish_craft:standards:on'); // WP54: formatCraftStandardsForDirector() is appended to the creative-director prompt (creativeDirector.designEdit, editLooks = polish)
       // WP55 phase 2: offer KINETIC_TYPE_STORYTELLING to the live Director (same flag, same L1 allowlist as the craft stage; the skill is a pure function of env flags so it can be resolved before planning).
-      const kineticOfferSkill = resolvePolishSkill({faceless: Boolean(polishPath && env.POLISH_FACELESS_DOC), explainer: Boolean(polishPath && env.POLISH_EXPLAINER_SKILL), newsroom: Boolean(polishPath && env.POLISH_NEWSROOM_MG)}).skill;
+      const kineticOfferSkill = resolvePolishSkill({faceless: Boolean(polishPath && flags.facelessDoc), explainer: Boolean(polishPath && flags.explainerSkill), newsroom: Boolean(polishPath && flags.newsroomMg)}).skill;
       const kineticTypePrompt =
-        polishPath && env.POLISH_MOTION_TEMPLATES && visualDirectorV2
+        polishPath && flags.motionTemplates && visualDirectorV2
           ? formatKineticTypeForDirector(mapPolishSkillToMotionTemplateSkill(kineticOfferSkill), new Set<string>(LIBRARY_COMPOSITION_IDS))
           : '';
       if (kineticTypePrompt) warnings.push('kinetic_type:director_offered');
@@ -1214,7 +1225,7 @@ async function analyzeVideoUnguarded(
     }
     // WP33: the Metromedia VO cut grammar (polish only, POLISH_VO_CUT_GRAMMAR): 1-3 word caption groups -> cut times (~0.85 s mean shot), holds only on money / CTA, a chapter card every 15-25 s. Pure plan from the spoken
     // words; it feeds the library seed (chapter cards) and the WP16 transition density (hard-cut anchors) below.
-    const voGrammar = polishPath && env.POLISH_VO_CUT_GRAMMAR
+    const voGrammar = polishPath && flags.voCutGrammar
       ? planVoCutGrammar({words: captionWords, durationSec: timeline.outputDurationSec, flags: {moneyWindows: moneyWindowsOf(captionWords), ctaWindows: ctaWindowsOf(captionWords, timeline.outputDurationSec)}})
       : null;
     if (voGrammar) warnings.push(...voGrammar.warnings);
@@ -1445,11 +1456,11 @@ async function analyzeVideoUnguarded(
     let subjectStagePayload: SubjectStageBlueprint | undefined;
     {
       const stage = await runSubjectStage({
-        flag: env.POLISH_SUBJECT_STAGE,
+        flag: flags.subjectStage,
         polishPath,
-        motionTemplates: env.POLISH_MOTION_TEMPLATES,
+        motionTemplates: flags.motionTemplates,
         motionPresent: Boolean(motion),
-        skillFlags: {faceless: env.POLISH_FACELESS_DOC, explainer: env.POLISH_EXPLAINER_SKILL, newsroom: env.POLISH_NEWSROOM_MG},
+        skillFlags: {faceless: flags.facelessDoc, explainer: flags.explainerSkill, newsroom: flags.newsroomMg},
         durationSec: timeline.outputDurationSec,
         rvmConfigured: subjectMatteConfigured(),
         rvmDevice: env.RVM_DEVICE,
@@ -1476,7 +1487,7 @@ async function analyzeVideoUnguarded(
       if (stage.active && stage.payload) {
         subjectStagePayload = stage.payload;
         personMatteSec += stage.matteSec;
-        if (env.POLISH_KINETIC_LED) warnings.push('polish_subject_stage:kinetic_led_yielded');
+        if (flags.kineticLed) warnings.push('polish_subject_stage:kinetic_led_yielded');
         const cleared = applySubjectStageExclusions({behind: behindForFinalize, opening: openingBehindSubject ?? null, depth: broll.depthOverlays ?? [], insetReveals: broll.insetReveals ?? [], overlays: broll.overlays});
         const ledgerDrop = (type: Parameters<typeof ledger.find>[0], start: number) => {
           const entry = ledger.find(type, start, 0.05);
@@ -1709,7 +1720,7 @@ async function analyzeVideoUnguarded(
     // WP31: the one switch that keeps glossy-pill karaoke off polish. The WP12A/13C block above only fires on explain edits with no creator B-roll and no caller template, so WP28 (labeled assets) shipped
     // the shine pill. This runs on EVERY polish edit: plate-style templates (moving-pill, box, grape, ...) become the bare `karaoke` type, the box colour is cleared and the look's stroke + soft-shadow
     // contract is written wherever the direction would otherwise draw the shine plate. Idempotent after the block above. Skipped for CaptionKit presets and designed caption style guides (their own look).
-    if (polishPath && env.POLISH_BARE_CAPTIONS && !(input.captionPreset || '').trim() && !captionGuide) {
+    if (polishPath && flags.bareCaptions && !(input.captionPreset || '').trim() && !captionGuide) {
       const bareTheme = (colorRoles ? motionThemeFromRoles(colorRoles.roles) : contentProfile?.theme) as Record<string, unknown> | undefined;
       const themeLook = pickShortFormLookId(bareTheme ?? {});
       const bareLook = preferVideoEditLook(themeLook, contentProfile) ?? themeLook;
@@ -1719,21 +1730,21 @@ async function analyzeVideoUnguarded(
     }
     // WP34: the Metromedia ACCUMULATE caption grammar on top of the bare type: words build up with a blur-fade and the line hard-clears on the WP33 cut that starts the next group. Needs the VO cut plan; polish
     // only; CaptionKit presets, designed caption style guides and caller-named templates keep their own captions. Kill switch POLISH_ACCUMULATE_CAPTIONS=0.
-    if (polishPath && env.POLISH_ACCUMULATE_CAPTIONS && voGrammar && !(input.captionPreset || '').trim() && !captionGuide && !input.captionTemplate) {
+    if (polishPath && flags.accumulateCaptions && voGrammar && !(input.captionPreset || '').trim() && !captionGuide && !input.captionTemplate) {
       const accumulate = polishAccumulateCaptions(broll.caption, {plan: voGrammar, words: captionWords, durationSec: timeline.outputDurationSec});
       broll.caption = accumulate.caption;
       warnings.push(...accumulate.warnings);
     }
     // WP38: CLASSIC talking-head polish (neither the faceless lane nor the explainer skill on) keeps the face primary and borrows the Skill A tools: the cut plan, the accumulate captions and the impact FX above (each on its
     // own flag) plus tighter editorial stills below. The one caption change: the accumulate line moves to the face-safe band (y ~58 %). POLISH_TH_SKILL_A_TOOLS=0 = the pre-WP38 polish. Faceless / explainer never read this.
-    const thSkillA = resolveTalkingHeadSkillA({polish: Boolean(polishPath), skillAToolsEnabled: env.POLISH_TH_SKILL_A_TOOLS, faceless: env.POLISH_FACELESS_DOC, explainer: env.POLISH_EXPLAINER_SKILL});
+    const thSkillA = resolveTalkingHeadSkillA({polish: Boolean(polishPath), skillAToolsEnabled: flags.thSkillATools, faceless: flags.facelessDoc, explainer: flags.explainerSkill});
     if (thSkillA) {
       const faceSafe = talkingHeadCaption(broll.caption);
       broll.caption = faceSafe.caption;
       warnings.push(...faceSafe.warnings);
     }
     // WP35: the Metromedia impact FX (polish only, POLISH_IMPACT_FX; needs the WP33 plan for the cuts / holds): hook / reveal flash, name saturation pop, money punch-in, emotional B&W spans. Pure plan; the renderer paints it.
-    const impactFx = polishPath && env.POLISH_IMPACT_FX && voGrammar ? planImpactFx({words: captionWords, plan: voGrammar, durationSec: timeline.outputDurationSec}) : null;
+    const impactFx = polishPath && flags.impactFx && voGrammar ? planImpactFx({words: captionWords, plan: voGrammar, durationSec: timeline.outputDurationSec}) : null;
     if (impactFx) warnings.push(...impactFx.warnings);
     // WP13B: grade-flip face beats survive only where the talking head is what is on screen (no cutaway, split, overlay cover, media container or full / split plate over them).
     const gradeBeats = polishPath
@@ -1832,16 +1843,16 @@ async function analyzeVideoUnguarded(
     // WP36: FACELESS DOCUMENTARY LANE (opt-in, POLISH_FACELESS_DOC=1; default off, so talking-head polish is unchanged): the talking head is not the world. One literal stock still per WP33 cut-plan shot
     // (hard cuts, push-in, ~15 % framed fly-out cards) covers ~100 % of the runtime; chapter cards stay on their own span. It REPLACES the WP30 montage (below), runs after the WP33 plan (the clock) and before
     // the WP34 captions / WP35 FX paint over it (those are planned from the same cut plan). A run that cannot be published places nothing (the talking head would show there; the coverage warning says so).
-    const facelessDoc = Boolean(polishPath && env.POLISH_FACELESS_DOC && voGrammar && motion && stockConfigured());
-    if (polishPath && env.POLISH_FACELESS_DOC && !facelessDoc) warnings.push(`polish_pace:faceless_skipped:${!voGrammar ? 'no_cut_plan' : !motion ? 'no_motion' : 'no_stock'}`);
+    const facelessDoc = Boolean(polishPath && flags.facelessDoc && voGrammar && motion && stockConfigured());
+    if (polishPath && flags.facelessDoc && !facelessDoc) warnings.push(`polish_pace:faceless_skipped:${!voGrammar ? 'no_cut_plan' : !motion ? 'no_motion' : 'no_stock'}`);
     // WP40/44: polish skill lane. Priority faceless (A) > newsroom_mg (D) > explainer (B) > default. WP42 mounts Skill B into ShortVideo; WP44 plans Skill D + content-aware editPalette.
     let explainerMount: ExplainerMountPlan | null = null;
     let newsroomLayoutTrack: Array<{start: number; end: number; layout: 'newsroom_gfx' | 'newsroom_card' | 'newsroom_host' | 'newsroom_expert'}> | null = null;
     let editPalette: EditPalette | null = null;
     const polishSkill = resolvePolishSkill({
-      faceless: Boolean(polishPath && env.POLISH_FACELESS_DOC),
-      explainer: Boolean(polishPath && env.POLISH_EXPLAINER_SKILL),
-      newsroom: Boolean(polishPath && env.POLISH_NEWSROOM_MG),
+      faceless: Boolean(polishPath && flags.facelessDoc),
+      explainer: Boolean(polishPath && flags.explainerSkill),
+      newsroom: Boolean(polishPath && flags.newsroomMg),
     });
     warnings.push(...polishSkill.warnings);
     if (polishSkill.skill === 'newsroom_mg') {
@@ -1964,7 +1975,7 @@ async function analyzeVideoUnguarded(
     // Published through the same ImageRun path; a miss or failure places nothing (never a solid, never a crash). The WP16 density below anchors on the run boundaries.
     let thStillCount = 0;
     let thStillSec = 0;
-    if (polishPath && motion && !facelessDoc && env.POLISH_EDITORIAL_STILLS_ENABLED && stockConfigured()) {
+    if (polishPath && motion && !facelessDoc && flags.editorialStills && stockConfigured()) {
       try {
         const stillBlocked = [
           ...broll.clips.map(clip => ({start: clip.start, end: clip.end})),
@@ -2098,7 +2109,7 @@ async function analyzeVideoUnguarded(
     // are HOW a counter / emphasis / kinetic_text / cutaway beat is drawn. Planned BEFORE the WP45 templates so the published spans become blocked ranges for CLIP_01..26. Analyze never renders (riso reads its cache, collage stays deferred,
     // anidoodle skips when unconfigured); a failure places nothing. Silent; a published frame-owning beat mutes the captions.
     let visualBackendMute: MuteRange[] = [];
-    const visualBackendFlags = {riso: env.POLISH_RISO_TEMPLATES, collage: env.POLISH_COLLAGE_BROLL, anidoodle: env.POLISH_ANIDOODLE};
+    const visualBackendFlags = {riso: flags.risoTemplates, collage: flags.collageBroll, anidoodle: flags.anidoodle};
     if (polishPath && (visualBackendFlags.riso || visualBackendFlags.collage || visualBackendFlags.anidoodle)) {
       if (!motion) {
         warnings.push('visual_backend:skipped:no_motion');
@@ -2153,7 +2164,7 @@ async function analyzeVideoUnguarded(
     let craftTemplateMute: MuteRange[] = [];
     // WP55 phase 2: the person foreground the host draws above the kinetic type (set only when a hero beat really got a matte)
     let kineticForeground: KineticForeground | undefined;
-    if (polishPath && env.POLISH_MOTION_TEMPLATES && motion) {
+    if (polishPath && flags.motionTemplates && motion) {
       try {
         const slotUrls = (kinds: string[], also: (slot: NonNullable<typeof assetBrief>['slots'][number]) => boolean = () => true) =>
           (assetBrief?.slots ?? [])
@@ -2187,7 +2198,7 @@ async function analyzeVideoUnguarded(
           ...(explainerMount ? explainerMount.layoutTrack.filter(span => span.layout !== 'explainer_a').map(span => ({start: span.start, end: span.end})) : []),
           ...(newsroomLayoutTrack ? newsroomLayoutTrack.filter(span => span.layout !== 'newsroom_host').map(span => ({start: span.start, end: span.end})) : []),
         ];
-        const kineticYield = kineticInputsUnderStage(Boolean(subjectStagePayload), {kineticLed: env.POLISH_KINETIC_LED, segmentationConfigured: subjectMatteConfigured(), cutout: resolvedCutout}); // Subject Stage ON: kinetic-led off, no matte, no cutout to reuse
+        const kineticYield = kineticInputsUnderStage(Boolean(subjectStagePayload), {kineticLed: flags.kineticLed, segmentationConfigured: subjectMatteConfigured(), cutout: resolvedCutout}); // Subject Stage ON: kinetic-led off, no matte, no cutout to reuse
         const kineticLedStyle = kineticYield.kineticLed; // read once: the matte pre-plan below and the real craft plan must use the SAME planner settings
         // 20 s of matted footage (CPU / unknown device), 45 s on an explicit mps / cuda device, minus what the Director's elements already used
         const kineticMatteBudgetSec = Math.max(0, matteBudgetSecForDevice(env.RVM_DEVICE) - personMatteSec);
@@ -2218,7 +2229,7 @@ async function analyzeVideoUnguarded(
         });
         warnings.push(...kineticSubject.warnings);
         kineticForeground = kineticSubject.foreground;
-        if (polishPath) warnings.push(`polish_kinetic_led:${env.POLISH_KINETIC_LED ? 'on' : 'off'}`);
+        if (polishPath) warnings.push(`polish_kinetic_led:${flags.kineticLed ? 'on' : 'off'}`);
         let craft = await runCraftTemplateStage({
           polishSkill: polishSkill.skill,
           words: captionWords,
@@ -2278,7 +2289,7 @@ async function analyzeVideoUnguarded(
     // polish skill. Skill (L1) -> allowlist -> planMotionTemplateBeats (L2) -> publish as full-screen library graphics. Runs after the lane resolution, the WP42 explainer mount and the editorial stills / faceless runs, so
     // everything already on the frame is a blocked range. Silent (no SFX), mutes the captions only while a PUBLISHED opaque template owns the frame. A failure places nothing.
     let motionTemplateMute: MuteRange[] = [];
-    if (polishPath && env.POLISH_MOTION_TEMPLATES) {
+    if (polishPath && flags.motionTemplates) {
       if (!motion) {
         warnings.push('polish_motion_templates:skipped:no_motion');
       } else {
@@ -2328,7 +2339,7 @@ async function analyzeVideoUnguarded(
     // `TextualMgPlate` library graphics (overlay, transparent ground). It coexists with Skill A and Skill B (it never replaces their captions or tracks); the only caption effect is that the captions are muted while a PUBLISHED
     // plate owns the words (merged into the WP11A mute ranges below). Never planned over a full-frame graphic, the hook title, or a mounted explainer's cutaway media. A failure places nothing.
     let textualMgMute: MuteRange[] = [];
-    if (polishPath && env.POLISH_TEXTUAL_MG) {
+    if (polishPath && flags.textualMg) {
       if (!motion) {
         warnings.push('polish_textual_mg:skipped:no_motion');
       } else {

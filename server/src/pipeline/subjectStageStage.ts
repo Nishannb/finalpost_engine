@@ -31,15 +31,15 @@ export type SubjectStageSkipReason =
   | 'plan_empty';
 
 export type SubjectStageGateInput = {
-  /** env.POLISH_SUBJECT_STAGE */
+  /** EffectiveFlags.subjectStage (POLISH_SUBJECT_STAGE by default) */
   flag: boolean;
   /** PRODUCT_EDIT_PROFILE === 'polish' */
   polishPath: boolean;
-  /** env.POLISH_MOTION_TEMPLATES (the kinetic-led outer gate) */
+  /** EffectiveFlags.motionTemplates (POLISH_MOTION_TEMPLATES by default; the kinetic-led outer gate) */
   motionTemplates: boolean;
   /** the motion stage produced a result (the kinetic-led gate needs it too) */
   motionPresent: boolean;
-  /** the skill FLAGS (env.POLISH_FACELESS_DOC / POLISH_EXPLAINER_SKILL / POLISH_NEWSROOM_MG): any one disables the style, whether or not that lane then ran */
+  /** the skill FLAGS (EffectiveFlags facelessDoc / explainerSkill / newsroomMg): any one disables the style, whether or not that lane then ran */
   skillFlags: {faceless: boolean; explainer: boolean; newsroom: boolean};
   durationSec: number;
   rvmConfigured: boolean;

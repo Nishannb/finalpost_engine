@@ -36,6 +36,7 @@ import type {
 import {analyzeVideo} from './analyzeVideo.ts';
 import type {AnalyzeInput} from './analyzeVideo.ts';
 import type {EditStyleId} from '../lib/editStyles.ts';
+import {effectiveFlagsFromEnv, type EffectiveFlags} from '../lib/effectiveFlags.ts';
 
 const log = stageLogger('analysis-runner');
 
@@ -115,12 +116,14 @@ export async function startAnalysis(input: {
   const editProfile = normalizeEditProfile(env.PRODUCT_EDIT_PROFILE);
   const unknownProfile = unrecognizedEditProfile(env.PRODUCT_EDIT_PROFILE);
   if (unknownProfile) log.warn({value: unknownProfile, resolved: editProfile}, 'PRODUCT_EDIT_PROFILE is not legacy, mvp, cuts or polish; using the default (cuts)');
+  // EffectiveFlags (lib/effectiveFlags.ts): every per-job switch, resolved ONCE here and passed down; the pipeline never reads them from env.
+  const effectiveFlags = effectiveFlagsFromEnv(env, editProfile);
   // WP8I: on polish, the edits the job will really run (an omitted list means the polish default; `all` is its own key), so a change of POLISH_DEFAULT_EDITS or an explicit list never serves a stale blueprint.
-  const polishEdits = editProfile === 'polish' ? polishRequestedEdits(input.requestedEdits, env.POLISH_DEFAULT_EDITS) : undefined;
+  const polishEdits = editProfile === 'polish' ? polishRequestedEdits(input.requestedEdits, effectiveFlags.polishDefaultEdits) : undefined;
   // WP3Z: the graphics decision this request would make now (server flag + Claude budget, the same helpers analyzeVideo uses), computed before the lookup; `off` adds nothing to the key.
   const graphicsAtRequest = requestGraphicsStatus({
     profile: editProfile,
-    graphicsFlag: env.MOTION_GRAPHICS_ENABLED,
+    graphicsFlag: effectiveFlags.motionGraphics,
     capUsd: env.CLAUDE_EDIT_BUDGET_USD,
     maxRequests: env.CLAUDE_EDIT_MAX_REQUESTS,
     maxTokensPerCall: env.CLAUDE_EDIT_MAX_TOKENS,
@@ -221,6 +224,7 @@ export async function startAnalysis(input: {
     teleprompterClean: input.teleprompterClean,
     scriptText: input.scriptText,
     editProfile,
+    effectiveFlags,
     basicCaptions,
   }));
   return job;
@@ -246,6 +250,7 @@ async function runAnalysis(
     teleprompterClean?: boolean;
     scriptText?: string;
     editProfile?: ProductEditProfile;
+    effectiveFlags?: EffectiveFlags;
     basicCaptions?: boolean;
   },
 ): Promise<void> {
@@ -293,6 +298,8 @@ async function runAnalysis(
         // WP1: empty for the legacy profile; the explicit MVP options otherwise (see lib/productEditProfile.ts).
         ...analyzeOverridesFor(extras.editProfile ?? 'legacy'),
         editProfile: extras.editProfile ?? 'legacy',
+        // The job's flags, with the profile this run really uses (basic captions forces legacy above).
+        ...(extras.effectiveFlags ? {effectiveFlags: {...extras.effectiveFlags, profile: extras.editProfile ?? 'legacy'}} : {}),
       },
       {
         onStage: (stage, progress) => {
