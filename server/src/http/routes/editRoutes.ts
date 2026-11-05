@@ -24,6 +24,7 @@ import {assertFullEditEntitlement, resolveCatalogAccess} from '../../lib/entitle
 import {isCaptionKitPresetId} from '../../lib/captionKitPresets.ts';
 import {buildEditStyleCatalog, resolveRequestedStyle, type EditStyleConfig} from '../../lib/editStyles.ts';
 import {env} from '../../config/env.ts';
+import {hitRateLimit} from '../../store/engineStore.ts';
 import {CAPTION_TEMPLATES, SUPPORTED_LANGUAGES} from '../../types/blueprint.ts';
 import {getAuth} from '../auth.ts';
 
@@ -76,6 +77,8 @@ const createSchema = z.object({
 
 export const editRoutes = Router();
 
+const EDIT_STYLES_REFRESH_WINDOW_SEC = 10;
+
 function editStyleConfig(): EditStyleConfig {
   return {enabled: env.EDIT_STYLES_ENABLED, availableOverride: env.EDIT_STYLES_AVAILABLE, orderOverride: env.EDIT_STYLES_ORDER};
 }
@@ -85,17 +88,23 @@ function editStyleConfig(): EditStyleConfig {
  * unverifiable plan locks the Pro styles (fail closed) so the picker still renders. 404 while the kill switch is off, which the app
  * treats exactly like an engine without the catalog (bundled manifest + mode-only request).
  */
-editRoutes.get('/edit-styles', async (_req, res) => {
+editRoutes.get('/edit-styles', async (req, res) => {
   const config = editStyleConfig();
   if (!config.enabled) {
     throw new EngineError('not_found', 'Edit styles are not enabled');
   }
-  const access = await resolveCatalogAccess(getAuth(res));
+  const auth = getAuth(res);
+  // `?refresh=1` (after a purchase / restore) skips the cached plan for this creator, at most once per 10 s; a refresh over the limit is served
+  // from the cache (never an error) and the response says so with `refreshed: false`.
+  const wantsRefresh = req.query.refresh === '1' || req.query.refresh === 'true';
+  const refreshed = wantsRefresh && (await hitRateLimit(`edit-styles-refresh:${auth.userId}`, EDIT_STYLES_REFRESH_WINDOW_SEC)) <= 1;
+  const access = await resolveCatalogAccess(auth, {refresh: refreshed});
   res.setHeader('Cache-Control', 'private, no-store');
   res.json({
     ok: true,
     plan: access.plan,
     planVerified: access.verified,
+    refreshed,
     styles: buildEditStyleCatalog({config, hasPro: access.hasPro}),
   });
 });

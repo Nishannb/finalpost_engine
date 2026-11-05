@@ -156,6 +156,30 @@ describe('GET /v1/edit-styles', () => {
     expect(body.styles?.map(s => s.available)).toEqual([true, true, true, false]);
   });
 
+  it('?refresh=1 after a purchase skips the cached plan, at most once per 10 s per creator', async () => {
+    const user = `upgrader-${Date.now()}`;
+    state.plans.set(user, {plan: 'free', verified: true, source: 'revenuecat'});
+    expect(locked((await json(await get('/v1/edit-styles', user))).styles).ai_clean_cut).toBe(true);
+    state.plans.set(user, {plan: 'pro', verified: true, source: 'revenuecat'}); // the purchase lands at the Creators API
+    expect(locked((await json(await get('/v1/edit-styles', user))).styles).ai_clean_cut).toBe(true); // still the cached free plan
+    const refreshed = await json(await get('/v1/edit-styles?refresh=1', user));
+    expect(refreshed.refreshed).toBe(true);
+    expect(locked(refreshed.styles).ai_clean_cut).toBe(false);
+    expect(state.lookups.filter(u => u === user)).toHaveLength(2);
+    // a second refresh inside the window is served from the cache (no error, no extra lookup)
+    const limited = await get('/v1/edit-styles?refresh=1', user);
+    expect(limited.status).toBe(200);
+    expect((await json(limited)).refreshed).toBe(false);
+    expect(state.lookups.filter(u => u === user)).toHaveLength(2);
+    // and the fresh plan also reaches the paid route right away
+    expect((await post('/v1/edits/captions', user, {...BASE, style: 'ai_clean_cut'})).status).toBe(202);
+  });
+
+  it('refresh=0 (or any value other than 1 / true) is not a refresh', async () => {
+    const body = await json(await get('/v1/edit-styles?refresh=0', 'pro-user'));
+    expect(body.refreshed).toBe(false);
+  });
+
   it('kill switch off: 404 (the app then uses its bundled manifest and mode-only requests)', async () => {
     state.env.EDIT_STYLES_ENABLED = false;
     const response = await get('/v1/edit-styles', 'pro-user');

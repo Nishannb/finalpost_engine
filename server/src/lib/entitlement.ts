@@ -107,9 +107,14 @@ const catalogFailureCache = new Map<string, {until: number; value: Entitlement}>
 
 export type CatalogAccess = {hasPro: boolean; plan: CreatorPlan; verified: boolean};
 
-export async function resolveCatalogAccess(auth: Pick<AuthContext, 'userId' | 'via'>): Promise<CatalogAccess> {
+export async function resolveCatalogAccess(auth: Pick<AuthContext, 'userId' | 'via'>, options: {refresh?: boolean} = {}): Promise<CatalogAccess> {
   if (!env.ENTITLEMENT_ENFORCEMENT || auth.via === 'service-key' || auth.via === 'dev') {
     return {hasPro: true, plan: 'pro', verified: false};
+  }
+  if (options.refresh) {
+    // After a purchase / restore: drop this creator's cached plan (both caches) so the lookup below asks the Creators API again.
+    // The caller rate-limits refreshes; the next paid-route check also benefits from the fresh answer.
+    forgetEntitlement(auth.userId);
   }
   const held = catalogFailureCache.get(auth.userId);
   let entitlement: Entitlement;
@@ -128,4 +133,10 @@ export async function resolveCatalogAccess(auth: Pick<AuthContext, 'userId' | 'v
 
 export function clearCatalogAccessCache(): void {
   catalogFailureCache.clear();
+}
+
+/** Forget one creator's cached plan (verified answer and catalog failure hold). */
+export function forgetEntitlement(userId: string): void {
+  cache.delete(userId);
+  catalogFailureCache.delete(userId);
 }
