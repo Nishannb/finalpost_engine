@@ -1,6 +1,7 @@
 /**
  * Server-owned captions / teleprompter-clean edit:
- *   POST /v1/edits/captions     presign + create job
+ *   GET  /v1/edit-styles        the style picker catalog, with each style's lock state for this creator
+ *   POST /v1/edits/captions     presign + create job (`style` wins over `mode` when EDIT_STYLES_ENABLED)
  *   POST /v1/edits/:id/uploaded phone (or native) says the PUT finished
  *   GET  /v1/edits/:id          poll (read-only; stalled jobs are recovered by the background worker, never by a read)
  *   POST /v1/edits/:id/assets   full_edit: answer the labeled-asset gate (submit / skip)
@@ -19,8 +20,10 @@ import {
   submitFullEditAssets,
 } from '../../pipeline/captionsEditRunner.ts';
 import {labeledAssetBindingSchema} from '../schemas.ts';
-import {assertFullEditEntitlement} from '../../lib/entitlement.ts';
+import {assertFullEditEntitlement, resolveCatalogAccess} from '../../lib/entitlement.ts';
 import {isCaptionKitPresetId} from '../../lib/captionKitPresets.ts';
+import {buildEditStyleCatalog, resolveRequestedStyle, type EditStyleConfig} from '../../lib/editStyles.ts';
+import {env} from '../../config/env.ts';
 import {CAPTION_TEMPLATES, SUPPORTED_LANGUAGES} from '../../types/blueprint.ts';
 import {getAuth} from '../auth.ts';
 
@@ -64,9 +67,38 @@ const createSchema = z.object({
     })
     .optional(),
   scriptText: z.string().max(20_000).optional(),
+  /**
+   * Edit style from the picker (lib/editStyles.ts). Validated against the registry only when EDIT_STYLES_ENABLED is on; with the kill
+   * switch off it is ignored and `mode` behaves exactly as before. When honoured it WINS over `mode` (the job mode is derived from it).
+   */
+  style: z.string().trim().max(60).optional(),
 });
 
 export const editRoutes = Router();
+
+function editStyleConfig(): EditStyleConfig {
+  return {enabled: env.EDIT_STYLES_ENABLED, availableOverride: env.EDIT_STYLES_AVAILABLE, orderOverride: env.EDIT_STYLES_ORDER};
+}
+
+/**
+ * GET /v1/edit-styles: the picker catalog with each style's lock state for this creator. Never fails on a plan lookup error: an
+ * unverifiable plan locks the Pro styles (fail closed) so the picker still renders. 404 while the kill switch is off, which the app
+ * treats exactly like an engine without the catalog (bundled manifest + mode-only request).
+ */
+editRoutes.get('/edit-styles', async (_req, res) => {
+  const config = editStyleConfig();
+  if (!config.enabled) {
+    throw new EngineError('not_found', 'Edit styles are not enabled');
+  }
+  const access = await resolveCatalogAccess(getAuth(res));
+  res.setHeader('Cache-Control', 'private, no-store');
+  res.json({
+    ok: true,
+    plan: access.plan,
+    planVerified: access.verified,
+    styles: buildEditStyleCatalog({config, hasPro: access.hasPro}),
+  });
+});
 
 editRoutes.post('/edits/captions', async (req, res) => {
   const auth = getAuth(res);
@@ -77,9 +109,18 @@ editRoutes.post('/edits/captions', async (req, res) => {
       parsed.error.issues[0]?.message ?? 'Invalid captions edit request',
     );
   }
-  // Free creators may only start the lean `basic_captions` job. Every other mode (full_edit, captions with cuts,
+  const styled = resolveRequestedStyle(parsed.data.style, editStyleConfig());
+  if (styled && 'error' in styled) {
+    if (styled.error === 'style_unavailable') {
+      throw new EngineError('style_unavailable', 'That edit style is not available yet.', {style: styled.style});
+    }
+    throw new EngineError('bad_request', 'Unknown edit style', {style: styled.style});
+  }
+  // A style wins over `mode`; without one (older app, or the kill switch off) the request's mode is used exactly as before.
+  const mode = styled ? styled.mode : parsed.data.mode;
+  // Free creators may only start the lean `basic_captions` job. Every Pro style and every other mode (full_edit, captions with cuts,
   // teleprompter clean) is Pro / Pro Plus, decided from the server-verified plan, never from the request.
-  if (parsed.data.mode !== 'basic_captions') {
+  if (styled?.tier === 'pro' || mode !== 'basic_captions') {
     await assertFullEditEntitlement(auth);
   }
   const {job, uploadUrl} = await createCaptionsEditJob({
@@ -90,9 +131,10 @@ editRoutes.post('/edits/captions', async (req, res) => {
     captionTemplate: parsed.data.captionTemplate,
     captionPreset: parsed.data.captionPreset,
     captionStyleGuide: parsed.data.captionStyleGuide,
-    mode: parsed.data.mode,
+    mode,
     scriptText: parsed.data.scriptText,
-    ...(parsed.data.mode === 'full_edit' && parsed.data.fullEdit ? {fullEdit: parsed.data.fullEdit} : {}),
+    ...(mode === 'full_edit' && parsed.data.fullEdit ? {fullEdit: parsed.data.fullEdit} : {}),
+    ...(styled ? {style: styled.style, ...(styled.degraded ? {degraded: styled.degraded} : {})} : {}),
   });
   res.status(202).json({
     ok: true,

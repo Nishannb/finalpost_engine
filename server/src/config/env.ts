@@ -70,6 +70,15 @@ const schema = z.object({
   /** Pro features (full edit and the other paid pipelines) require a server-verified Pro / Pro Plus plan. Set to 0 only for local development. */
   ENTITLEMENT_ENFORCEMENT: bool(true),
   /**
+   * Edit-style picker (lib/editStyles.ts). Kill switch, default OFF: the `style` field of POST /v1/edits/captions is ignored and
+   * GET /v1/edit-styles answers 404, so the app falls back to its bundled manifest and the old mode-only request. 1 = styles on.
+   */
+  EDIT_STYLES_ENABLED: bool(false),
+  /** Comma list of style ids that may be started (e.g. `basic_captions,ai_clean_cut,kinetic_typography`). Empty = the registry defaults. */
+  EDIT_STYLES_AVAILABLE: str(),
+  /** Comma list of style ids in display order. Empty = the registry order. */
+  EDIT_STYLES_ORDER: str(),
+  /**
    * Creators Supabase project URL — required in production for ES256/RS256
    * access tokens (JWKS at `/auth/v1/.well-known/jwks.json`).
    * Example: https://mmyprzatmrfdtodsqaia.supabase.co

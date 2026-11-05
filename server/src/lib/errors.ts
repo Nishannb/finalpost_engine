@@ -23,6 +23,7 @@ export type EngineErrorCode =
   | 'matting_failed'
   | 'pro_required'
   | 'entitlement_unavailable'
+  | 'style_unavailable'
   | 'quota_exceeded'
   | 'rate_limited'
   | 'upstream_timeout'
@@ -47,6 +48,8 @@ const STATUS_BY_CODE: Record<EngineErrorCode, number> = {
   pro_required: 403,
   /** No trusted source could confirm the plan, so paid work is refused (fail closed). */
   entitlement_unavailable: 503,
+  /** The edit style exists but cannot be started right now (catalog `available: false`). */
+  style_unavailable: 409,
   quota_exceeded: 429,
   rate_limited: 429,
   upstream_timeout: 504,
