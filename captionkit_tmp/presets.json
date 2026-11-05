@@ -1,0 +1,2551 @@
+{
+  "schemaVersion": 1,
+  "notes": "Sizes are fractions of video height so presets work at any resolution. Colors are #RRGGBB or #RRGGBBAA (AA = opacity, FF = solid). All fonts are SIL OFL / Apache licensed.",
+  "presets": [
+    {
+      "id": "punchline",
+      "name": "Punchline",
+      "category": "Bold",
+      "description": "Tall condensed caps, active word flashes yellow with a pop.",
+      "font": {
+        "family": "Anton",
+        "weight": 400,
+        "size": 0.062,
+        "case": "upper",
+        "spacing": 1
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FFE14D",
+        "accent": "#FF5A5F",
+        "outline": "#000000",
+        "shadow": "#00000099"
+      },
+      "stroke": {
+        "width": 0.0045,
+        "blur": 0
+      },
+      "shadowDepth": 0.002,
+      "layout": {
+        "maxWords": 3,
+        "maxChars": 18,
+        "position": "center",
+        "offset": 0.0
+      },
+      "mode": "highlight",
+      "animation": "pop"
+    },
+    {
+      "id": "spotlight",
+      "name": "Spotlight",
+      "category": "Boxed",
+      "description": "Heavy sans with a green tag sliding onto each spoken word.",
+      "font": {
+        "family": "Poppins",
+        "weight": 900,
+        "size": 0.05,
+        "case": "upper",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#0B0B0B",
+        "accent": "#3DDC84",
+        "outline": "#000000",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.003,
+        "blur": 0
+      },
+      "shadowDepth": 0,
+      "wordBox": {
+        "color": "#3DDC84",
+        "padding": 0.008
+      },
+      "layout": {
+        "maxWords": 3,
+        "maxChars": 20,
+        "position": "bottom",
+        "offset": 0.24
+      },
+      "mode": "box-word",
+      "animation": "pop"
+    },
+    {
+      "id": "sweep",
+      "name": "Sweep",
+      "category": "Karaoke",
+      "description": "Words light up from soft grey to white as they are spoken.",
+      "font": {
+        "family": "Poppins",
+        "weight": 700,
+        "size": 0.042,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF80",
+        "spoken": "#FFFFFF",
+        "active": "#FFFFFF",
+        "accent": "#FFD24D",
+        "outline": "#00000000",
+        "shadow": "#000000AA"
+      },
+      "stroke": {
+        "width": 0,
+        "blur": 0
+      },
+      "shadowDepth": 0.003,
+      "layout": {
+        "maxWords": 7,
+        "maxChars": 34,
+        "position": "bottom",
+        "offset": 0.2
+      },
+      "mode": "karaoke",
+      "animation": "none"
+    },
+    {
+      "id": "one-beat",
+      "name": "One Beat",
+      "category": "Bold",
+      "description": "A single huge word at a time, bouncing to the rhythm of speech.",
+      "font": {
+        "family": "Archivo Black",
+        "weight": 400,
+        "size": 0.085,
+        "case": "upper",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FFFFFF",
+        "accent": "#FFE14D",
+        "outline": "#000000",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.006,
+        "blur": 0
+      },
+      "shadowDepth": 0,
+      "layout": {
+        "maxWords": 1,
+        "maxChars": 12,
+        "position": "center",
+        "offset": 0.0
+      },
+      "mode": "one-word",
+      "animation": "bounce"
+    },
+    {
+      "id": "typewriter",
+      "name": "Typewriter",
+      "category": "Minimal",
+      "description": "Monospace words type out one by one on a dark strip.",
+      "font": {
+        "family": "Space Mono",
+        "weight": 700,
+        "size": 0.034,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#F5F5F5",
+        "active": "#F5F5F5",
+        "accent": "#7CFF6B",
+        "outline": "#000000",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0,
+        "blur": 0
+      },
+      "shadowDepth": 0,
+      "box": {
+        "color": "#000000CC",
+        "padding": 0.012
+      },
+      "layout": {
+        "maxWords": 6,
+        "maxChars": 28,
+        "position": "bottom",
+        "offset": 0.2
+      },
+      "mode": "reveal",
+      "animation": "none"
+    },
+    {
+      "id": "plain",
+      "name": "Plain",
+      "category": "Minimal",
+      "description": "Clean, readable subtitles with a soft shadow. No motion.",
+      "font": {
+        "family": "Poppins",
+        "weight": 600,
+        "size": 0.034,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FFFFFF",
+        "accent": "#FFD24D",
+        "outline": "#00000066",
+        "shadow": "#000000B3"
+      },
+      "stroke": {
+        "width": 0.0015,
+        "blur": 0.002
+      },
+      "shadowDepth": 0.002,
+      "layout": {
+        "maxWords": 9,
+        "maxChars": 42,
+        "position": "bottom",
+        "offset": 0.1
+      },
+      "mode": "static",
+      "animation": "fade"
+    },
+    {
+      "id": "cinema-bar",
+      "name": "Cinema Bar",
+      "category": "Minimal",
+      "description": "Broadcast-style subtitle on a translucent black bar.",
+      "font": {
+        "family": "Poppins",
+        "weight": 600,
+        "size": 0.032,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FFFFFF",
+        "accent": "#FFD24D",
+        "outline": "#00000000",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0,
+        "blur": 0
+      },
+      "shadowDepth": 0,
+      "box": {
+        "color": "#00000099",
+        "padding": 0.01
+      },
+      "layout": {
+        "maxWords": 9,
+        "maxChars": 42,
+        "position": "bottom",
+        "offset": 0.08
+      },
+      "mode": "static",
+      "animation": "none"
+    },
+    {
+      "id": "tubelight",
+      "name": "Tubelight",
+      "category": "Glow",
+      "description": "Magenta glow, active word switches to electric cyan.",
+      "font": {
+        "family": "Poppins",
+        "weight": 800,
+        "size": 0.048,
+        "case": "upper",
+        "spacing": 1
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#39F3FF",
+        "accent": "#FFE14D",
+        "outline": "#FF2BD6",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.004,
+        "blur": 0.006
+      },
+      "shadowDepth": 0,
+      "layout": {
+        "maxWords": 3,
+        "maxChars": 20,
+        "position": "center",
+        "offset": 0.08
+      },
+      "mode": "highlight",
+      "animation": "pop"
+    },
+    {
+      "id": "ember",
+      "name": "Ember",
+      "category": "Glow",
+      "description": "Warm orange glow on condensed caps, active word burns white.",
+      "font": {
+        "family": "Bebas Neue",
+        "weight": 400,
+        "size": 0.066,
+        "case": "upper",
+        "spacing": 2
+      },
+      "colors": {
+        "text": "#FFB070",
+        "active": "#FFFFFF",
+        "accent": "#FFE14D",
+        "outline": "#FF6A1A",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.003,
+        "blur": 0.007
+      },
+      "shadowDepth": 0,
+      "layout": {
+        "maxWords": 4,
+        "maxChars": 22,
+        "position": "bottom",
+        "offset": 0.26
+      },
+      "mode": "highlight",
+      "animation": "none"
+    },
+    {
+      "id": "chatter",
+      "name": "Chatter",
+      "category": "Chat",
+      "description": "Dark text in a white speech-style card.",
+      "font": {
+        "family": "Poppins",
+        "weight": 700,
+        "size": 0.034,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#1C1C1E",
+        "active": "#1C1C1E",
+        "accent": "#2F6BFF",
+        "outline": "#00000000",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0,
+        "blur": 0
+      },
+      "shadowDepth": 0,
+      "box": {
+        "color": "#FFFFFF",
+        "padding": 0.014
+      },
+      "layout": {
+        "maxWords": 6,
+        "maxChars": 30,
+        "position": "bottom",
+        "offset": 0.22
+      },
+      "mode": "static",
+      "animation": "slide-up"
+    },
+    {
+      "id": "ping",
+      "name": "Ping",
+      "category": "Chat",
+      "description": "White text on a blue message card that slides up.",
+      "font": {
+        "family": "Poppins",
+        "weight": 700,
+        "size": 0.034,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FFFFFF",
+        "accent": "#FFE14D",
+        "outline": "#00000000",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0,
+        "blur": 0
+      },
+      "shadowDepth": 0,
+      "box": {
+        "color": "#2F6BFF",
+        "padding": 0.014
+      },
+      "layout": {
+        "maxWords": 6,
+        "maxChars": 30,
+        "position": "bottom",
+        "offset": 0.22
+      },
+      "mode": "static",
+      "animation": "slide-up"
+    },
+    {
+      "id": "marker",
+      "name": "Marker",
+      "category": "Handwritten",
+      "description": "Thick felt-tip lettering, active word in coral.",
+      "font": {
+        "family": "Permanent Marker",
+        "weight": 400,
+        "size": 0.05,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FF5A5F",
+        "accent": "#FFE14D",
+        "outline": "#000000",
+        "shadow": "#00000080"
+      },
+      "stroke": {
+        "width": 0.004,
+        "blur": 0
+      },
+      "shadowDepth": 0.003,
+      "layout": {
+        "maxWords": 4,
+        "maxChars": 22,
+        "position": "center",
+        "offset": 0.1
+      },
+      "mode": "highlight",
+      "animation": "pop"
+    },
+    {
+      "id": "notebook",
+      "name": "Notebook",
+      "category": "Handwritten",
+      "description": "Casual handwriting that fills in as it is spoken.",
+      "font": {
+        "family": "Caveat",
+        "weight": 700,
+        "size": 0.06,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF66",
+        "spoken": "#FFFFFF",
+        "active": "#FFFFFF",
+        "accent": "#FFD24D",
+        "outline": "#00000000",
+        "shadow": "#000000B3"
+      },
+      "stroke": {
+        "width": 0,
+        "blur": 0
+      },
+      "shadowDepth": 0.003,
+      "layout": {
+        "maxWords": 6,
+        "maxChars": 30,
+        "position": "bottom",
+        "offset": 0.22
+      },
+      "mode": "karaoke",
+      "animation": "none"
+    },
+    {
+      "id": "folio",
+      "name": "Folio",
+      "category": "Editorial",
+      "description": "Display serif, active word picked out in gold.",
+      "font": {
+        "family": "DM Serif Display",
+        "weight": 400,
+        "size": 0.052,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#F2C14E",
+        "accent": "#F2C14E",
+        "outline": "#00000000",
+        "shadow": "#000000B3"
+      },
+      "stroke": {
+        "width": 0,
+        "blur": 0
+      },
+      "shadowDepth": 0.003,
+      "layout": {
+        "maxWords": 5,
+        "maxChars": 26,
+        "position": "bottom",
+        "offset": 0.24
+      },
+      "mode": "highlight",
+      "animation": "none"
+    },
+    {
+      "id": "byline",
+      "name": "Byline",
+      "category": "Editorial",
+      "description": "Italic serif words that fade in one after another.",
+      "font": {
+        "family": "DM Serif Display",
+        "italic": true,
+        "weight": 400,
+        "size": 0.05,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FFFFFF",
+        "accent": "#F2C14E",
+        "outline": "#00000000",
+        "shadow": "#000000B3"
+      },
+      "stroke": {
+        "width": 0,
+        "blur": 0
+      },
+      "shadowDepth": 0.003,
+      "layout": {
+        "maxWords": 5,
+        "maxChars": 26,
+        "position": "center",
+        "offset": 0.12
+      },
+      "mode": "reveal",
+      "animation": "fade"
+    },
+    {
+      "id": "kapow",
+      "name": "Kapow",
+      "category": "Comic",
+      "description": "Comic-book caps in yellow with a hard drop shadow.",
+      "font": {
+        "family": "Bangers",
+        "weight": 400,
+        "size": 0.068,
+        "case": "upper",
+        "spacing": 2
+      },
+      "colors": {
+        "text": "#FFD60A",
+        "active": "#FF3B30",
+        "accent": "#FFFFFF",
+        "outline": "#000000",
+        "shadow": "#000000"
+      },
+      "stroke": {
+        "width": 0.005,
+        "blur": 0
+      },
+      "shadowDepth": 0.006,
+      "layout": {
+        "maxWords": 3,
+        "maxChars": 18,
+        "position": "center",
+        "offset": 0.0
+      },
+      "mode": "highlight",
+      "animation": "bounce"
+    },
+    {
+      "id": "hype-tag",
+      "name": "Hype Tag",
+      "category": "Boxed",
+      "description": "Blocky caps with a red tag behind the active word.",
+      "font": {
+        "family": "Archivo Black",
+        "weight": 400,
+        "size": 0.05,
+        "case": "upper",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FFFFFF",
+        "accent": "#FFE14D",
+        "outline": "#000000",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.003,
+        "blur": 0
+      },
+      "shadowDepth": 0,
+      "wordBox": {
+        "color": "#FF3B30",
+        "padding": 0.008
+      },
+      "layout": {
+        "maxWords": 3,
+        "maxChars": 20,
+        "position": "center",
+        "offset": 0.0
+      },
+      "mode": "box-word",
+      "animation": "pop"
+    },
+    {
+      "id": "mint-pill",
+      "name": "Mint Pill",
+      "category": "Boxed",
+      "description": "Rounded sans in lowercase, mint tag on the spoken word.",
+      "font": {
+        "family": "Poppins",
+        "weight": 800,
+        "size": 0.044,
+        "case": "lower",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#06231D",
+        "accent": "#00E0B8",
+        "outline": "#000000",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.0025,
+        "blur": 0
+      },
+      "shadowDepth": 0,
+      "wordBox": {
+        "color": "#00E0B8",
+        "padding": 0.007
+      },
+      "layout": {
+        "maxWords": 4,
+        "maxChars": 24,
+        "position": "bottom",
+        "offset": 0.24
+      },
+      "mode": "box-word",
+      "animation": "none"
+    },
+    {
+      "id": "stack",
+      "name": "Stack",
+      "category": "Bold",
+      "description": "Two lines of condensed caps, active word in lime.",
+      "font": {
+        "family": "Bebas Neue",
+        "weight": 400,
+        "size": 0.07,
+        "case": "upper",
+        "spacing": 1
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#7CFF6B",
+        "accent": "#FFE14D",
+        "outline": "#000000",
+        "shadow": "#00000080"
+      },
+      "stroke": {
+        "width": 0.004,
+        "blur": 0
+      },
+      "shadowDepth": 0.002,
+      "layout": {
+        "maxWords": 6,
+        "maxChars": 16,
+        "lines": 2,
+        "position": "center",
+        "offset": 0.05
+      },
+      "mode": "highlight",
+      "animation": "fade"
+    },
+    {
+      "id": "terminal",
+      "name": "Terminal",
+      "category": "Glow",
+      "description": "Green phosphor monospace that types itself out.",
+      "font": {
+        "family": "Space Mono",
+        "weight": 700,
+        "size": 0.036,
+        "case": "lower",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#33FF66",
+        "active": "#CCFFD9",
+        "accent": "#FFFFFF",
+        "outline": "#0B6B26",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.002,
+        "blur": 0.005
+      },
+      "shadowDepth": 0,
+      "layout": {
+        "maxWords": 5,
+        "maxChars": 26,
+        "position": "bottom",
+        "offset": 0.2
+      },
+      "mode": "reveal",
+      "animation": "none"
+    },
+    {
+      "id": "lowkey",
+      "name": "Lowkey",
+      "category": "Karaoke",
+      "description": "Lowercase, understated fill with a faint shadow.",
+      "font": {
+        "family": "Poppins",
+        "weight": 600,
+        "size": 0.038,
+        "case": "lower",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF59",
+        "spoken": "#FFFFFF",
+        "active": "#FFFFFF",
+        "accent": "#9BE7FF",
+        "outline": "#00000000",
+        "shadow": "#00000099"
+      },
+      "stroke": {
+        "width": 0,
+        "blur": 0
+      },
+      "shadowDepth": 0.002,
+      "layout": {
+        "maxWords": 6,
+        "maxChars": 30,
+        "position": "bottom",
+        "offset": 0.18
+      },
+      "mode": "karaoke",
+      "animation": "none"
+    },
+    {
+      "id": "duotone",
+      "name": "Duotone",
+      "category": "Karaoke",
+      "description": "Condensed caps that fill hot pink word by word.",
+      "font": {
+        "family": "Anton",
+        "weight": 400,
+        "size": 0.058,
+        "case": "upper",
+        "spacing": 1
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "spoken": "#FF4FA3",
+        "active": "#FF4FA3",
+        "accent": "#FFE14D",
+        "outline": "#000000",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.004,
+        "blur": 0
+      },
+      "shadowDepth": 0,
+      "layout": {
+        "maxWords": 4,
+        "maxChars": 20,
+        "position": "center",
+        "offset": 0.05
+      },
+      "mode": "karaoke",
+      "animation": "pop"
+    },
+    {
+      "id": "bulletin",
+      "name": "Bulletin",
+      "category": "Boxed",
+      "description": "Black caps on a solid yellow strip, newsroom feel.",
+      "font": {
+        "family": "Archivo Black",
+        "weight": 400,
+        "size": 0.034,
+        "case": "upper",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#111111",
+        "active": "#111111",
+        "accent": "#D62828",
+        "outline": "#00000000",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0,
+        "blur": 0
+      },
+      "shadowDepth": 0,
+      "box": {
+        "color": "#FFD400",
+        "padding": 0.012
+      },
+      "layout": {
+        "maxWords": 6,
+        "maxChars": 30,
+        "position": "bottom",
+        "offset": 0.14
+      },
+      "mode": "static",
+      "animation": "slide-up"
+    },
+    {
+      "id": "lift",
+      "name": "Lift",
+      "category": "Bold",
+      "description": "Bold sans lines rise into place, active word in amber.",
+      "font": {
+        "family": "Poppins",
+        "weight": 700,
+        "size": 0.046,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FFB800",
+        "accent": "#FF5A5F",
+        "outline": "#000000",
+        "shadow": "#00000080"
+      },
+      "stroke": {
+        "width": 0.003,
+        "blur": 0
+      },
+      "shadowDepth": 0.002,
+      "layout": {
+        "maxWords": 4,
+        "maxChars": 22,
+        "position": "bottom",
+        "offset": 0.24
+      },
+      "mode": "highlight",
+      "animation": "slide-up"
+    },
+    {
+      "id": "thunder",
+      "name": "Thunder",
+      "category": "Bold",
+      "description": "Wide heavy caps; the spoken word zooms in orange.",
+      "font": {
+        "family": "Bowlby One",
+        "weight": 400,
+        "size": 0.052,
+        "case": "upper",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FF6B00",
+        "accent": "#FFE14D",
+        "outline": "#000000",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.0045,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 3,
+        "maxChars": 16,
+        "position": "center",
+        "offset": 0
+      },
+      "mode": "highlight",
+      "animation": "zoom"
+    },
+    {
+      "id": "blockbuster",
+      "name": "Blockbuster",
+      "category": "Bold",
+      "description": "One extra-wide word at a time with a vertical stretch.",
+      "font": {
+        "family": "Rubik Mono One",
+        "weight": 400,
+        "size": 0.06,
+        "case": "upper",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FFFFFF",
+        "accent": "#FFE14D",
+        "outline": "#000000",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.005,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 4,
+        "maxChars": 12,
+        "position": "center",
+        "offset": 0
+      },
+      "mode": "one-word",
+      "animation": "stretch"
+    },
+    {
+      "id": "headliner",
+      "name": "Headliner",
+      "category": "Bold",
+      "description": "Condensed caps on two lines; the second line glows yellow.",
+      "font": {
+        "family": "Barlow Condensed",
+        "weight": 800,
+        "size": 0.075,
+        "case": "upper",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FFFFFF",
+        "accent": "#FFE14D",
+        "outline": "#000000",
+        "shadow": "#00000080",
+        "line2": "#FFD60A"
+      },
+      "stroke": {
+        "width": 0.004,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.002,
+      "layout": {
+        "maxWords": 6,
+        "maxChars": 18,
+        "position": "center",
+        "offset": 0.04,
+        "lines": 2
+      },
+      "mode": "static",
+      "animation": "fade"
+    },
+    {
+      "id": "slab",
+      "name": "Slab",
+      "category": "Bold",
+      "description": "Chunky slab serif, active word in sky blue.",
+      "font": {
+        "family": "Alfa Slab One",
+        "weight": 400,
+        "size": 0.05,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#00C2FF",
+        "accent": "#FFE14D",
+        "outline": "#000000",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.004,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 3,
+        "maxChars": 18,
+        "position": "bottom",
+        "offset": 0.24
+      },
+      "mode": "highlight",
+      "animation": "pop"
+    },
+    {
+      "id": "heavyweight",
+      "name": "Heavyweight",
+      "category": "Bold",
+      "description": "Black-weight caps, active word in hot red with a stretch.",
+      "font": {
+        "family": "Fira Sans",
+        "weight": 900,
+        "size": 0.058,
+        "case": "upper",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FF2E63",
+        "accent": "#FFE14D",
+        "outline": "#000000",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.004,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 3,
+        "maxChars": 16,
+        "position": "center",
+        "offset": 0
+      },
+      "mode": "highlight",
+      "animation": "stretch"
+    },
+    {
+      "id": "big-talk",
+      "name": "Big Talk",
+      "category": "Bold",
+      "description": "Single rounded words that zoom in, thick black edge.",
+      "font": {
+        "family": "Lilita One",
+        "weight": 400,
+        "size": 0.09,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FFFFFF",
+        "accent": "#FFE14D",
+        "outline": "#000000",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.007,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 4,
+        "maxChars": 12,
+        "position": "center",
+        "offset": 0
+      },
+      "mode": "one-word",
+      "animation": "zoom"
+    },
+    {
+      "id": "marquee",
+      "name": "Marquee",
+      "category": "Bold",
+      "description": "Squared sports caps, active word flips to mint green.",
+      "font": {
+        "family": "Russo One",
+        "weight": 400,
+        "size": 0.048,
+        "case": "upper",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#2BFF88",
+        "accent": "#FFE14D",
+        "outline": "#000000",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.004,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 3,
+        "maxChars": 18,
+        "position": "bottom",
+        "offset": 0.24
+      },
+      "mode": "highlight",
+      "animation": "pop"
+    },
+    {
+      "id": "gravity",
+      "name": "Gravity",
+      "category": "Bold",
+      "description": "Rounded display face; the active word grows and bounces.",
+      "font": {
+        "family": "Titan One",
+        "weight": 400,
+        "size": 0.05,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FFFFFF",
+        "accent": "#FFE14D",
+        "outline": "#3A1C8C",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.005,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 3,
+        "maxChars": 18,
+        "position": "center",
+        "offset": 0.02
+      },
+      "mode": "highlight",
+      "animation": "bounce",
+      "activeScale": 1.22
+    },
+    {
+      "id": "stencil",
+      "name": "Stencil",
+      "category": "Bold",
+      "description": "Military stencil caps in bone white, amber on the beat.",
+      "font": {
+        "family": "Black Ops One",
+        "weight": 400,
+        "size": 0.052,
+        "case": "upper",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#EEF0D5",
+        "active": "#F4A261",
+        "accent": "#FFE14D",
+        "outline": "#000000",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.004,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 3,
+        "maxChars": 18,
+        "position": "center",
+        "offset": 0.05
+      },
+      "mode": "highlight",
+      "animation": "pop"
+    },
+    {
+      "id": "sticker",
+      "name": "Sticker",
+      "category": "Boxed",
+      "description": "Yellow sticker tag bounces onto each spoken word.",
+      "font": {
+        "family": "Lilita One",
+        "weight": 400,
+        "size": 0.056,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#111111",
+        "accent": "#FFE14D",
+        "outline": "#000000",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.004,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 3,
+        "maxChars": 18,
+        "position": "center",
+        "offset": 0.02
+      },
+      "mode": "box-word",
+      "animation": "bounce",
+      "wordBox": {
+        "color": "#FFE14D",
+        "padding": 0.009
+      }
+    },
+    {
+      "id": "receipt",
+      "name": "Receipt",
+      "category": "Boxed",
+      "description": "Small monospace caps printed on a white slip.",
+      "font": {
+        "family": "Space Mono",
+        "weight": 700,
+        "size": 0.03,
+        "case": "upper",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#151515",
+        "active": "#151515",
+        "accent": "#D62828",
+        "outline": "#00000000",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.0,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 6,
+        "maxChars": 28,
+        "position": "bottom",
+        "offset": 0.16
+      },
+      "mode": "static",
+      "animation": "none",
+      "box": {
+        "color": "#FFFFFF",
+        "padding": 0.012
+      }
+    },
+    {
+      "id": "punch-card",
+      "name": "Punch Card",
+      "category": "Boxed",
+      "description": "Condensed caps with a blue tag zooming onto each word.",
+      "font": {
+        "family": "Barlow Condensed",
+        "weight": 800,
+        "size": 0.066,
+        "case": "upper",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FFFFFF",
+        "accent": "#FFE14D",
+        "outline": "#000000",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.004,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 3,
+        "maxChars": 18,
+        "position": "center",
+        "offset": 0
+      },
+      "mode": "box-word",
+      "animation": "zoom",
+      "wordBox": {
+        "color": "#2F6BFF",
+        "padding": 0.008
+      }
+    },
+    {
+      "id": "pink-tag",
+      "name": "Pink Tag",
+      "category": "Boxed",
+      "description": "Lowercase sans with a pink tag on the spoken word.",
+      "font": {
+        "family": "Poppins",
+        "weight": 700,
+        "size": 0.046,
+        "case": "lower",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FFFFFF",
+        "accent": "#FFE14D",
+        "outline": "#000000",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.003,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 4,
+        "maxChars": 22,
+        "position": "bottom",
+        "offset": 0.24
+      },
+      "mode": "box-word",
+      "animation": "pop",
+      "wordBox": {
+        "color": "#FF4FA3",
+        "padding": 0.008
+      }
+    },
+    {
+      "id": "masking-tape",
+      "name": "Masking Tape",
+      "category": "Boxed",
+      "description": "Handwritten words on a strip of cream tape.",
+      "font": {
+        "family": "Kalam",
+        "weight": 700,
+        "size": 0.042,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#2B2B2B",
+        "active": "#2B2B2B",
+        "accent": "#D62828",
+        "outline": "#00000000",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.0,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 5,
+        "maxChars": 26,
+        "position": "bottom",
+        "offset": 0.22
+      },
+      "mode": "static",
+      "animation": "slide-up",
+      "box": {
+        "color": "#F3ECD9",
+        "padding": 0.012
+      }
+    },
+    {
+      "id": "highlighter",
+      "name": "Highlighter",
+      "category": "Boxed",
+      "description": "A yellow highlighter swipe follows the speech.",
+      "font": {
+        "family": "Poppins",
+        "weight": 700,
+        "size": 0.044,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#111111",
+        "accent": "#FFE14D",
+        "outline": "#000000",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.003,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 4,
+        "maxChars": 22,
+        "position": "bottom",
+        "offset": 0.22
+      },
+      "mode": "box-word",
+      "animation": "none",
+      "wordBox": {
+        "color": "#FFF176",
+        "padding": 0.007
+      }
+    },
+    {
+      "id": "night-tag",
+      "name": "Night Tag",
+      "category": "Boxed",
+      "description": "Tech caps, black tag with cyan type on the active word.",
+      "font": {
+        "family": "Chakra Petch",
+        "weight": 700,
+        "size": 0.046,
+        "case": "upper",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#39F3FF",
+        "accent": "#FFE14D",
+        "outline": "#000000",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.003,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 3,
+        "maxChars": 20,
+        "position": "bottom",
+        "offset": 0.24
+      },
+      "mode": "box-word",
+      "animation": "pop",
+      "wordBox": {
+        "color": "#0B0D12",
+        "padding": 0.008
+      }
+    },
+    {
+      "id": "masthead",
+      "name": "Masthead",
+      "category": "Boxed",
+      "description": "Navy type on a white bar across the top of the frame.",
+      "font": {
+        "family": "Fira Sans",
+        "weight": 700,
+        "size": 0.032,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#0A2540",
+        "active": "#0A2540",
+        "accent": "#D62828",
+        "outline": "#00000000",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.0,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 7,
+        "maxChars": 34,
+        "position": "top",
+        "offset": 0.1
+      },
+      "mode": "static",
+      "animation": "fade",
+      "box": {
+        "color": "#FFFFFFE6",
+        "padding": 0.012
+      }
+    },
+    {
+      "id": "sunrise",
+      "name": "Sunrise",
+      "category": "Karaoke",
+      "description": "Black-weight caps fill golden word by word.",
+      "font": {
+        "family": "Fira Sans",
+        "weight": 900,
+        "size": 0.052,
+        "case": "upper",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FFB703",
+        "accent": "#FFE14D",
+        "outline": "#000000",
+        "shadow": "#00000000",
+        "spoken": "#FFB703"
+      },
+      "stroke": {
+        "width": 0.004,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 4,
+        "maxChars": 20,
+        "position": "center",
+        "offset": 0.04
+      },
+      "mode": "karaoke",
+      "animation": "none"
+    },
+    {
+      "id": "tidepool",
+      "name": "Tidepool",
+      "category": "Karaoke",
+      "description": "Soft white words wash into aqua as they are spoken.",
+      "font": {
+        "family": "Poppins",
+        "weight": 800,
+        "size": 0.042,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF70",
+        "active": "#5CE1E6",
+        "accent": "#FFE14D",
+        "outline": "#00000000",
+        "shadow": "#00000099",
+        "spoken": "#5CE1E6"
+      },
+      "stroke": {
+        "width": 0.0,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.002,
+      "layout": {
+        "maxWords": 6,
+        "maxChars": 30,
+        "position": "bottom",
+        "offset": 0.2
+      },
+      "mode": "karaoke",
+      "animation": "none"
+    },
+    {
+      "id": "chalkboard",
+      "name": "Chalkboard",
+      "category": "Karaoke",
+      "description": "Loose handwriting that chalks in as it is spoken.",
+      "font": {
+        "family": "Gloria Hallelujah",
+        "weight": 400,
+        "size": 0.044,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF55",
+        "active": "#FFFFFF",
+        "accent": "#FFE14D",
+        "outline": "#00000000",
+        "shadow": "#000000AA",
+        "spoken": "#FFFFFF"
+      },
+      "stroke": {
+        "width": 0.0,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.002,
+      "layout": {
+        "maxWords": 5,
+        "maxChars": 26,
+        "position": "bottom",
+        "offset": 0.22
+      },
+      "mode": "karaoke",
+      "animation": "none"
+    },
+    {
+      "id": "scoreboard",
+      "name": "Scoreboard",
+      "category": "Karaoke",
+      "description": "Two lines of condensed caps filling lime.",
+      "font": {
+        "family": "Barlow Condensed",
+        "weight": 600,
+        "size": 0.062,
+        "case": "upper",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#7CFF6B",
+        "accent": "#FFE14D",
+        "outline": "#000000",
+        "shadow": "#00000000",
+        "spoken": "#7CFF6B"
+      },
+      "stroke": {
+        "width": 0.0035,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 6,
+        "maxChars": 16,
+        "position": "center",
+        "offset": 0.05,
+        "lines": 2
+      },
+      "mode": "karaoke",
+      "animation": "pop"
+    },
+    {
+      "id": "velvet",
+      "name": "Velvet",
+      "category": "Karaoke",
+      "description": "Display serif that fills lilac, slow and elegant.",
+      "font": {
+        "family": "DM Serif Display",
+        "weight": 400,
+        "size": 0.05,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF99",
+        "active": "#E7B8FF",
+        "accent": "#FFE14D",
+        "outline": "#00000000",
+        "shadow": "#000000AA",
+        "spoken": "#E7B8FF"
+      },
+      "stroke": {
+        "width": 0.0,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.003,
+      "layout": {
+        "maxWords": 5,
+        "maxChars": 26,
+        "position": "bottom",
+        "offset": 0.22
+      },
+      "mode": "karaoke",
+      "animation": "none"
+    },
+    {
+      "id": "arcade",
+      "name": "Arcade",
+      "category": "Karaoke",
+      "description": "Pixel font that fills yellow like a high-score screen.",
+      "font": {
+        "family": "Press Start 2P",
+        "weight": 400,
+        "size": 0.03,
+        "case": "upper",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FFE600",
+        "accent": "#FFE14D",
+        "outline": "#000000",
+        "shadow": "#00000000",
+        "spoken": "#FFE600"
+      },
+      "stroke": {
+        "width": 0.004,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 4,
+        "maxChars": 18,
+        "position": "center",
+        "offset": 0.06
+      },
+      "mode": "karaoke",
+      "animation": "none"
+    },
+    {
+      "id": "mono-fill",
+      "name": "Mono Fill",
+      "category": "Karaoke",
+      "description": "Monospace lowercase, quiet grey to white fill.",
+      "font": {
+        "family": "Space Mono",
+        "weight": 700,
+        "size": 0.034,
+        "case": "lower",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF59",
+        "active": "#FFFFFF",
+        "accent": "#FFE14D",
+        "outline": "#00000000",
+        "shadow": "#000000AA",
+        "spoken": "#FFFFFF"
+      },
+      "stroke": {
+        "width": 0.0,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.002,
+      "layout": {
+        "maxWords": 5,
+        "maxChars": 26,
+        "position": "bottom",
+        "offset": 0.18
+      },
+      "mode": "karaoke",
+      "animation": "none"
+    },
+    {
+      "id": "synthwave",
+      "name": "Synthwave",
+      "category": "Glow",
+      "description": "Outlined retro neon caps, pink glow with cyan beats.",
+      "font": {
+        "family": "Monoton",
+        "weight": 400,
+        "size": 0.05,
+        "case": "upper",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FF6AD5",
+        "active": "#00F0FF",
+        "accent": "#FFE14D",
+        "outline": "#FF2BD6",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.002,
+        "blur": 0.006
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 3,
+        "maxChars": 16,
+        "position": "center",
+        "offset": 0.04
+      },
+      "mode": "highlight",
+      "animation": "pop"
+    },
+    {
+      "id": "halo",
+      "name": "Halo",
+      "category": "Glow",
+      "description": "Clean white type; only the spoken word gets a golden halo.",
+      "font": {
+        "family": "Poppins",
+        "weight": 800,
+        "size": 0.046,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FFFFFF",
+        "accent": "#FFE14D",
+        "outline": "#00000000",
+        "shadow": "#00000000",
+        "activeOutline": "#FFD60A"
+      },
+      "stroke": {
+        "width": 0.004,
+        "blur": 0.004
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 4,
+        "maxChars": 22,
+        "position": "center",
+        "offset": 0.06
+      },
+      "mode": "highlight",
+      "animation": "pop"
+    },
+    {
+      "id": "aurora",
+      "name": "Aurora",
+      "category": "Glow",
+      "description": "Mint glow on rounded type, active word turns white.",
+      "font": {
+        "family": "Righteous",
+        "weight": 400,
+        "size": 0.05,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#B8FFDF",
+        "active": "#B8FFDF",
+        "accent": "#FFE14D",
+        "outline": "#00E5A0",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.003,
+        "blur": 0.006
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 4,
+        "maxChars": 20,
+        "position": "bottom",
+        "offset": 0.24
+      },
+      "mode": "highlight",
+      "animation": "none"
+    },
+    {
+      "id": "laser",
+      "name": "Laser",
+      "category": "Glow",
+      "description": "Red tech caps that type themselves out with a glow.",
+      "font": {
+        "family": "Chakra Petch",
+        "weight": 700,
+        "size": 0.046,
+        "case": "upper",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FF4D6D",
+        "active": "#FFFFFF",
+        "accent": "#FFE14D",
+        "outline": "#FF0033",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.002,
+        "blur": 0.006
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 4,
+        "maxChars": 22,
+        "position": "center",
+        "offset": 0.05
+      },
+      "mode": "reveal",
+      "animation": "none"
+    },
+    {
+      "id": "moonlight",
+      "name": "Moonlight",
+      "category": "Glow",
+      "description": "High-contrast serif with a faint blue glow.",
+      "font": {
+        "family": "Abril Fatface",
+        "weight": 400,
+        "size": 0.05,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FFFFFF",
+        "accent": "#FFE14D",
+        "outline": "#7FA7FF",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.002,
+        "blur": 0.005
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 5,
+        "maxChars": 24,
+        "position": "bottom",
+        "offset": 0.22
+      },
+      "mode": "static",
+      "animation": "fade"
+    },
+    {
+      "id": "voltage",
+      "name": "Voltage",
+      "category": "Glow",
+      "description": "Electric yellow-green caps, white on the beat.",
+      "font": {
+        "family": "Russo One",
+        "weight": 400,
+        "size": 0.05,
+        "case": "upper",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#E8FF3A",
+        "active": "#FFFFFF",
+        "accent": "#FFE14D",
+        "outline": "#9DFF00",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.003,
+        "blur": 0.006
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 3,
+        "maxChars": 18,
+        "position": "center",
+        "offset": 0.02
+      },
+      "mode": "highlight",
+      "animation": "zoom"
+    },
+    {
+      "id": "broadcast",
+      "name": "Broadcast",
+      "category": "Minimal",
+      "description": "Traditional TV subtitle: white with a thin black edge.",
+      "font": {
+        "family": "Fira Sans",
+        "weight": 700,
+        "size": 0.034,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FFFFFF",
+        "accent": "#FFE14D",
+        "outline": "#000000",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.002,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 9,
+        "maxChars": 42,
+        "position": "bottom",
+        "offset": 0.08
+      },
+      "mode": "static",
+      "animation": "none"
+    },
+    {
+      "id": "whisper",
+      "name": "Whisper",
+      "category": "Minimal",
+      "description": "Small lowercase words that fade in quietly.",
+      "font": {
+        "family": "Poppins",
+        "weight": 600,
+        "size": 0.032,
+        "case": "lower",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFFD9",
+        "active": "#FFFFFFD9",
+        "accent": "#FFE14D",
+        "outline": "#00000000",
+        "shadow": "#00000099"
+      },
+      "stroke": {
+        "width": 0.0,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.002,
+      "layout": {
+        "maxWords": 6,
+        "maxChars": 30,
+        "position": "bottom",
+        "offset": 0.16
+      },
+      "mode": "reveal",
+      "animation": "fade"
+    },
+    {
+      "id": "underscore",
+      "name": "Underscore",
+      "category": "Minimal",
+      "description": "Plain bold sans; the spoken word is underlined.",
+      "font": {
+        "family": "Poppins",
+        "weight": 700,
+        "size": 0.04,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FFFFFF",
+        "accent": "#FFE14D",
+        "outline": "#00000066",
+        "shadow": "#00000099"
+      },
+      "stroke": {
+        "width": 0.0015,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.002,
+      "layout": {
+        "maxWords": 5,
+        "maxChars": 26,
+        "position": "bottom",
+        "offset": 0.2
+      },
+      "mode": "highlight",
+      "animation": "none",
+      "activeUnderline": true
+    },
+    {
+      "id": "top-note",
+      "name": "Top Note",
+      "category": "Minimal",
+      "description": "Readable captions placed near the top of the frame.",
+      "font": {
+        "family": "Fira Sans",
+        "weight": 700,
+        "size": 0.034,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FFFFFF",
+        "accent": "#FFE14D",
+        "outline": "#00000000",
+        "shadow": "#000000B3"
+      },
+      "stroke": {
+        "width": 0.0,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.002,
+      "layout": {
+        "maxWords": 7,
+        "maxChars": 34,
+        "position": "top",
+        "offset": 0.12
+      },
+      "mode": "static",
+      "animation": "fade"
+    },
+    {
+      "id": "hollow",
+      "name": "Hollow",
+      "category": "Minimal",
+      "description": "Outline-only caps; the spoken word fills solid.",
+      "font": {
+        "family": "Bowlby One",
+        "weight": 400,
+        "size": 0.05,
+        "case": "upper",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF00",
+        "active": "#FFFFFF",
+        "accent": "#FFE14D",
+        "outline": "#FFFFFF",
+        "shadow": "#00000000",
+        "activeOutline": "#000000"
+      },
+      "stroke": {
+        "width": 0.0025,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 3,
+        "maxChars": 16,
+        "position": "center",
+        "offset": 0.03
+      },
+      "mode": "highlight",
+      "animation": "none"
+    },
+    {
+      "id": "scribble",
+      "name": "Scribble",
+      "category": "Handwritten",
+      "description": "Loose marker writing, the spoken word in yellow.",
+      "font": {
+        "family": "Gloria Hallelujah",
+        "weight": 400,
+        "size": 0.046,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FFD60A",
+        "accent": "#FFE14D",
+        "outline": "#000000",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.004,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 4,
+        "maxChars": 22,
+        "position": "center",
+        "offset": 0.08
+      },
+      "mode": "highlight",
+      "animation": "pop"
+    },
+    {
+      "id": "postcard",
+      "name": "Postcard",
+      "category": "Handwritten",
+      "description": "Flowing script with a soft shadow.",
+      "font": {
+        "family": "Pacifico",
+        "weight": 400,
+        "size": 0.048,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FFFFFF",
+        "accent": "#FFE14D",
+        "outline": "#00000000",
+        "shadow": "#000000AA"
+      },
+      "stroke": {
+        "width": 0.0,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.003,
+      "layout": {
+        "maxWords": 5,
+        "maxChars": 24,
+        "position": "bottom",
+        "offset": 0.22
+      },
+      "mode": "static",
+      "animation": "fade"
+    },
+    {
+      "id": "diary",
+      "name": "Diary",
+      "category": "Handwritten",
+      "description": "Neat handwriting that writes itself out word by word.",
+      "font": {
+        "family": "Kalam",
+        "weight": 700,
+        "size": 0.048,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FFFFFF",
+        "accent": "#FFE14D",
+        "outline": "#00000000",
+        "shadow": "#000000AA"
+      },
+      "stroke": {
+        "width": 0.0,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.003,
+      "layout": {
+        "maxWords": 5,
+        "maxChars": 26,
+        "position": "bottom",
+        "offset": 0.22
+      },
+      "mode": "reveal",
+      "animation": "fade"
+    },
+    {
+      "id": "felt-tag",
+      "name": "Felt Tag",
+      "category": "Handwritten",
+      "description": "Marker lettering with a coral tag on each word.",
+      "font": {
+        "family": "Permanent Marker",
+        "weight": 400,
+        "size": 0.048,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FFFFFF",
+        "accent": "#FFE14D",
+        "outline": "#000000",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.003,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 3,
+        "maxChars": 18,
+        "position": "center",
+        "offset": 0.06
+      },
+      "mode": "box-word",
+      "animation": "bounce",
+      "wordBox": {
+        "color": "#FF5A5F",
+        "padding": 0.009
+      }
+    },
+    {
+      "id": "couture",
+      "name": "Couture",
+      "category": "Editorial",
+      "description": "Fashion-magazine serif, the spoken word in rose.",
+      "font": {
+        "family": "Yeseva One",
+        "weight": 400,
+        "size": 0.05,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FF8FAB",
+        "accent": "#FFE14D",
+        "outline": "#00000000",
+        "shadow": "#000000AA"
+      },
+      "stroke": {
+        "width": 0.0,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.003,
+      "layout": {
+        "maxWords": 4,
+        "maxChars": 22,
+        "position": "center",
+        "offset": 0.08
+      },
+      "mode": "highlight",
+      "animation": "fade"
+    },
+    {
+      "id": "matinee",
+      "name": "Matinee",
+      "category": "Editorial",
+      "description": "Art-deco caps in gold, like an old cinema sign.",
+      "font": {
+        "family": "Limelight",
+        "weight": 400,
+        "size": 0.046,
+        "case": "upper",
+        "spacing": 2
+      },
+      "colors": {
+        "text": "#E9C46A",
+        "active": "#E9C46A",
+        "accent": "#FFE14D",
+        "outline": "#2A1A00",
+        "shadow": "#000000AA"
+      },
+      "stroke": {
+        "width": 0.002,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.003,
+      "layout": {
+        "maxWords": 4,
+        "maxChars": 22,
+        "position": "center",
+        "offset": 0.06
+      },
+      "mode": "static",
+      "animation": "fade"
+    },
+    {
+      "id": "manuscript",
+      "name": "Manuscript",
+      "category": "Editorial",
+      "description": "Bookish serif that inks in as it is spoken.",
+      "font": {
+        "family": "Yeseva One",
+        "weight": 400,
+        "size": 0.046,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF80",
+        "active": "#FFFFFF",
+        "accent": "#FFE14D",
+        "outline": "#00000000",
+        "shadow": "#000000AA",
+        "spoken": "#FFFFFF"
+      },
+      "stroke": {
+        "width": 0.0,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.003,
+      "layout": {
+        "maxWords": 5,
+        "maxChars": 26,
+        "position": "bottom",
+        "offset": 0.22
+      },
+      "mode": "karaoke",
+      "animation": "none"
+    },
+    {
+      "id": "dispatch",
+      "name": "Dispatch",
+      "category": "Editorial",
+      "description": "Typewriter words stamped onto aged paper.",
+      "font": {
+        "family": "Special Elite",
+        "weight": 400,
+        "size": 0.038,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#222222",
+        "active": "#222222",
+        "accent": "#D62828",
+        "outline": "#00000000",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.0,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 5,
+        "maxChars": 26,
+        "position": "bottom",
+        "offset": 0.2
+      },
+      "mode": "reveal",
+      "animation": "none",
+      "box": {
+        "color": "#F2E8CF",
+        "padding": 0.012
+      }
+    },
+    {
+      "id": "bubblegum",
+      "name": "Bubblegum",
+      "category": "Comic",
+      "description": "Rounded type with a fat pink edge, yellow on the beat.",
+      "font": {
+        "family": "Sniglet",
+        "weight": 800,
+        "size": 0.054,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FFE14D",
+        "accent": "#FFE14D",
+        "outline": "#FF4FA3",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.006,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 3,
+        "maxChars": 18,
+        "position": "center",
+        "offset": 0.04
+      },
+      "mode": "highlight",
+      "animation": "bounce"
+    },
+    {
+      "id": "cartoon",
+      "name": "Cartoon",
+      "category": "Comic",
+      "description": "Chunky caps with a hard drop shadow and a stretch.",
+      "font": {
+        "family": "Luckiest Guy",
+        "weight": 400,
+        "size": 0.058,
+        "case": "upper",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#00C2FF",
+        "accent": "#FFE14D",
+        "outline": "#000000",
+        "shadow": "#000000"
+      },
+      "stroke": {
+        "width": 0.005,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.006,
+      "layout": {
+        "maxWords": 3,
+        "maxChars": 18,
+        "position": "center",
+        "offset": 0.02
+      },
+      "mode": "highlight",
+      "animation": "stretch"
+    },
+    {
+      "id": "shout",
+      "name": "Shout",
+      "category": "Comic",
+      "description": "Fat italic display face, amber on the beat.",
+      "font": {
+        "family": "Shrikhand",
+        "weight": 400,
+        "size": 0.05,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FFB703",
+        "accent": "#FFE14D",
+        "outline": "#1B1033",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.005,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 3,
+        "maxChars": 18,
+        "position": "center",
+        "offset": 0.04
+      },
+      "mode": "highlight",
+      "animation": "pop"
+    },
+    {
+      "id": "level-up",
+      "name": "Level Up",
+      "category": "Comic",
+      "description": "Pixel caps with a hard shadow, pink on the beat.",
+      "font": {
+        "family": "Press Start 2P",
+        "weight": 400,
+        "size": 0.03,
+        "case": "upper",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FF4FA3",
+        "accent": "#FFE14D",
+        "outline": "#000000",
+        "shadow": "#000000"
+      },
+      "stroke": {
+        "width": 0.003,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.004,
+      "layout": {
+        "maxWords": 3,
+        "maxChars": 16,
+        "position": "center",
+        "offset": 0.06
+      },
+      "mode": "highlight",
+      "animation": "pop"
+    },
+    {
+      "id": "jukebox",
+      "name": "Jukebox",
+      "category": "Comic",
+      "description": "Retro two-line caps, amber over tangerine.",
+      "font": {
+        "family": "Righteous",
+        "weight": 400,
+        "size": 0.056,
+        "case": "upper",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFB703",
+        "active": "#FFB703",
+        "accent": "#FFE14D",
+        "outline": "#000000",
+        "shadow": "#000000",
+        "line2": "#FB5607"
+      },
+      "stroke": {
+        "width": 0.003,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.005,
+      "layout": {
+        "maxWords": 6,
+        "maxChars": 16,
+        "position": "center",
+        "offset": 0.04,
+        "lines": 2
+      },
+      "mode": "static",
+      "animation": "slide-up"
+    },
+    {
+      "id": "reply",
+      "name": "Reply",
+      "category": "Chat",
+      "description": "White text in a dark grey message card.",
+      "font": {
+        "family": "Poppins",
+        "weight": 600,
+        "size": 0.034,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FFFFFF",
+        "accent": "#FFE14D",
+        "outline": "#00000000",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.0,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 6,
+        "maxChars": 30,
+        "position": "bottom",
+        "offset": 0.22
+      },
+      "mode": "static",
+      "animation": "slide-up",
+      "box": {
+        "color": "#3A3A3C",
+        "padding": 0.014
+      }
+    },
+    {
+      "id": "crush",
+      "name": "Crush",
+      "category": "Chat",
+      "description": "White text in a hot pink message card.",
+      "font": {
+        "family": "Poppins",
+        "weight": 700,
+        "size": 0.034,
+        "case": "none",
+        "spacing": 0
+      },
+      "colors": {
+        "text": "#FFFFFF",
+        "active": "#FFFFFF",
+        "accent": "#FFE14D",
+        "outline": "#00000000",
+        "shadow": "#00000000"
+      },
+      "stroke": {
+        "width": 0.0,
+        "blur": 0.0
+      },
+      "shadowDepth": 0.0,
+      "layout": {
+        "maxWords": 6,
+        "maxChars": 30,
+        "position": "bottom",
+        "offset": 0.22
+      },
+      "mode": "static",
+      "animation": "slide-up",
+      "box": {
+        "color": "#FF4FA3",
+        "padding": 0.014
+      }
+    }
+  ]
+}

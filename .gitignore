@@ -46,3 +46,9 @@ remotion/public/_proof-beds/
 
 # phase 3 proof outputs (numbers are in MORNING_REPORT.md)
 out/proof/
+
+# CaptionKit: only the renderer, presets and fonts are committed (the Dockerfile and the Basic Captions path need them). Generated demos are not.
+captionkit_tmp/previews/
+captionkit_tmp/samples/
+captionkit_tmp/gallery.html
+captionkit_tmp/**/__pycache__/
