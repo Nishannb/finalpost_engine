@@ -2,6 +2,7 @@ import {createApp} from './app.ts';
 import {env} from './config/env.ts';
 import {logger} from './lib/logger.ts';
 import {validateSfxLibrary} from './lib/sfxCatalog.ts';
+import {startFullEditRecoveryWorker} from './pipeline/captionsEditRunner.ts';
 import {getKv} from './store/kv.ts';
 
 async function main(): Promise<void> {
@@ -29,6 +30,9 @@ async function main(): Promise<void> {
       for (const issue of report.issues) logger.warn({level: issue.level, code: issue.code, fileName: issue.fileName, message: issue.message, suggestion: issue.suggestion}, 'sfx.catalog_warning');
     })
     .catch(error => logger.warn({reason: error instanceof Error ? error.message.slice(0, 200) : 'sfx_validate'}, 'sfx.catalog_warning'));
+
+  // Picks up full edits a previous process left half-done (needs the durable job table; see store/durableJobs.ts).
+  startFullEditRecoveryWorker();
 
   const server = createApp().listen(env.PORT, () => {
     logger.info({port: env.PORT, env: env.NODE_ENV}, 'video engine listening');

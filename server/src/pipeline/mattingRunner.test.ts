@@ -12,6 +12,10 @@ import path from 'node:path';
 import express, {type NextFunction, type Request, type Response} from 'express';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
+// The matting routes are Pro-only; these tests are about job ownership / validation / rate limits, so the plan check
+// (covered by eval/entitlementEnforcement.test.ts) is satisfied here.
+vi.mock('../lib/entitlement.ts', () => ({assertFullEditEntitlement: async () => undefined}));
+
 vi.mock('../store/kv.ts', () => {
   const data = new Map<string, string>();
   const kv = {

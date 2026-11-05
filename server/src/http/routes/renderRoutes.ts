@@ -15,11 +15,12 @@ import {
   startRender,
 } from '../../pipeline/renderRunner.ts';
 import {getAuth} from '../auth.ts';
+import {requireFullEdit} from '../entitlementGuard.ts';
 import {renderRequestSchema} from '../schemas.ts';
 
 export const renderRoutes = Router();
 
-renderRoutes.post('/render', async (req, res) => {
+renderRoutes.post('/render', requireFullEdit, async (req, res) => {
   const auth = getAuth(res);
   const parsed = renderRequestSchema.safeParse(req.body);
   if (!parsed.success) {

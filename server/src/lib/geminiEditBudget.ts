@@ -186,7 +186,19 @@ const scope = new AsyncLocalStorage<GeminiEditBudget>();
 
 /** Runs `fn` with `budget` in force for every awaited continuation. With no budget it just runs `fn` (nothing changes). */
 export function withGeminiBudget<T>(budget: GeminiEditBudget | undefined, fn: () => Promise<T>): Promise<T> {
+  // Inside a withNoGemini scope no nested budget may widen the (zero) allowance.
+  if (denyAll.getStore()) return fn();
   return budget ? scope.run(budget, fn) : fn();
+}
+
+const denyAll = new AsyncLocalStorage<true>();
+
+/**
+ * Free basic-captions jobs: every Gemini request inside `fn` is refused (a zero budget), and a nested
+ * `withGeminiBudget` cannot replace it with a larger one. Refusals use the same fail-closed path as an exhausted budget.
+ */
+export function withNoGemini<T>(fn: () => Promise<T>): Promise<T> {
+  return denyAll.run(true, () => scope.run(createGeminiEditBudget(0), fn));
 }
 
 export function currentGeminiBudget(): GeminiEditBudget | undefined {

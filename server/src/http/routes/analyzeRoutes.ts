@@ -12,12 +12,14 @@ import {assertPublicHttpUrl} from '../../lib/addressGuard.ts';
 import {EngineError} from '../../lib/errors.ts';
 import {startAnalysis} from '../../pipeline/analysisRunner.ts';
 import {
+  assertBlueprintAccess,
   hitRateLimit,
   loadAnalysisJob,
   loadBlueprint,
 } from '../../store/engineStore.ts';
 import {readQuota} from '../../stages/render/renderBudget.ts';
 import {getAuth} from '../auth.ts';
+import {requireFullEdit} from '../entitlementGuard.ts';
 import {
   analyzeRequestSchema,
   bindLabeledAssetsRequestSchema,
@@ -37,7 +39,7 @@ const ANALYZE_RATE_WINDOW_SEC = 60;
 
 export const analyzeRoutes = Router();
 
-analyzeRoutes.post('/analyze', async (req, res) => {
+analyzeRoutes.post('/analyze', requireFullEdit, async (req, res) => {
   const auth = getAuth(res);
   const parsed = analyzeRequestSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -104,7 +106,8 @@ analyzeRoutes.get('/analyze/:analysisJobId', async (req, res) => {
 });
 
 analyzeRoutes.get('/blueprints/:blueprintId', async (req, res) => {
-  getAuth(res);
+  const auth = getAuth(res);
+  await assertBlueprintAccess(String(req.params.blueprintId), auth.userId);
   const blueprint = await loadBlueprint(String(req.params.blueprintId));
   if (!blueprint) {
     throw new EngineError('not_found', 'Blueprint not found or expired');
@@ -117,8 +120,9 @@ analyzeRoutes.get('/blueprints/:blueprintId', async (req, res) => {
  * without a full re-analyze. Prefer re-analyze with labeledAssetBindings when the
  * edit should place the new assets; this endpoint persists the map for resume.
  */
-analyzeRoutes.post('/blueprints/:blueprintId/labeled-assets', async (req, res) => {
-  getAuth(res);
+analyzeRoutes.post('/blueprints/:blueprintId/labeled-assets', requireFullEdit, async (req, res) => {
+  const auth = getAuth(res);
+  await assertBlueprintAccess(String(req.params.blueprintId), auth.userId);
   const parsed = bindLabeledAssetsRequestSchema.safeParse(req.body);
   if (!parsed.success) {
     throw new EngineError('bad_request', firstIssue(parsed.error.issues), {

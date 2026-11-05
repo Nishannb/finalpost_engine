@@ -21,6 +21,8 @@ export type EngineErrorCode =
   | 'broll_failed'
   | 'render_failed'
   | 'matting_failed'
+  | 'pro_required'
+  | 'entitlement_unavailable'
   | 'quota_exceeded'
   | 'rate_limited'
   | 'upstream_timeout'
@@ -41,6 +43,10 @@ const STATUS_BY_CODE: Record<EngineErrorCode, number> = {
   broll_failed: 502,
   render_failed: 502,
   matting_failed: 502,
+  /** The creator's plan does not include this feature (server-verified, never client-supplied). */
+  pro_required: 403,
+  /** No trusted source could confirm the plan, so paid work is refused (fail closed). */
+  entitlement_unavailable: 503,
   quota_exceeded: 429,
   rate_limited: 429,
   upstream_timeout: 504,

@@ -6,10 +6,20 @@
 import {env} from '../config/env.ts';
 import {logger} from '../lib/logger.ts';
 
+/** Notification kinds. Captions jobs keep sending `edit_done` (status done | failed) exactly as before. */
+export type EditNotificationType =
+  | 'assets_needed'
+  | 'broll_needed'
+  | 'edit_done'
+  | 'edit_failed';
+
 export async function notifyCreatorEditDone(input: {
   userId: string;
   editJobId: string;
-  status: 'done' | 'failed';
+  status: 'done' | 'failed' | 'awaiting_assets';
+  /** Omitted = the original captions behavior (`edit_done`). */
+  type?: EditNotificationType;
+  blueprintId?: string;
   outputUrl?: string;
   errorMessage?: string;
 }): Promise<void> {
@@ -42,6 +52,8 @@ export async function notifyCreatorEditDone(input: {
         userId: input.userId,
         editJobId: input.editJobId,
         status: input.status,
+        ...(input.type ? {type: input.type} : {}),
+        ...(input.blueprintId ? {blueprintId: input.blueprintId} : {}),
         ...(input.outputUrl ? {outputUrl: input.outputUrl} : {}),
         ...(input.errorMessage ? {errorMessage: input.errorMessage} : {}),
       }),

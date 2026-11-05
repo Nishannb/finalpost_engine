@@ -15,6 +15,7 @@ import {EngineError} from '../../lib/errors.ts';
 import {getMattingRunner, type MattingRunner} from '../../pipeline/mattingRunner.ts';
 import {hitRateLimit} from '../../store/engineStore.ts';
 import {getAuth} from '../auth.ts';
+import {requireFullEdit} from '../entitlementGuard.ts';
 
 /** A creator cannot legitimately start more than a handful of these a minute (same budget as analyze). */
 export const MATTING_RATE_LIMIT = 8;
@@ -46,7 +47,7 @@ export const createMattingJobSchema = z.object({
 export function createMattingRoutes(runnerProvider: () => MattingRunner = getMattingRunner): Router {
   const router = Router();
 
-  router.post('/matting/jobs', async (req, res) => {
+  router.post('/matting/jobs', requireFullEdit, async (req, res) => {
     const auth = getAuth(res);
     const parsed = createMattingJobSchema.safeParse(req.body ?? {});
     if (!parsed.success) {

@@ -67,6 +67,8 @@ const schema = z.object({
    * Example: https://api.kinmel.shop
    */
   CREATOR_API_URL: str(),
+  /** Pro features (full edit and the other paid pipelines) require a server-verified Pro / Pro Plus plan. Set to 0 only for local development. */
+  ENTITLEMENT_ENFORCEMENT: bool(true),
   /**
    * Creators Supabase project URL — required in production for ES256/RS256
    * access tokens (JWKS at `/auth/v1/.well-known/jwks.json`).
@@ -80,6 +82,12 @@ const schema = z.object({
   SUPABASE_ANON_KEY: str(),
   /** Legacy HS256 JWT secret (optional fallback if tokens still use HS256). */
   SUPABASE_JWT_SECRET: str(),
+  /** Server-only key for the durable full-edit job table (public.creator_edit_jobs). Never sent to a client. */
+  SUPABASE_SERVICE_ROLE_KEY: str(),
+  /** Retention: a job with no activity for this long is marked failed ('expired'). */
+  EDIT_JOB_INACTIVE_DAYS: num(30),
+  /** Retention: finished (done / failed) jobs are deleted this many days after they last changed. */
+  EDIT_JOB_TERMINAL_DAYS: num(90),
   DEV_AUTH_BYPASS: bool(true),
 
   R2_ACCOUNT_ID: str(),

@@ -21,6 +21,7 @@ import {assertRenderOutputValid} from '../lib/renderIntegrity.ts';
 import {uploadPublicFile} from '../storage/r2.ts';
 import {inspectOutput} from './experimentVerdict.ts';
 import {
+  assertBlueprintAccess,
   loadBlueprint,
   loadRenderJob,
   saveRenderJob,
@@ -71,6 +72,7 @@ export async function startRender(input: {
     );
   }
 
+  await assertBlueprintAccess(input.blueprintId, input.userId);
   const blueprint = await loadBlueprint(input.blueprintId);
   if (!blueprint) {
     throw new EngineError('not_found', 'Blueprint not found or expired');

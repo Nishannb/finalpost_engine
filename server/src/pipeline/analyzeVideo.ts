@@ -223,6 +223,13 @@ export type AnalyzeInput = {
   teleprompterClean?: boolean;
   /** Teleprompter script text used for retake detection. */
   scriptText?: string;
+  /**
+   * FREE basic-captions path (Groq words + caption burn). Hard gate: forces the legacy
+   * profile and a captions-only edit list, and switches off speech cuts, the AI keep-plan,
+   * denoise, retakes, delivery shaping, Director v1/v2, North Star, B-roll and generated
+   * graphics, whatever PRODUCT_EDIT_PROFILE / DIRECTOR_V2 / NORTH_STAR are set to.
+   */
+  basicCaptions?: boolean;
   /** Generated motion graphics (Gemini briefs → Claude worker). Default: MOTION_GRAPHICS_ENABLED. */
   generatedGraphicsEnabled?: boolean;
   /**
@@ -296,6 +303,23 @@ async function analyzeVideoUnguarded(
   input: AnalyzeInput,
   hooks: AnalyzeHooks = {},
 ): Promise<TimelineBlueprint> {
+  if (input.basicCaptions) {
+    input = {
+      ...input,
+      editProfile: 'legacy',
+      requestedEdits: ['captions'],
+      teleprompterClean: false,
+      scriptText: undefined,
+      directorV2: false,
+      northStar: false,
+      forceDeliveryShaping: false,
+      generatedGraphicsEnabled: false,
+      userBrollUrls: [],
+      labeledAssetBindings: [],
+      styleRecipe: undefined,
+    };
+  }
+  const basicCaptions = Boolean(input.basicCaptions);
   const stage = (name: AnalysisStage, progress: number) =>
     hooks.onStage?.(name, progress);
   const timings: Record<string, number> = {};
@@ -381,8 +405,8 @@ async function analyzeVideoUnguarded(
       ? coerceVideoTemplateRecipe(input.styleRecipe)
       : null;
     const captionGuide = coerceCaptionStyleGuide(input.captionStyleGuide);
-    const northStar = Boolean(input.northStar || env.NORTH_STAR);
-    const directorV2 = Boolean(input.directorV2 || env.DIRECTOR_V2 || northStar);
+    const northStar = !basicCaptions && Boolean(input.northStar || env.NORTH_STAR);
+    const directorV2 = !basicCaptions && Boolean(input.directorV2 || env.DIRECTOR_V2 || northStar);
     // WP8B: the polish profile works inside an Edit Look (stages/directorV2/editLooks.ts), which lives in the Director v2 Stage 2, so polish runs the v2 visual Director. This switch drives the
     // visual Director only; the LLM delivery direction above keeps reading `directorV2`. Other profiles are unchanged.
     const visualDirectorV2 = directorV2 || polishPath;

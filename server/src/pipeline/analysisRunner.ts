@@ -11,12 +11,13 @@ import {randomUUID} from 'node:crypto';
 import {env} from '../config/env.ts';
 import {polishRequestedEdits} from '../lib/editToolkits.ts';
 import {isEngineError, toEngineError} from '../lib/errors.ts';
-import {geminiBudgetFromLimit, geminiBudgetPlanFor, withGeminiBudget} from '../lib/geminiEditBudget.ts';
+import {geminiBudgetFromLimit, geminiBudgetPlanFor, withGeminiBudget, withNoGemini} from '../lib/geminiEditBudget.ts';
 import {analyzeOverridesFor, graphicsFingerprintKey, normalizeEditProfile, profileFingerprintKey, unrecognizedEditProfile, requestGraphicsStatus, type ProductEditProfile} from '../lib/productEditProfile.ts';
 import {stageLogger} from '../lib/logger.ts';
 import {normalizeProvidedCutoutUrl} from '../lib/providedCutout.ts';
 import {
   fingerprintSource,
+  grantBlueprintAccess,
   loadBlueprintByFingerprint,
   loadBlueprintGraphicsStatus,
   saveAnalysisJob,
@@ -79,7 +80,17 @@ export async function startAnalysis(input: {
   captionPreset?: string;
   teleprompterClean?: boolean;
   scriptText?: string;
+  /**
+   * FREE basic-captions path: Groq transcription + caption render only. Forces the
+   * `legacy` profile (no speech cuts / AI keep-plan), captions-only edits, no
+   * teleprompter clean, and a zero Gemini budget, regardless of PRODUCT_EDIT_PROFILE.
+   */
+  basicCaptions?: boolean;
 }): Promise<AnalysisJob> {
+  const basicCaptions = Boolean(input.basicCaptions);
+  if (basicCaptions) {
+    input = {...input, requestedEdits: ['captions'], teleprompterClean: false, scriptText: undefined, directorV2: false, northStar: false, userBrollUrls: [], labeledAssetBindings: [], styleRecipe: undefined, subjectCutoutUrl: undefined, forceSpeakerCutout: false};
+  }
   const now = new Date().toISOString();
   const bindingUrls = (input.labeledAssetBindings ?? [])
     .flatMap(binding => [binding.assetUrl, ...(binding.assetUrls ?? [])])
@@ -127,7 +138,8 @@ export async function startAnalysis(input: {
       ? `${input.captionTemplate ?? ''}|kit:${input.captionPreset}`
       : (input.captionTemplate ?? ''),
     teleprompterClean: Boolean(input.teleprompterClean),
-    scriptKey,
+    // A basic-captions blueprint (no cuts) must never be served to, or from, a full-pipeline job of the same video.
+    scriptKey: basicCaptions ? 'basic_captions' : scriptKey,
     editProfileKey: profileFingerprintKey(editProfile),
     graphicsKey: graphicsFingerprintKey(graphicsAtRequest),
   });
@@ -159,6 +171,7 @@ export async function startAnalysis(input: {
         blueprint: cached,
       };
       await saveAnalysisJob(job);
+      await grantBlueprintAccess(cached.blueprintId, input.userId);
       log.info({blueprintId: cached.blueprintId}, 'served cached blueprint');
       return job;
     }
@@ -180,7 +193,9 @@ export async function startAnalysis(input: {
   };
   await saveAnalysisJob(job);
 
-  void runAnalysis(job, fingerprint, {
+  // Basic captions: every Gemini request of the job is refused (zero budget that nested budgets cannot widen).
+  const run = (fn: () => Promise<void>) => (basicCaptions ? withNoGemini(fn) : fn());
+  void run(() => runAnalysis(job, fingerprint, {
     colorGradeLut: input.colorGradeLut,
     styleRecipe: input.styleRecipe,
     userBrollUrls,
@@ -197,7 +212,8 @@ export async function startAnalysis(input: {
     teleprompterClean: input.teleprompterClean,
     scriptText: input.scriptText,
     editProfile,
-  });
+    basicCaptions,
+  }));
   return job;
 }
 
@@ -221,8 +237,13 @@ async function runAnalysis(
     teleprompterClean?: boolean;
     scriptText?: string;
     editProfile?: ProductEditProfile;
+    basicCaptions?: boolean;
   },
 ): Promise<void> {
+  // Basic captions run the legacy (no cuts / no director) profile whatever the server profile is.
+  if (extras.basicCaptions) {
+    extras = {...extras, editProfile: 'legacy'};
+  }
   const release = await acquireSlot();
   const patch = async (
     status: AnalysisStage,
@@ -259,6 +280,7 @@ async function runAnalysis(
         captionPreset: extras.captionPreset,
         teleprompterClean: extras.teleprompterClean,
         scriptText: extras.scriptText,
+        basicCaptions: extras.basicCaptions,
         // WP1: empty for the legacy profile; the explicit MVP options otherwise (see lib/productEditProfile.ts).
         ...analyzeOverridesFor(extras.editProfile ?? 'legacy'),
         editProfile: extras.editProfile ?? 'legacy',
@@ -276,6 +298,7 @@ async function runAnalysis(
     ));
 
     await saveBlueprint(blueprint, fingerprint, job.graphics ? {graphics: job.graphics} : {});
+    await grantBlueprintAccess(blueprint.blueprintId, job.userId);
     await recordAnalysis(job.userId);
     await patch('done', 1, {blueprint});
   } catch (error) {

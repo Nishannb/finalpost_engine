@@ -15,6 +15,7 @@ import {
   markTemplateDesignUploaded,
 } from '../../pipeline/templateDesignerRunner.ts';
 import {getAuth} from '../auth.ts';
+import {requireFullEdit} from '../entitlementGuard.ts';
 import {
   extractStyleRequestSchema,
   extractThumbnailThemeRequestSchema,
@@ -31,7 +32,7 @@ export const templateRoutes = Router();
  * POST /v1/templates/extract-style
  * Body: { videoUrl } — reference edit (watermarks OK; we only learn style).
  */
-templateRoutes.post('/templates/extract-style', async (req, res) => {
+templateRoutes.post('/templates/extract-style', requireFullEdit, async (req, res) => {
   const auth = getAuth(res);
   const parsed = extractStyleRequestSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -63,7 +64,7 @@ templateRoutes.post('/templates/extract-style', async (req, res) => {
  * POST /v1/templates/extract-caption-style
  * Learn caption colors / placement / animation from one reference video.
  */
-templateRoutes.post('/templates/extract-caption-style', async (req, res) => {
+templateRoutes.post('/templates/extract-caption-style', requireFullEdit, async (req, res) => {
   const auth = getAuth(res);
   const parsed = extractStyleRequestSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -128,7 +129,7 @@ templateRoutes.post('/templates/extract-thumbnail-theme', async (req, res) => {
  * POST /v1/templates/seedance-edit
  * Apply a TemplateRecipe via OpenRouter Seedance 2.0 Mini.
  */
-templateRoutes.post('/templates/seedance-edit', async (req, res) => {
+templateRoutes.post('/templates/seedance-edit', requireFullEdit, async (req, res) => {
   const auth = getAuth(res);
   const parsed = seedanceEditRequestSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -181,7 +182,7 @@ const designCreateSchema = z.object({
  * POST /v1/templates/design
  * Presign a reference reel for the AI Template Designer (EditSpec, not Director).
  */
-templateRoutes.post('/templates/design', async (req, res) => {
+templateRoutes.post('/templates/design', requireFullEdit, async (req, res) => {
   const auth = getAuth(res);
   const parsed = designCreateSchema.safeParse(req.body ?? {});
   if (!parsed.success) {

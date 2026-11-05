@@ -8,6 +8,7 @@ import {EngineError} from '../../lib/errors.ts';
 import {withWorkspace} from '../../lib/tempFiles.ts';
 import {describeUserBrollAssets} from '../../stages/broll/userBrollDescribe.ts';
 import {getAuth} from '../auth.ts';
+import {requireFullEdit} from '../entitlementGuard.ts';
 import {z} from 'zod';
 
 const describeSchema = z.object({
@@ -16,7 +17,7 @@ const describeSchema = z.object({
 
 export const brollLibraryRoutes = Router();
 
-brollLibraryRoutes.post('/broll/describe', async (req, res) => {
+brollLibraryRoutes.post('/broll/describe', requireFullEdit, async (req, res) => {
   getAuth(res);
   const parsed = describeSchema.safeParse(req.body);
   if (!parsed.success) {

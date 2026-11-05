@@ -17,7 +17,10 @@ import type {
 } from '../types/blueprint.ts';
 import type {TemplateDesignJob} from '../types/templateDesign.ts';
 import {graphicsStatusKey, parseStoredGraphicsStatus, type JobGraphicsStatus} from '../lib/productEditProfile.ts';
+import {EngineError} from '../lib/errors.ts';
+import {logger} from '../lib/logger.ts';
 import {getKv} from './kv.ts';
+import {getDurableJobStore, isTerminalStatus} from './durableJobs.ts';
 
 const BLUEPRINT_PREFIX = 'engine:blueprint:';
 const BLUEPRINT_INDEX_PREFIX = 'engine:blueprint-index:';
@@ -175,13 +178,42 @@ export async function loadRenderJob(
   return raw ? (JSON.parse(raw) as RenderJob) : null;
 }
 
-export async function saveCaptionsEditJob(job: CaptionsEditJob): Promise<void> {
+/**
+ * Captions jobs live in KV only (24h), exactly as before. `full_edit` jobs are ALSO written to the durable
+ * table (store/durableJobs.ts) on every save: KV is the fast path, the table is the source of truth, so a
+ * restart or an expired KV entry never loses the job.
+ */
+export async function saveCaptionsEditJob(
+  job: CaptionsEditJob,
+  options: {allowReopen?: boolean} = {},
+): Promise<void> {
   const kv = await getKv();
+  if (job.mode === 'full_edit' && !options.allowReopen) {
+    // A finished job (done / failed) never moves again unless the creator retries it: a stale or duplicate
+    // worker must not flip a terminal job back to rendering, or finish it twice.
+    const currentRaw = await kv.get(`${EDIT_PREFIX}${job.editJobId}`);
+    const current = currentRaw ? (JSON.parse(currentRaw) as CaptionsEditJob) : null;
+    if (current && isTerminalStatus(current.status) && current.status !== job.status) {
+      logger.warn({editJobId: job.editJobId, from: current.status, to: job.status}, 'ignored transition out of a terminal job state');
+      return;
+    }
+  }
   await kv.set(
     `${EDIT_PREFIX}${job.editJobId}`,
     JSON.stringify(job),
     EDIT_JOB_TTL_SEC,
   );
+  if (job.mode === 'full_edit') {
+    const durable = getDurableJobStore();
+    if (durable) {
+      try {
+        await durable.upsert(job);
+      } catch (error) {
+        // KV still has the job; the next save retries the write. Never fail an edit step over a bookkeeping write.
+        logger.error({editJobId: job.editJobId, error}, 'durable job write failed');
+      }
+    }
+  }
 }
 
 export async function loadCaptionsEditJob(
@@ -189,7 +221,80 @@ export async function loadCaptionsEditJob(
 ): Promise<CaptionsEditJob | null> {
   const kv = await getKv();
   const raw = await kv.get(`${EDIT_PREFIX}${editJobId}`);
-  return raw ? (JSON.parse(raw) as CaptionsEditJob) : null;
+  if (raw) {
+    return JSON.parse(raw) as CaptionsEditJob;
+  }
+  // KV miss: expired (24h), evicted or the engine restarted. A full edit is still in the durable table.
+  const durable = getDurableJobStore();
+  if (!durable) {
+    return null;
+  }
+  try {
+    const stored = await durable.get(editJobId);
+    if (!stored) {
+      return null;
+    }
+    await kv.set(`${EDIT_PREFIX}${editJobId}`, JSON.stringify(stored.job), EDIT_JOB_TTL_SEC);
+    return stored.job;
+  } catch (error) {
+    logger.error({editJobId, error}, 'durable job read failed');
+    return null;
+  }
+}
+
+const BLUEPRINT_ACCESS_PREFIX = 'engine:bp-access:';
+const BLUEPRINT_GATE_PREFIX = 'engine:bp-gated:';
+
+/**
+ * A blueprint holds a creator's transcript and media urls. Its id is random (80 bits) but an id alone must not
+ * be enough: the creator who made (or cache-hit) a plan is recorded, and the read / bind / render paths check it.
+ * A blueprint with no record (made before this existed) stays reachable, exactly as before.
+ */
+export async function grantBlueprintAccess(blueprintId: string, userId: string): Promise<void> {
+  if (!blueprintId || !userId) {
+    return;
+  }
+  const kv = await getKv();
+  const ttl = env.BLUEPRINT_TTL_SEC;
+  await kv.set(`${BLUEPRINT_GATE_PREFIX}${blueprintId}`, '1', ttl);
+  await kv.set(`${BLUEPRINT_ACCESS_PREFIX}${blueprintId}:${userId}`, '1', ttl);
+}
+
+/** Throws `not_found` (never "forbidden", so ids are not probeable) when the plan belongs to someone else. */
+export async function assertBlueprintAccess(blueprintId: string, userId: string): Promise<void> {
+  const kv = await getKv();
+  if (!(await kv.get(`${BLUEPRINT_GATE_PREFIX}${blueprintId}`))) {
+    return;
+  }
+  if (!(await kv.get(`${BLUEPRINT_ACCESS_PREFIX}${blueprintId}:${userId}`))) {
+    throw new EngineError('not_found', 'Blueprint not found or expired');
+  }
+}
+
+/** Keep a copy of the edit plan next to the job so `awaiting_assets` survives the KV blueprint expiring. */
+export async function saveDurableBlueprint(job: CaptionsEditJob, blueprint: unknown): Promise<void> {
+  const durable = getDurableJobStore();
+  if (!durable) {
+    return;
+  }
+  try {
+    await durable.upsert(job, blueprint);
+  } catch (error) {
+    logger.error({editJobId: job.editJobId, error}, 'durable blueprint write failed');
+  }
+}
+
+/** The plan snapshot saved with a job, if any. */
+export async function loadDurableBlueprint(editJobId: string): Promise<unknown | null> {
+  const durable = getDurableJobStore();
+  if (!durable) {
+    return null;
+  }
+  try {
+    return (await durable.get(editJobId))?.blueprint ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export async function saveTemplateDesignJob(job: TemplateDesignJob): Promise<void> {

@@ -1257,6 +1257,8 @@ export type RenderJob = {
 export type CaptionsEditStatus =
   | 'awaiting_upload'
   | 'analyzing'
+  /** `full_edit` only: analysis finished and the labeled-asset brief needs the creator (server-owned gate). */
+  | 'awaiting_assets'
   | 'rendering'
   | 'done'
   | 'failed';
@@ -1277,8 +1279,12 @@ export type CaptionsEditJob = {
   /**
    * `captions` = burn captions only (no A-roll cuts).
    * `teleprompter_clean` = silence/filler/cough + script retakes, then captions.
+   * `basic_captions` = FREE lean path: Groq transcription + caption burn only.
+   *   Never runs speech cuts, the AI keep-plan, the Director, B-roll, motion
+   *   graphics or any Gemini/Claude call, whatever PRODUCT_EDIT_PROFILE says.
+   * `full_edit` = Pro / Pro Plus durable AI edit: analyze → (labeled asset gate) → render, all server-owned.
    */
-  mode?: 'captions' | 'teleprompter_clean';
+  mode?: 'captions' | 'teleprompter_clean' | 'basic_captions' | 'full_edit';
   /** Teleprompter script for retake detection (teleprompter_clean). */
   scriptText?: string;
   createdAt: string;
@@ -1289,4 +1295,20 @@ export type CaptionsEditJob = {
   outputDurationSec?: number;
   errorCode?: string;
   errorMessage?: string;
+  /** `full_edit`: the persisted blueprint and its labeled-asset brief (the gate reads these, never an in-memory response). */
+  blueprintId?: string;
+  assetBrief?: import('../stages/broll/labeledAssetBrief.ts').LabeledAssetBrief;
+  /** `full_edit`: bindings the creator submitted (uploaded / skipped). Present = the gate was answered. */
+  labeledAssetBindings?: import('../stages/broll/labeledAssetBrief.ts').LabeledAssetBinding[];
+  /** `full_edit`: options captured at creation so a restarted engine can resume the same job. */
+  fullEdit?: {
+    userBrollUrls?: string[];
+    subjectCutoutUrl?: string;
+    renderFlags?: {brollEnabled: boolean; zoomEnabled: boolean; trimEnabled: boolean};
+    layoutStyle?: string;
+  };
+  /** Notification types already sent for this job (dedupe: each fires at most once). */
+  notified?: string[];
+  /** `full_edit`: the creator's answer started a fresh analysis (so a resume must not start another or reuse the old plan). */
+  assetsAnalysisStarted?: boolean;
 };
