@@ -23,6 +23,7 @@ export function planHasFullEdit(plan: CreatorPlan): boolean {
 
 export function clearEntitlementCache(): void {
   cache.clear();
+  clearCatalogAccessCache();
 }
 
 /** Plan lookup for a creator id (the verified JWT `sub`). Cached briefly; never throws. */
@@ -93,4 +94,38 @@ export async function checkFullEditForWorker(userId: string): Promise<'allow' | 
     return 'allow';
   }
   return entitlement.verified ? 'deny' : 'unavailable';
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------
+// Edit-style catalog (GET /v1/edit-styles): which styles are locked for this creator. Same plan source and the same exemptions
+// as assertFullEditEntitlement, but it NEVER throws: an unverifiable plan answers "no Pro" (fail closed) so the picker still
+// renders with the Pro styles locked. A verified plan reuses resolveEntitlement's 60 s cache; an unverifiable answer is held for
+// a few seconds so opening the picker repeatedly while the Creators API is down does not hammer it. Paid routes never read this cache.
+
+const CATALOG_FAILURE_TTL_MS = 10_000;
+const catalogFailureCache = new Map<string, {until: number; value: Entitlement}>();
+
+export type CatalogAccess = {hasPro: boolean; plan: CreatorPlan; verified: boolean};
+
+export async function resolveCatalogAccess(auth: Pick<AuthContext, 'userId' | 'via'>): Promise<CatalogAccess> {
+  if (!env.ENTITLEMENT_ENFORCEMENT || auth.via === 'service-key' || auth.via === 'dev') {
+    return {hasPro: true, plan: 'pro', verified: false};
+  }
+  const held = catalogFailureCache.get(auth.userId);
+  let entitlement: Entitlement;
+  if (held && held.until > Date.now()) {
+    entitlement = held.value;
+  } else {
+    entitlement = await resolveEntitlement(auth.userId);
+    if (entitlement.verified) {
+      catalogFailureCache.delete(auth.userId);
+    } else {
+      catalogFailureCache.set(auth.userId, {until: Date.now() + CATALOG_FAILURE_TTL_MS, value: entitlement});
+    }
+  }
+  return {hasPro: entitlement.verified && planHasFullEdit(entitlement.plan), plan: entitlement.plan, verified: entitlement.verified};
+}
+
+export function clearCatalogAccessCache(): void {
+  catalogFailureCache.clear();
 }
