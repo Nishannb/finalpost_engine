@@ -12,6 +12,7 @@ import {randomUUID as workerUuid} from 'node:crypto';
 
 import {env} from '../config/env.ts';
 import {checkFullEditForWorker} from '../lib/entitlement.ts';
+import {styleTier, type EditStyleDegradation, type EditStyleId} from '../lib/editStyles.ts';
 import {
   loadAnalysisJob,
   loadBlueprint,
@@ -70,6 +71,9 @@ export async function createCaptionsEditJob(input: {
   scriptText?: string;
   /** `full_edit` only: options the durable job keeps so a restarted engine can resume it. */
   fullEdit?: CaptionsEditJob['fullEdit'];
+  /** The picked edit style (the route already derived `mode` from it) and, when the pipeline cannot produce it yet, what runs instead. */
+  style?: EditStyleId;
+  degraded?: EditStyleDegradation;
 }): Promise<{job: CaptionsEditJob; uploadUrl: string}> {
   if (input.mode === 'full_edit' && env.NODE_ENV === 'production' && !getDurableJobStore()) {
     // A full edit can wait days for the creator's assets: refuse to start one that would only live in KV (24h).
@@ -103,6 +107,8 @@ export async function createCaptionsEditJob(input: {
         ? (input.scriptText || '').trim().slice(0, 20_000) || undefined
         : undefined,
     ...(mode === 'full_edit' && input.fullEdit ? {fullEdit: input.fullEdit} : {}),
+    ...(input.style ? {style: input.style} : {}),
+    ...(input.style && input.degraded ? {degraded: input.degraded} : {}),
     createdAt: now,
     updatedAt: now,
   };
@@ -203,6 +209,10 @@ async function runCaptionsPipeline(job: CaptionsEditJob): Promise<void> {
     await runFullEditPipeline(job);
     return;
   }
+  // A Pro style is re-checked right before work starts, whatever mode it maps to (full_edit re-checks in its own pipeline).
+  if (styleTier(job.style) === 'pro' && !(await entitledToProceed(job))) {
+    return;
+  }
   job.status = 'analyzing';
   job.progress = 0.08;
   job.updatedAt = new Date().toISOString();
@@ -222,6 +232,7 @@ async function runCaptionsPipeline(job: CaptionsEditJob): Promise<void> {
     captionStyleGuide: job.captionStyleGuide || null,
     teleprompterClean,
     scriptText: job.scriptText,
+    ...(job.style ? {style: job.style} : {}), // carried untouched (Phase 2 reads it)
   });
   job.analysisJobId = analysis.analysisJobId;
   job.updatedAt = new Date().toISOString();
@@ -580,6 +591,7 @@ async function runFullEditPipeline(job: CaptionsEditJob): Promise<void> {
       captionStyleGuide: job.captionStyleGuide || null,
       ...(options.userBrollUrls?.length ? {userBrollUrls: options.userBrollUrls} : {}),
       ...(options.subjectCutoutUrl ? {subjectCutoutUrl: options.subjectCutoutUrl} : {}),
+      ...(job.style ? {style: job.style} : {}), // carried untouched (Phase 2 reads it)
     }),
   );
   job.analysisJobId = analysis.analysisJobId;
@@ -805,6 +817,7 @@ async function resumeFullEditAfterAssets(job: CaptionsEditJob): Promise<void> {
         userBrollUrls: merged,
         labeledAssetBindings: bindings,
         ...(options.subjectCutoutUrl ? {subjectCutoutUrl: options.subjectCutoutUrl} : {}),
+        ...(job.style ? {style: job.style} : {}), // carried untouched (Phase 2 reads it)
       }),
     );
     job.analysisJobId = analysis.analysisJobId;

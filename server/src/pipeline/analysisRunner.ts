@@ -35,6 +35,7 @@ import type {
 } from '../types/blueprint.ts';
 import {analyzeVideo} from './analyzeVideo.ts';
 import type {AnalyzeInput} from './analyzeVideo.ts';
+import type {EditStyleId} from '../lib/editStyles.ts';
 
 const log = stageLogger('analysis-runner');
 
@@ -86,6 +87,12 @@ export async function startAnalysis(input: {
    * teleprompter clean, and a zero Gemini budget, regardless of PRODUCT_EDIT_PROFILE.
    */
   basicCaptions?: boolean;
+  /**
+   * Edit style picked in the app (lib/editStyles.ts). Phase 1: CARRIED ONLY: recorded on the job, never read by the pipeline and not part of
+   * the cache fingerprint (a styled job runs exactly like its mode today). Phase 2 resolves it into per-job flags here; see
+   * docs/ENGINE_STYLE_INTEGRATION.md.
+   */
+  style?: EditStyleId;
 }): Promise<AnalysisJob> {
   const basicCaptions = Boolean(input.basicCaptions);
   if (basicCaptions) {
@@ -167,6 +174,7 @@ export async function startAnalysis(input: {
         updatedAt: now,
         cached: true,
         editProfile, // the profile is part of the cache key, so a hit is a blueprint of this profile
+        ...(input.style ? {style: input.style} : {}),
         ...(storedGraphics ? {graphics: storedGraphics} : {}),
         blueprint: cached,
       };
@@ -190,6 +198,7 @@ export async function startAnalysis(input: {
     updatedAt: now,
     cached: false,
     editProfile, // WP3X: from server configuration, never from the request
+    ...(input.style ? {style: input.style} : {}),
   };
   await saveAnalysisJob(job);
 
