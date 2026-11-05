@@ -1222,6 +1222,11 @@ export type AnalysisJob = {
   editProfile?: 'legacy' | 'mvp' | 'cuts' | 'polish';
   /** WP3X: whether generated graphics ran: `off` (flag off), `on` (the motion stage was allowed to run) or `skipped_budget` (requested, then disabled for a missing/refused Claude budget). Absent until the pipeline has decided, and for a cached blueprint. Server-owned. */
   graphics?: 'off' | 'on' | 'skipped_budget' | 'library_only';
+  /**
+   * Edit style the creator picked (lib/editStyles.ts), carried through from the edit job untouched. Phase 1: recorded only; the pipeline
+   * does not read it yet (docs/ENGINE_STYLE_INTEGRATION.md). Absent for unstyled jobs.
+   */
+  style?: import('../lib/editStyles.ts').EditStyleId;
   blueprint?: TimelineBlueprint;
   errorCode?: string;
   errorMessage?: string;
@@ -1285,6 +1290,10 @@ export type CaptionsEditJob = {
    * `full_edit` = Pro / Pro Plus durable AI edit: analyze → (labeled asset gate) → render, all server-owned.
    */
   mode?: 'captions' | 'teleprompter_clean' | 'basic_captions' | 'full_edit';
+  /** The edit style the creator picked (lib/editStyles.ts). When present, `mode` was derived from it. Absent for mode-only (older app) jobs. */
+  style?: import('../lib/editStyles.ts').EditStyleId;
+  /** Set when the pipeline cannot produce `style` yet and runs `appliedAs` instead (visible on the job, never silent). */
+  degraded?: import('../lib/editStyles.ts').EditStyleDegradation;
   /** Teleprompter script for retake detection (teleprompter_clean). */
   scriptText?: string;
   createdAt: string;
