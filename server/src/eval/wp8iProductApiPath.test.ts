@@ -52,9 +52,9 @@ describe('A: the polish default edits', () => {
   });
   it('analyzeVideo uses it only on polish; the HTTP runner uses the same function for its cache key, with "all" as its own key', () => {
     const analyze = read('server/src/pipeline/analyzeVideo.ts');
-    expect(analyze).toContain("const requestedEdits = input.editProfile === 'polish' ? polishRequestedEdits(input.requestedEdits, env.POLISH_DEFAULT_EDITS) : defaultRequestedEdits(input.requestedEdits, env.PIPELINE_MODE);");
+    expect(analyze).toContain("const requestedEdits = input.editProfile === 'polish' ? polishRequestedEdits(input.requestedEdits, flags.polishDefaultEdits) : defaultRequestedEdits(input.requestedEdits, env.PIPELINE_MODE);");
     const runner = read('server/src/pipeline/analysisRunner.ts');
-    expect(runner).toContain("const polishEdits = editProfile === 'polish' ? polishRequestedEdits(input.requestedEdits, env.POLISH_DEFAULT_EDITS) : undefined;");
+    expect(runner).toContain("const polishEdits = editProfile === 'polish' ? polishRequestedEdits(input.requestedEdits, effectiveFlags.polishDefaultEdits) : undefined;");
     expect(runner).toContain("requestedEdits: editProfile === 'polish' ? (polishEdits === null ? 'all' : (polishEdits ?? []).slice().sort().join(',')) : (input.requestedEdits ?? []).slice().sort().join(','),");
     expect(read('server/src/config/env.ts')).toContain("POLISH_DEFAULT_EDITS: str('lean').transform(raw => (raw.trim().toLowerCase() === 'all' ? 'all' : 'lean')),");
   });
@@ -84,7 +84,7 @@ describe('A: the HTTP path and first-video share the profile stack (source text)
     expect(runner).not.toMatch(/runMotionGraphicsStage|decideClaudeBound|libraryOnlyGraphics/);
     const analyze = read('server/src/pipeline/analyzeVideo.ts');
     expect(analyze).toContain('const motionGraphicsOn = motionGraphicsRequested && (claudeAllowed || libraryOnly);');
-    expect(analyze).toContain('const motionGraphicsRequested = !cutsOnlyVisualsOff && (input.generatedGraphicsEnabled ?? env.MOTION_GRAPHICS_ENABLED);'); // the flag, default false
+    expect(analyze).toContain('const motionGraphicsRequested = !cutsOnlyVisualsOff && (input.generatedGraphicsEnabled ?? flags.motionGraphics);'); // the flag, default false
     expect(read('server/src/config/env.ts')).toContain('MOTION_GRAPHICS_ENABLED: bool(false),');
   });
   it('the profile and the graphics decision come from server configuration only: no request field names them', () => {

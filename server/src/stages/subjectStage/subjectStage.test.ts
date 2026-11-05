@@ -107,7 +107,7 @@ describe('env flag', () => {
     expect(read('../../config/env.ts')).toMatch(/POLISH_SUBJECT_STAGE: bool\(false\)/);
     expect(read('../../../../.env.example')).toContain('# POLISH_SUBJECT_STAGE=0');
     expect(read('../../../../.env.production.example')).toContain('# POLISH_SUBJECT_STAGE=0');
-    expect(read('../../pipeline/analyzeVideo.ts').match(/env\.POLISH_SUBJECT_STAGE/g)).toHaveLength(1);
+    expect(read('../../pipeline/analyzeVideo.ts').match(/flags\.subjectStage/g)).toHaveLength(1);
   });
 });
 

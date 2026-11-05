@@ -296,8 +296,8 @@ describe('analyzeVideo wiring (source)', () => {
     expect(phaseCNeeds).toBeLessThan(finalize);
   });
   it('the flag is read once, only through the gate inputs; the gate itself requires the polish profile', () => {
-    expect(src.match(/env\.POLISH_SUBJECT_STAGE/g)).toHaveLength(1);
-    expect(src).toContain('flag: env.POLISH_SUBJECT_STAGE,\n        polishPath,');
+    expect(src.match(/flags\.subjectStage/g)).toHaveLength(1);
+    expect(src).toContain('flag: flags.subjectStage,\n        polishPath,');
     expect(readFileSync(join(here, 'subjectStageStage.ts'), 'utf8')).toMatch(/if \(!input\.polishPath\) return \{state: 'not_applicable'/);
   });
   it('the exclusions are applied ONLY inside the active branch (skipped / off leave every list alone)', () => {

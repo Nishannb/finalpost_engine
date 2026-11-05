@@ -99,7 +99,7 @@ describe('WP34 1) mode wiring', () => {
   it('analyze applies it once: polish + flag + the VO cut plan, never over a CaptionKit preset / caption style guide / caller template, after the bare type', () => {
     const analyze = read('../../pipeline/analyzeVideo.ts');
     expect(analyze.split('\n').filter(line => line.includes('polishAccumulateCaptions(')).length).toBe(1);
-    expect(analyze).toMatch(/if \(polishPath && env\.POLISH_ACCUMULATE_CAPTIONS && voGrammar && !\(input\.captionPreset \|\| ''\)\.trim\(\) && !captionGuide && !input\.captionTemplate\)/);
+    expect(analyze).toMatch(/if \(polishPath && flags\.accumulateCaptions && voGrammar && !\(input\.captionPreset \|\| ''\)\.trim\(\) && !captionGuide && !input\.captionTemplate\)/);
     expect(analyze.indexOf('const voGrammar')).toBeLessThan(analyze.indexOf('polishAccumulateCaptions('));
     expect(analyze.indexOf('polishBareCaption(broll.caption')).toBeLessThan(analyze.indexOf('polishAccumulateCaptions('));
   });

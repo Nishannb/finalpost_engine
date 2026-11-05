@@ -326,7 +326,7 @@ describe('WP33 7) wiring pins + the offline proof', () => {
   });
   it('analyze plans the grammar ONCE, only on polish behind the flag, before the motion stage, and feeds the seed + the density', () => {
     expect(analyze.split('\n').filter(line => line.includes('planVoCutGrammar(')).length).toBe(1);
-    expect(analyze).toMatch(/const voGrammar = polishPath && env\.POLISH_VO_CUT_GRAMMAR/);
+    expect(analyze).toMatch(/const voGrammar = polishPath && flags\.voCutGrammar/);
     expect(analyze.indexOf('const voGrammar')).toBeLessThan(analyze.indexOf('motion = await runMotionGraphicsStage({'));
     expect(analyze.indexOf('motion = await runMotionGraphicsStage({')).toBeLessThan(analyze.indexOf('ensurePolishTransitionDensity('));
     expect(analyze).toContain('chapterCards: voGrammar.chapterCards');

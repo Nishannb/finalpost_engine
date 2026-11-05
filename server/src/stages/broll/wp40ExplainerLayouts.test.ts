@@ -175,13 +175,13 @@ describe('WP40 skill switch (default off, mutual exclusion)', () => {
   it('analyze: the explainer block is behind the flag and the Skill A path is unchanged', () => {
     const code = stripComments(read('../../pipeline/analyzeVideo.ts'));
     expect(code).toContain('resolvePolishSkill({');
-    expect(code).toContain('POLISH_EXPLAINER_SKILL');
-    expect(code).toContain('POLISH_NEWSROOM_MG');
+    expect(code).toContain('flags.explainerSkill');
+    expect(code).toContain('flags.newsroomMg');
     expect(code).toMatch(/if \(polishSkill\.skill === 'explainer'\) \{\s*const pacing = planExplainerPacing\(/);
     // Skill A: the exact WP36 gate + the single lane call are still there; the explainer never feeds them
-    expect(code).toContain('const facelessDoc = Boolean(polishPath && env.POLISH_FACELESS_DOC && voGrammar && motion && stockConfigured());');
+    expect(code).toContain('const facelessDoc = Boolean(polishPath && flags.facelessDoc && voGrammar && motion && stockConfigured());');
     expect(code.match(/planFacelessDocLane\(/g)).toHaveLength(1);
-    expect(code).toContain('!facelessDoc && env.POLISH_EDITORIAL_STILLS_ENABLED');
+    expect(code).toContain('!facelessDoc && flags.editorialStills');
   });
 
   it('the pacing module is pure (no env, no I/O, no model)', () => {

@@ -25,7 +25,7 @@ describe('cuts path: what must not run', () => {
   it('visual edits, motion graphics and delivery shaping are switched off by cutsPath', () => {
     expect(analyze).toContain("const cutsOnlyVisualsOff = input.editProfile === 'cuts';");
     expect(analyze).toContain('const visualEditsOn = !cutsOnlyVisualsOff && visualToolkitsRequested(requestedEdits);');
-    expect(analyze).toContain('const motionGraphicsRequested = !cutsOnlyVisualsOff && (input.generatedGraphicsEnabled ?? env.MOTION_GRAPHICS_ENABLED);');
+    expect(analyze).toContain('const motionGraphicsRequested = !cutsOnlyVisualsOff && (input.generatedGraphicsEnabled ?? flags.motionGraphics);');
     expect(analyze).toContain('const deliveryDenied = input.forceDeliveryShaping === false || cutsOnlyVisualsOff;');
     expect(analyze).toContain("warnings.push('delivery_shaping_skipped:cuts_profile');");
     expect(analyze).toContain('const captionsOnly = !visualEditsOn;');

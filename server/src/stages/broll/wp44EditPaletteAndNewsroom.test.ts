@@ -96,7 +96,7 @@ describe('WP44 Skill D newsroom pacing', () => {
     expect(analyze).toMatch(/directEditColors\(\{skill: 'explainer'/);
     expect(analyze).toMatch(/directEditColors\(\{skill: 'newsroom_mg'/);
     expect(analyze).toMatch(/planNewsroomMgPacing/);
-    expect(analyze).toMatch(/POLISH_NEWSROOM_MG/);
+    expect(analyze).toMatch(/flags\.newsroomMg/);
     expect(analyze).toMatch(/editPalette:/);
   });
 

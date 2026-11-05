@@ -91,7 +91,7 @@ describe('wiring (source text)', () => {
     expect(decision).toBeGreaterThan(0);
     expect(decision).toBeLessThan(fingerprint);
     expect(fingerprint).toBeLessThan(lookup);
-    expect(start.slice(decision, fingerprint)).toContain('graphicsFlag: env.MOTION_GRAPHICS_ENABLED');
+    expect(start.slice(decision, fingerprint)).toContain('graphicsFlag: effectiveFlags.motionGraphics');
     expect(start.slice(decision, fingerprint)).toContain('capUsd: env.CLAUDE_EDIT_BUDGET_USD');
     expect(start.slice(decision, fingerprint)).not.toMatch(/loadBlueprint|cached|input\./);
     expect(start).toContain('graphicsKey: graphicsFingerprintKey(graphicsAtRequest),');

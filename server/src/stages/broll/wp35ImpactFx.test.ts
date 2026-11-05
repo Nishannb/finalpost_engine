@@ -338,7 +338,7 @@ describe('WP35 4) wiring', () => {
     expect(env.POLISH_IMPACT_FX).toBe(true);
     expect(read('../../../../.env.example')).toContain('POLISH_IMPACT_FX');
     const analyze = read('../../pipeline/analyzeVideo.ts');
-    expect(analyze).toContain('const impactFx = polishPath && env.POLISH_IMPACT_FX && voGrammar ? planImpactFx(');
+    expect(analyze).toContain('const impactFx = polishPath && flags.impactFx && voGrammar ? planImpactFx(');
     expect(analyze).toContain('...(impactFx && !impactFxIsEmpty(impactFx.fx) ? {impactFx: impactFx.fx} : {}),');
   });
 

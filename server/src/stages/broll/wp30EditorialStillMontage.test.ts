@@ -316,7 +316,7 @@ describe('WP30 publish + analyze wiring', () => {
 
   it('analyze plans after the labeled block, before filler + WP16 density; stays behind stock + the env flag', () => {
     expect(analyze).toMatch(/planEditorialStillMontage\(/);
-    expect(analyze).toMatch(/env\.POLISH_EDITORIAL_STILLS_ENABLED && stockConfigured\(\)/);
+    expect(analyze).toMatch(/flags\.editorialStills && stockConfigured\(\)/);
     expect(analyze).toMatch(/findPhotoAsset\(query/);
     expect(analyze).toMatch(/idPrefix: 'editorial_run'/);
     expect(analyze.indexOf('planEditorialStillMontage(')).toBeGreaterThan(analyze.indexOf('planLabeledAssetPlacements('));

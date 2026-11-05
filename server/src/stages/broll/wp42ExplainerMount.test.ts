@@ -236,7 +236,7 @@ describe('WP42 4) analyzeVideo wiring (behind the explainer skill only)', () => 
   it('the blueprint carries the two fields only when the mount ran; flag OFF writes nothing (the gate is the skill resolution)', () => {
     expect(analyze).toContain('...(explainerMount ? {explainerLayoutTrack: explainerMount.layoutTrack, explainerClaimBeats: explainerMount.claimBeats} : {}),');
     expect(analyze).toContain('resolvePolishSkill({');
-    expect(analyze).toContain('newsroom: Boolean(polishPath && env.POLISH_NEWSROOM_MG)');
+    expect(analyze).toContain('newsroom: Boolean(polishPath && flags.newsroomMg)');
     expect(resolvePolishSkill({faceless: false, explainer: false}).skill).toBe('default'); // flag off -> the explainer block never runs -> explainerMount stays null
     expect(env.POLISH_EXPLAINER_SKILL).toBe(false);
   });
@@ -258,13 +258,13 @@ describe('WP42 4) analyzeVideo wiring (behind the explainer skill only)', () => 
   });
 
   it('no editorial still run is planned over a mounted edit (the whole runtime is blocked), the gate line itself is unchanged', () => {
-    expect(analyze).toContain('if (polishPath && motion && !facelessDoc && env.POLISH_EDITORIAL_STILLS_ENABLED && stockConfigured()) {');
+    expect(analyze).toContain('if (polishPath && motion && !facelessDoc && flags.editorialStills && stockConfigured()) {');
     expect(analyze).toContain('...(explainerMount ? [{start: 0, end: timeline.outputDurationSec}] : []),');
   });
 
   it('Skill A untouched + mutual exclusion intact: the exact accumulate / faceless gates, one lane call, faceless wins', () => {
-    expect(analyze).toMatch(/if \(polishPath && env\.POLISH_ACCUMULATE_CAPTIONS && voGrammar && !\(input\.captionPreset \|\| ''\)\.trim\(\) && !captionGuide && !input\.captionTemplate\)/);
-    expect(analyze).toContain('const facelessDoc = Boolean(polishPath && env.POLISH_FACELESS_DOC && voGrammar && motion && stockConfigured());');
+    expect(analyze).toMatch(/if \(polishPath && flags\.accumulateCaptions && voGrammar && !\(input\.captionPreset \|\| ''\)\.trim\(\) && !captionGuide && !input\.captionTemplate\)/);
+    expect(analyze).toContain('const facelessDoc = Boolean(polishPath && flags.facelessDoc && voGrammar && motion && stockConfigured());');
     expect(analyze.match(/planFacelessDocLane\(/g)).toHaveLength(1);
     expect(analyze.split('\n').filter(line => line.includes('polishAccumulateCaptions(')).length).toBe(1);
     expect(analyze.split('\n').filter(line => line.includes('polishExplainerCaptions(')).length).toBeGreaterThanOrEqual(1);

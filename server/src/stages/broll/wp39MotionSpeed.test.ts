@@ -196,7 +196,7 @@ describe('WP39 5) Skill A stays on, live stays paused', () => {
   it('POLISH_FACELESS_DOC is still the only switch and defaults off; the analyze wiring is untouched', () => {
     expect(env.POLISH_FACELESS_DOC).toBe(false);
     const analyze = read('../../pipeline/analyzeVideo.ts');
-    expect(analyze).toContain('const facelessDoc = Boolean(polishPath && env.POLISH_FACELESS_DOC && voGrammar && motion && stockConfigured());');
+    expect(analyze).toContain('const facelessDoc = Boolean(polishPath && flags.facelessDoc && voGrammar && motion && stockConfigured());');
     expect(analyze).toContain('plan: voGrammar,'); // the full cut plan (holds + chapter cards) is what the lane reads the context from
     expect(analyze.split('planFacelessDocLane(').length - 1).toBe(1);
   });

@@ -348,14 +348,14 @@ describe('WP36 6) wiring: POLISH_FACELESS_DOC (default off)', () => {
 
   it('analyze: the faceless path needs the flag + polish + the WP33 plan + motion + stock; flag off -> the old path (WP30 montage) and no faceless call', () => {
     const analyze = read('../../pipeline/analyzeVideo.ts');
-    expect(analyze).toContain('const facelessDoc = Boolean(polishPath && env.POLISH_FACELESS_DOC && voGrammar && motion && stockConfigured());');
+    expect(analyze).toContain('const facelessDoc = Boolean(polishPath && flags.facelessDoc && voGrammar && motion && stockConfigured());');
     expect(analyze).toContain('if (facelessDoc && voGrammar && motion) {');
     // the one planFacelessDocLane call sits inside the gated block
     const calls = analyze.split('planFacelessDocLane(').length - 1;
     expect(calls).toBe(1);
     expect(analyze.indexOf('planFacelessDocLane(')).toBeGreaterThan(analyze.indexOf('if (facelessDoc && voGrammar && motion) {'));
     // the WP30 editorial montage is replaced, not stacked
-    expect(analyze).toContain('if (polishPath && motion && !facelessDoc && env.POLISH_EDITORIAL_STILLS_ENABLED && stockConfigured()) {');
+    expect(analyze).toContain('if (polishPath && motion && !facelessDoc && flags.editorialStills && stockConfigured()) {');
     // faceless runs after the WP33 plan and before the WP34 / WP35 captions + FX are written to the blueprint (they come from the same plan)
     expect(analyze.indexOf('const voGrammar =')).toBeLessThan(analyze.indexOf('const facelessDoc ='));
     // a skipped faceless request says why
@@ -376,7 +376,7 @@ describe('WP36 6) wiring: POLISH_FACELESS_DOC (default off)', () => {
   it('WP34 captions / WP35 FX are planned from the same cut plan and are untouched by the lane', () => {
     const analyze = read('../../pipeline/analyzeVideo.ts');
     expect(analyze).toContain('const accumulate = polishAccumulateCaptions(broll.caption, {plan: voGrammar');
-    expect(analyze).toContain('const impactFx = polishPath && env.POLISH_IMPACT_FX && voGrammar ? planImpactFx(');
+    expect(analyze).toContain('const impactFx = polishPath && flags.impactFx && voGrammar ? planImpactFx(');
     expect(analyze.indexOf('const accumulate = polishAccumulateCaptions(')).toBeLessThan(analyze.indexOf('const facelessDoc ='));
   });
 });

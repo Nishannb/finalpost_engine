@@ -247,7 +247,7 @@ describe('analyzeVideo wiring (flag gated)', () => {
   });
 
   it('the Skill C block runs ONLY on polish + the flag, and is the only caller of the stage', () => {
-    expect(skillCBlock).toMatch(/if \(polishPath && env\.POLISH_TEXTUAL_MG\)/);
+    expect(skillCBlock).toMatch(/if \(polishPath && flags\.textualMg\)/);
     expect((analyze.match(/runTextualMgStage\(/g) ?? []).length).toBe(1);
     expect(analyze).toMatch(/polish_textual_mg:skipped:no_motion/);
     expect(analyze).toMatch(/polish_textual_mg:failed/);
@@ -282,7 +282,7 @@ describe('Skill A / Skill B are untouched', () => {
   });
 
   it('the Skill B mount (WP42) and the Skill A faceless lane (WP36) are still in analyzeVideo', () => {
-    expect(analyze).toMatch(/resolvePolishSkill\(\{\s*faceless: Boolean\(polishPath && env\.POLISH_FACELESS_DOC\),\s*explainer: Boolean\(polishPath && env\.POLISH_EXPLAINER_SKILL\),\s*newsroom: Boolean\(polishPath && env\.POLISH_NEWSROOM_MG\),?\s*\}\)/); // WP44 added the newsroom flag to the lane switch
+    expect(analyze).toMatch(/resolvePolishSkill\(\{\s*faceless: Boolean\(polishPath && flags\.facelessDoc\),\s*explainer: Boolean\(polishPath && flags\.explainerSkill\),\s*newsroom: Boolean\(polishPath && flags\.newsroomMg\),?\s*\}\)/); // WP44 added the newsroom flag to the lane switch
     expect(analyze).toMatch(/planExplainerMount\(/);
     expect(analyze).toMatch(/explainerLayoutTrack: explainerMount\.layoutTrack, explainerClaimBeats: explainerMount\.claimBeats/);
     expect(analyze).toMatch(/polishExplainerCaptions\(broll\.caption/);

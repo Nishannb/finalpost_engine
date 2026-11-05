@@ -86,7 +86,7 @@ describe('the real entry points: what the HTTP route and the CLI hand to analyze
 describe('source pins: the Gate 2 failure cannot recur', () => {
   it('analyzeVideo uses the polish resolver on polish (so a captions-only list is expanded) and says so once', () => {
     const analyze = read('server/src/pipeline/analyzeVideo.ts');
-    expect(analyze).toContain("const requestedEdits = input.editProfile === 'polish' ? polishRequestedEdits(input.requestedEdits, env.POLISH_DEFAULT_EDITS) : defaultRequestedEdits(input.requestedEdits, env.PIPELINE_MODE);");
+    expect(analyze).toContain("const requestedEdits = input.editProfile === 'polish' ? polishRequestedEdits(input.requestedEdits, flags.polishDefaultEdits) : defaultRequestedEdits(input.requestedEdits, env.PIPELINE_MODE);");
     expect(analyze).toContain("if (input.editProfile === 'polish' && isCaptionsOnlyEdits(input.requestedEdits)) {");
     expect(analyze).toContain("'polish_edits_expanded:captions_to_all' : 'polish_edits_expanded:captions_to_lean'");
     expect(analyze.indexOf('polish_edits_expanded')).toBeLessThan(analyze.indexOf("const requestedEdits = input.editProfile === 'polish'"));
@@ -98,7 +98,7 @@ describe('source pins: the Gate 2 failure cannot recur', () => {
   });
   it('the HTTP runner hashes the expanded list through the same resolver (re-pinned WP8I behaviour); the CLI fingerprint does too', () => {
     const runner = read('server/src/pipeline/analysisRunner.ts');
-    expect(runner).toContain("const polishEdits = editProfile === 'polish' ? polishRequestedEdits(input.requestedEdits, env.POLISH_DEFAULT_EDITS) : undefined;");
+    expect(runner).toContain("const polishEdits = editProfile === 'polish' ? polishRequestedEdits(input.requestedEdits, effectiveFlags.polishDefaultEdits) : undefined;");
     expect(runner).toContain("requestedEdits: editProfile === 'polish' ? (polishEdits === null ? 'all' : (polishEdits ?? []).slice().sort().join(',')) : (input.requestedEdits ?? []).slice().sort().join(','),");
     const first = read('server/src/scripts/firstVideo.ts');
     expect(first).toContain("requestedEdits: editProfile === 'polish' ? (polishRequestedEdits(requestedEdits, env.POLISH_DEFAULT_EDITS) ?? ['all']).slice().sort().join(',') : (requestedEdits ?? []).slice().sort().join(','),");
