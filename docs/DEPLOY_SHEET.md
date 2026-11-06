@@ -19,7 +19,7 @@ systemctl is-active kinmel-video-engine 2>/dev/null; docker ps --format '{{.Name
 ls -d /opt/kinmel/ai-video-engine /opt/kinmel/finalpost_engine 2>/dev/null                                   # CHECK: <ENGINE_DIR>
 grep -E '^(PRODUCT_EDIT_PROFILE|EDIT_STYLES[A-Z_]*|GEMINI_EDIT_MAX_REQUESTS|CLAUDE_EDIT_BUDGET_USD)=' <ENGINE_DIR>/.env   # CHECK
 ```
-Need: RAM >= 2 GB (>= 4 GB comfortable) and no OOM kills, >= 2 vCPU, >= 5 GB free disk. Less RAM: add swap first
+Need: RAM >= 2 GB (>= 4 GB comfortable) and no OOM kills, >= 2 vCPU, free disk >= 5 GB (systemd) or >= 12 GB (Docker: image ~3 GB + build cache ~7 GB). Less RAM: add swap first
 (`sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile && echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab`).
 
 ## 1. Flask (api.kinmel.shop, /opt/kinmel-server)
@@ -89,6 +89,7 @@ Docker route:
 ```bash
 cd <ENGINE_DIR> && docker build -t kinmel-video-engine . && docker rm -f kinmel-video-engine && \
 docker run -d --name kinmel-video-engine --env-file .env -p 127.0.0.1:8090:8090 --tmpfs /tmp --restart unless-stopped kinmel-video-engine
+docker builder prune -f                               # frees the build cache (~7 GB)
 ```
 
 ### 2e. Lambda site (laptop, uses the laptop .env AWS keys; same site name, so REMOTION_SERVE_URL does not change)
