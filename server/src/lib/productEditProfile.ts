@@ -68,7 +68,7 @@ export function profileFingerprintKey(profile: ProductEditProfile): string {
 export type ClaudeBoundDecision =
   | {action: 'unbounded'; why: 'no_generated_graphics' | 'caller_supplied_generator' | 'legacy_unconfigured'}
   | {action: 'bounded'; capUsd: number; maxRequests: number; maxTokensPerCall: number; minTokensPerCall: number}
-  | {action: 'disabled'; reason: 'claude_budget_unconfigured' | 'claude_budget_invalid'};
+  | {action: 'disabled'; reason: 'claude_budget_unconfigured' | 'claude_budget_invalid' | 'library_only_style'};
 
 const positive = (value: number) => Number.isFinite(value) && value > 0;
 

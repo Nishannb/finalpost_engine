@@ -16,6 +16,11 @@ export type EffectiveFlags = {
   profile: ProductEditProfile;
   /** MOTION_GRAPHICS_ENABLED: generated / library motion graphics requested for this job (the motion stage, and everything that needs it). */
   motionGraphics: boolean;
+  /**
+   * Motion graphics from the LIBRARY only: the Claude generator is never called for this job, whatever the Claude budget env says (a miss is dropped).
+   * No env equivalent: false from env (today's behaviour); edit styles set it (lib/styleRun.ts).
+   */
+  libraryOnlyGraphics: boolean;
   /** POLISH_DEFAULT_EDITS: what an omitted edit list means on polish. */
   polishDefaultEdits: 'lean' | 'all';
   /** L1 skill lane switches (resolvePolishSkill priority: faceless > newsroom > explainer > default). */
@@ -67,6 +72,7 @@ export function effectiveFlagsFromEnv(env: EffectiveFlagsEnv, profile: ProductEd
   return {
     profile,
     motionGraphics: Boolean(env.MOTION_GRAPHICS_ENABLED),
+    libraryOnlyGraphics: false,
     polishDefaultEdits: env.POLISH_DEFAULT_EDITS === 'all' ? 'all' : 'lean',
     facelessDoc: Boolean(env.POLISH_FACELESS_DOC),
     newsroomMg: Boolean(env.POLISH_NEWSROOM_MG),

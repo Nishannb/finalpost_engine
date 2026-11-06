@@ -228,7 +228,9 @@ describe('wiring (source text; the call sites and http.ts import the logger)', (
     expect(options).not.toMatch(/priority|reserve|class/i);
   });
   it('the pipeline order is not changed: the runner and analyzeVideo are as in WP3C', () => {
-    expect(read('pipeline', 'analysisRunner.ts')).toContain('withGeminiBudget(geminiBudgetFromLimit(env.GEMINI_EDIT_MAX_REQUESTS, geminiBudgetPlanFor(extras.editProfile)), () => analyzeVideo(');
+    const runner = read('pipeline', 'analysisRunner.ts');
+    expect(runner).toContain('withGeminiBudget(geminiBudget, () => analyzeVideo(');
+    expect(runner).toContain('return geminiBudgetFromLimit(env.GEMINI_EDIT_MAX_REQUESTS, geminiBudgetPlanFor(extras.editProfile));');
     const av = read('pipeline', 'analyzeVideo.ts');
     expect(av).toContain('const geminiBudget = currentGeminiBudget();');
     expect(av.indexOf('describeUserBrollAssets(')).toBeLessThan(av.indexOf('measureOccupancy({'));

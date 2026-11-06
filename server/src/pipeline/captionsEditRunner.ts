@@ -12,7 +12,7 @@ import {randomUUID as workerUuid} from 'node:crypto';
 
 import {env} from '../config/env.ts';
 import {checkFullEditForWorker} from '../lib/entitlement.ts';
-import {styleTier, type EditStyleDegradation, type EditStyleId} from '../lib/editStyles.ts';
+import {styleTier, type EditStyleId} from '../lib/editStyles.ts';
 import {
   loadAnalysisJob,
   loadBlueprint,
@@ -71,9 +71,10 @@ export async function createCaptionsEditJob(input: {
   scriptText?: string;
   /** `full_edit` only: options the durable job keeps so a restarted engine can resume it. */
   fullEdit?: CaptionsEditJob['fullEdit'];
-  /** The picked edit style (the route already derived `mode` from it) and, when the pipeline cannot produce it yet, what runs instead. */
+  /** The picked edit style (the route already derived `mode` from it) and what is known at request time about honouring it (the analysis updates it). */
   style?: EditStyleId;
-  degraded?: EditStyleDegradation;
+  degraded?: boolean;
+  degradedReasons?: string[];
 }): Promise<{job: CaptionsEditJob; uploadUrl: string}> {
   if (input.mode === 'full_edit' && env.NODE_ENV === 'production' && !getDurableJobStore()) {
     // A full edit can wait days for the creator's assets: refuse to start one that would only live in KV (24h).
@@ -108,7 +109,7 @@ export async function createCaptionsEditJob(input: {
         : undefined,
     ...(mode === 'full_edit' && input.fullEdit ? {fullEdit: input.fullEdit} : {}),
     ...(input.style ? {style: input.style} : {}),
-    ...(input.style && input.degraded ? {degraded: input.degraded} : {}),
+    ...(input.style ? {degraded: Boolean(input.degraded), degradedReasons: input.degradedReasons ?? []} : {}),
     createdAt: now,
     updatedAt: now,
   };
@@ -232,7 +233,7 @@ async function runCaptionsPipeline(job: CaptionsEditJob): Promise<void> {
     captionStyleGuide: job.captionStyleGuide || null,
     teleprompterClean,
     scriptText: job.scriptText,
-    ...(job.style ? {style: job.style} : {}), // carried untouched (Phase 2 reads it)
+    ...(job.style ? {style: job.style} : {}), // startAnalysis resolves its flags (lib/styleRun.ts)
   });
   job.analysisJobId = analysis.analysisJobId;
   job.updatedAt = new Date().toISOString();
@@ -394,6 +395,11 @@ async function waitForAnalysis(
   for (;;) {
     const analysis = await loadAnalysisJob(job.analysisJobId);
     if (analysis?.status === 'done' && analysis.blueprint) {
+      // Edit styles: the analysis says what it really produced (a re-analysis after the asset gate replaces the earlier answer).
+      if (job.style && analysis.style && typeof analysis.degraded === 'boolean') {
+        job.degraded = analysis.degraded;
+        job.degradedReasons = analysis.degradedReasons ?? [];
+      }
       job.progress = 0.52;
       job.updatedAt = new Date().toISOString();
       await saveCaptionsEditJob(job);
@@ -591,7 +597,7 @@ async function runFullEditPipeline(job: CaptionsEditJob): Promise<void> {
       captionStyleGuide: job.captionStyleGuide || null,
       ...(options.userBrollUrls?.length ? {userBrollUrls: options.userBrollUrls} : {}),
       ...(options.subjectCutoutUrl ? {subjectCutoutUrl: options.subjectCutoutUrl} : {}),
-      ...(job.style ? {style: job.style} : {}), // carried untouched (Phase 2 reads it)
+      ...(job.style ? {style: job.style} : {}), // startAnalysis resolves its flags (lib/styleRun.ts)
     }),
   );
   job.analysisJobId = analysis.analysisJobId;
@@ -817,7 +823,7 @@ async function resumeFullEditAfterAssets(job: CaptionsEditJob): Promise<void> {
         userBrollUrls: merged,
         labeledAssetBindings: bindings,
         ...(options.subjectCutoutUrl ? {subjectCutoutUrl: options.subjectCutoutUrl} : {}),
-        ...(job.style ? {style: job.style} : {}), // carried untouched (Phase 2 reads it)
+        ...(job.style ? {style: job.style} : {}), // startAnalysis resolves its flags (lib/styleRun.ts)
       }),
     );
     job.analysisJobId = analysis.analysisJobId;

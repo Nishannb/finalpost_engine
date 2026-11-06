@@ -75,13 +75,14 @@ describe('A: the HTTP path and first-video share the profile stack (source text)
   it('polish gets the mvp overrides (whole-video Director input, opening direction, creator-B-roll-only) on the HTTP path too', () => {
     expect(analyzeOverridesFor('polish')).toEqual({directorVideoInput: true, openingDirection: true, userBrollOnly: true});
     expect(runner).toContain('...analyzeOverridesFor(extras.editProfile ?? \'legacy\'),\n        editProfile: extras.editProfile ?? \'legacy\',');
-    expect(runner).toContain('editProfile, // WP3X: from server configuration, never from the request');
+    expect(runner).toContain('editProfile, // WP3X: from server configuration (or the style\'s pinned profile), never from the request');
   });
   it('the HTTP runner has no graphics logic of its own: graphics come from the same analyzeVideo branch (library-only included), reported through the same hook', () => {
     expect(runner.match(/analyzeVideo\(/g)).toHaveLength(1);
     expect(runner).toContain('onGraphicsDecision: graphics => {');
     expect(runner).toContain('requestGraphicsStatus({');
-    expect(runner).not.toMatch(/runMotionGraphicsStage|decideClaudeBound|libraryOnlyGraphics/);
+    // Edit styles (Phase 2): the runner reads the job's EffectiveFlags.libraryOnlyGraphics for the cache-key decision; it still calls none of the graphics deciders itself.
+    expect(runner).not.toMatch(/runMotionGraphicsStage|decideClaudeBound|libraryOnlyGraphics\(/);
     const analyze = read('server/src/pipeline/analyzeVideo.ts');
     expect(analyze).toContain('const motionGraphicsOn = motionGraphicsRequested && (claudeAllowed || libraryOnly);');
     expect(analyze).toContain('const motionGraphicsRequested = !cutsOnlyVisualsOff && (input.generatedGraphicsEnabled ?? flags.motionGraphics);'); // the flag, default false

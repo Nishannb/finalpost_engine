@@ -67,14 +67,14 @@ const create = (extra: Record<string, unknown>) =>
   createCaptionsEditJob({userId: 'u1', contentType: 'video/mp4', languageCode: 'en' as never, captionTemplate: 'karaoke' as never, ...extra} as never);
 
 describe('edit runner: style on the job record and into the analysis', () => {
-  it('a styled full edit keeps style + degraded on the job and carries the style to startAnalysis untouched', async () => {
-    const degraded = {reason: 'engine_style_pending', appliedAs: 'ai_clean_cut'} as const;
-    const {job} = await create({mode: 'full_edit', style: 'kinetic_typography', degraded, fullEdit: {renderFlags: {brollEnabled: true, zoomEnabled: true, trimEnabled: true}}});
-    expect(job).toEqual(expect.objectContaining({mode: 'full_edit', style: 'kinetic_typography', degraded}));
+  it('a styled full edit keeps style + degraded on the job and carries the style to startAnalysis', async () => {
+    const {job} = await create({mode: 'full_edit', style: 'kinetic_typography', degraded: true, degradedReasons: ['engine_flags_off'], fullEdit: {renderFlags: {brollEnabled: true, zoomEnabled: true, trimEnabled: true}}});
+    expect(job).toEqual(expect.objectContaining({mode: 'full_edit', style: 'kinetic_typography', degraded: true, degradedReasons: ['engine_flags_off']}));
     await markCaptionsSourceUploaded(job.editJobId, 'u1');
     const done = await settled(job.editJobId, 'done', 'failed');
     expect(done.status).toBe('done');
-    expect(done).toEqual(expect.objectContaining({style: 'kinetic_typography', degraded}));
+    // the analysis mock reports no outcome, so the request-time answer stands
+    expect(done).toEqual(expect.objectContaining({style: 'kinetic_typography', degraded: true, degradedReasons: ['engine_flags_off']}));
     expect(mocks.startAnalysis).toHaveBeenCalledWith(expect.objectContaining({style: 'kinetic_typography'}));
     expect(mocks.verdict).toHaveBeenCalled(); // full_edit re-checks the plan before paid work
   });
@@ -97,8 +97,28 @@ describe('edit runner: style on the job record and into the analysis', () => {
   });
 
   it('degraded is never stored without a style', async () => {
-    const {job} = await create({mode: 'full_edit', degraded: {reason: 'engine_style_pending', appliedAs: 'ai_clean_cut'}});
+    const {job} = await create({mode: 'full_edit', degraded: true, degradedReasons: ['engine_flags_off']});
     expect(job).not.toHaveProperty('degraded');
+    expect(job).not.toHaveProperty('degradedReasons');
+  });
+
+  it('the analysis outcome replaces the request-time answer: honoured -> false, a real fallback -> true with its reasons', async () => {
+    for (const [outcome, expected] of [
+      [{degraded: false, degradedReasons: []}, {degraded: false, degradedReasons: []}],
+      [{degraded: true, degradedReasons: ['kinetic_front_only:no_matte', 'gemini_cap_reached:director_story']}, {degraded: true, degradedReasons: ['kinetic_front_only:no_matte', 'gemini_cap_reached:director_story']}],
+    ] as const) {
+      mocks.startAnalysis.mockImplementationOnce(async () => {
+        const analysisJobId = `an_outcome_${mocks.startAnalysis.mock.calls.length}`;
+        db.analysis.set(analysisJobId, {analysisJobId, status: 'done', progress: 1, blueprint: BP, style: 'kinetic_typography', styleApplied: 'kinetic_typography', ...outcome});
+        db.blueprints.set('bp1', BP);
+        return {analysisJobId};
+      });
+      const {job} = await create({mode: 'full_edit', style: 'kinetic_typography', degraded: false, degradedReasons: [], fullEdit: {renderFlags: {brollEnabled: true, zoomEnabled: true, trimEnabled: true}}});
+      await markCaptionsSourceUploaded(job.editJobId, 'u1');
+      const done = await settled(job.editJobId, 'done', 'failed');
+      expect(done.status).toBe('done');
+      expect(done).toEqual(expect.objectContaining(expected));
+    }
   });
 
   it('a Pro style is refused in the worker when the plan is no longer Pro (fails before any analysis)', async () => {

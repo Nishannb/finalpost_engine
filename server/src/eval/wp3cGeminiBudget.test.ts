@@ -223,7 +223,8 @@ describe('activation: server env only; the experiment guard is separate (source 
   it('only http.ts, analysisRunner.ts, analyzeVideo.ts and the first-video script import the budget; the experiment guard and runner do not', () => {
     const importers = sources.filter(path => path !== 'lib/geminiEditBudget.ts' && /geminiEditBudget\.ts'/.test(read(path))).sort();
     // scripts/firstVideo.ts now takes the same profile boundary and wraps its analyzeVideo call with the same env-derived budget (an edit made after WP3C, found while running WP6A's checks).
-    expect(importers).toEqual(['lib/http.ts', 'pipeline/analysisRunner.ts', 'pipeline/analyzeVideo.ts', 'scripts/firstVideo.ts']);
+    // lib/styleRun.ts (edit styles, Phase 2) imports only the budget PLANS (pure data) to pick a styled job's plan; it creates no budget.
+    expect(importers).toEqual(['lib/http.ts', 'lib/styleRun.ts', 'pipeline/analysisRunner.ts', 'pipeline/analyzeVideo.ts', 'scripts/firstVideo.ts']);
     for (const path of ['lib/spendGuard.ts', 'lib/experimentMode.ts', 'lib/claudeBudget.ts', 'lib/productClaudeBudget.ts']) expect(read(path)).not.toContain('geminiEditBudget');
   });
   it('the cap comes from the environment only: default 0, no dollar variable, nothing in the HTTP layer', () => {
@@ -234,7 +235,10 @@ describe('activation: server env only; the experiment guard is separate (source 
   });
   it('analysisRunner wraps only the analyzeVideo call, from the env value', () => {
     const runner = read('pipeline', 'analysisRunner.ts');
-    expect(runner).toContain('withGeminiBudget(geminiBudgetFromLimit(env.GEMINI_EDIT_MAX_REQUESTS, geminiBudgetPlanFor(extras.editProfile)), () => analyzeVideo(');
+    // Edit styles (Phase 2): the budget is built by geminiBudgetFor, which is the env value exactly as before for every unstyled job (a styled job gets its style's cap).
+    expect(runner).toContain('const geminiBudget = geminiBudgetFor(extras);');
+    expect(runner).toContain('withGeminiBudget(geminiBudget, () => analyzeVideo(');
+    expect(runner).toContain('return geminiBudgetFromLimit(env.GEMINI_EDIT_MAX_REQUESTS, geminiBudgetPlanFor(extras.editProfile));');
     expect(runner.match(/withGeminiBudget\(/g)).toHaveLength(1);
   });
   it('analyzeVideo reports the budget as warnings (counts only) before the blueprint is assembled, and throws nothing', () => {

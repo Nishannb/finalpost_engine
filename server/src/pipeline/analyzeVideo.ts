@@ -119,7 +119,7 @@ import {runMotionGraphicsStage, type MotionGraphicsStageResult} from '../stages/
 import {defaultMaxGraphics} from '../stages/motionDirector/motionDirector.ts';
 import {anthropicGenerator, DEFAULT_MOTION_WORKER_MODEL, estimateClaudeCostUsd, MAX_REPAIR_ATTEMPTS} from '../motionWorker/worker.ts';
 import {createBoundedClaudeGenerator} from '../lib/productClaudeBudget.ts';
-import {decideClaudeBound, jobGraphicsStatus, libraryOnlyGraphics, type JobGraphicsStatus, type ProductEditProfile} from '../lib/productEditProfile.ts';
+import {decideClaudeBound, jobGraphicsStatus, libraryOnlyGraphics, type ClaudeBoundDecision, type JobGraphicsStatus, type ProductEditProfile} from '../lib/productEditProfile.ts';
 import {classifyContent, profileBlockForVisualDirector, type ContentProfile} from '../stages/contentProfile/contentProfile.ts';
 import {artDirectionLines, designFromProfile} from '../stages/contentProfile/artDirection.ts';
 import {EditLedger} from '../lib/editLedger.ts';
@@ -753,7 +753,8 @@ async function analyzeVideoUnguarded(
     // Decide what kind of video this is before any edit is planned.
     const motionGraphicsRequested = !cutsOnlyVisualsOff && (input.generatedGraphicsEnabled ?? flags.motionGraphics);
     // WP1: how Claude calls for this edit are bounded. Legacy without a configured cap is unchanged; mvp without one switches generated graphics off (fail closed).
-    const claudeBound = decideClaudeBound({
+    // Edit styles (EffectiveFlags.libraryOnlyGraphics): the job's graphics come from the library only, so Claude is disabled for it whatever the budget env says. False = unchanged.
+    const claudeBound: ClaudeBoundDecision = flags.libraryOnlyGraphics && motionGraphicsRequested ? {action: 'disabled', reason: 'library_only_style'} : decideClaudeBound({
       profile: input.editProfile ?? 'legacy',
       graphicsOn: motionGraphicsRequested,
       callerSuppliedGenerator: Boolean(input.motionWorkerOptions?.generator),
@@ -775,7 +776,8 @@ async function analyzeVideoUnguarded(
       warnings.push('motion_graphics:library_only');
     }
     // WP5D: on mvp, say so when no Gemini attempt cap is configured (0 / unset means unbounded). A warning only: the job is not refused and the default is unchanged.
-    const geminiUncapped = geminiBudgetUnconfiguredWarning(input.editProfile, env.GEMINI_EDIT_MAX_REQUESTS);
+    // A job already running inside a budget (an edit style's own cap) is capped whatever the env says; with no budget in scope this is exactly the env reading as before.
+    const geminiUncapped = currentGeminiBudget() ? null : geminiBudgetUnconfiguredWarning(input.editProfile, env.GEMINI_EDIT_MAX_REQUESTS);
     if (geminiUncapped) {
       warnings.push(geminiUncapped);
     }

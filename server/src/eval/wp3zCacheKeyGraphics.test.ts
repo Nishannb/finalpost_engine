@@ -80,7 +80,10 @@ describe('wiring (source text)', () => {
     const graphics = store.indexOf('...(input.graphicsKey ? [input.graphicsKey] : []),');
     expect(profile).toBeGreaterThan(0);
     expect(graphics).toBeGreaterThan(profile);
-    expect(store.slice(graphics, graphics + 120)).toContain("].join('|')");
+    // Edit styles (Phase 2) append one more optional fragment after it, with the same empty-means-absent rule, then the join.
+    const style = store.indexOf('...(input.styleKey ? [input.styleKey] : []),');
+    expect(style).toBeGreaterThan(graphics);
+    expect(store.slice(style, style + 120)).toContain("].join('|')");
     expect(store).toContain('graphicsKey?: string;');
   });
   it('the runner computes the decision from server configuration before the lookup, and does not read the stored blueprint for it', () => {
@@ -92,7 +95,7 @@ describe('wiring (source text)', () => {
     expect(decision).toBeLessThan(fingerprint);
     expect(fingerprint).toBeLessThan(lookup);
     expect(start.slice(decision, fingerprint)).toContain('graphicsFlag: effectiveFlags.motionGraphics');
-    expect(start.slice(decision, fingerprint)).toContain('capUsd: env.CLAUDE_EDIT_BUDGET_USD');
+    expect(start.slice(decision, fingerprint)).toContain('capUsd: effectiveFlags.libraryOnlyGraphics ? 0 : env.CLAUDE_EDIT_BUDGET_USD');
     expect(start.slice(decision, fingerprint)).not.toMatch(/loadBlueprint|cached|input\./);
     expect(start).toContain('graphicsKey: graphicsFingerprintKey(graphicsAtRequest),');
   });

@@ -77,7 +77,9 @@ describe('wiring (source text)', () => {
     expect(job).toContain("graphics?: 'off' | 'on' | 'skipped_budget' | 'library_only';");
   });
   it('the runner sets editProfile on a new job and on a cache hit, from the server-resolved profile only', () => {
-    expect(runner).toContain('const editProfile = normalizeEditProfile(env.PRODUCT_EDIT_PROFILE);');
+    expect(runner).toContain('const envProfile = normalizeEditProfile(env.PRODUCT_EDIT_PROFILE);');
+    // Edit styles (Phase 2): a styled job takes its style's pinned profile (lib/styleRun.ts, server-side registry); still never the request body.
+    expect(runner).toContain('const editProfile = styleRun ? styleRun.profile : envProfile;');
     expect(runner.match(/^\s*editProfile,/gm)!.length).toBeGreaterThanOrEqual(3); // cached job, queued job, runAnalysis extras
     expect(runner).not.toMatch(/editProfile:\s*input\./);
     expect(runner).not.toMatch(/graphics:\s*input\./);

@@ -1223,10 +1223,15 @@ export type AnalysisJob = {
   /** WP3X: whether generated graphics ran: `off` (flag off), `on` (the motion stage was allowed to run) or `skipped_budget` (requested, then disabled for a missing/refused Claude budget). Absent until the pipeline has decided, and for a cached blueprint. Server-owned. */
   graphics?: 'off' | 'on' | 'skipped_budget' | 'library_only';
   /**
-   * Edit style the creator picked (lib/editStyles.ts), carried through from the edit job untouched. Phase 1: recorded only; the pipeline
-   * does not read it yet (docs/ENGINE_STYLE_INTEGRATION.md). Absent for unstyled jobs.
+   * Edit style the creator picked (lib/editStyles.ts), carried through from the edit job. With EDIT_STYLES_ENGINE_FLAGS on it decides this job's
+   * profile, flags and Gemini cap (lib/styleRun.ts). Absent for unstyled jobs (and then the three fields below are absent too).
    */
   style?: import('../lib/editStyles.ts').EditStyleId;
+  /** With `style`: the style the pipeline was asked to produce (`style`, or its `degradesTo` with the engine flags off). */
+  styleApplied?: import('../lib/editStyles.ts').EditStyleId;
+  /** With `style`, once done: false when fully honoured, true only on a real fallback. */
+  degraded?: boolean;
+  degradedReasons?: string[];
   blueprint?: TimelineBlueprint;
   errorCode?: string;
   errorMessage?: string;
@@ -1292,8 +1297,10 @@ export type CaptionsEditJob = {
   mode?: 'captions' | 'teleprompter_clean' | 'basic_captions' | 'full_edit';
   /** The edit style the creator picked (lib/editStyles.ts). When present, `mode` was derived from it. Absent for mode-only (older app) jobs. */
   style?: import('../lib/editStyles.ts').EditStyleId;
-  /** Set when the pipeline cannot produce `style` yet and runs `appliedAs` instead (visible on the job, never silent). */
-  degraded?: import('../lib/editStyles.ts').EditStyleDegradation;
+  /** With `style`: false when the style was fully honoured, true only on a real fallback (lib/editStyles.ts EditStyleOutcome). Updated from the analysis. */
+  degraded?: boolean;
+  /** With `style`: why it is degraded (e.g. `engine_flags_off`, `kinetic_front_only:no_matte`, `gemini_cap_reached:director_story`). Empty when honoured. */
+  degradedReasons?: string[];
   /** Teleprompter script for retake detection (teleprompter_clean). */
   scriptText?: string;
   createdAt: string;

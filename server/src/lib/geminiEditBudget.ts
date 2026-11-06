@@ -83,6 +83,23 @@ export const POLISH_BUDGET_PLAN: BudgetPlan = {
   noPool: ['occupancy'],
 };
 
+/**
+ * Edit styles, AI Clean Cut (the `cuts` profile): its one Gemini stage is the speech keep-plan, so that is the reserved slot. The default plan would reserve
+ * the Director / occupancy / content-profile slots, which cuts never uses, and leave the keep plan nothing under a small cap. Used only by styled jobs
+ * (lib/styleRun.ts); `geminiBudgetPlanFor` is unchanged.
+ */
+export const CUTS_BUDGET_PLAN: BudgetPlan = {
+  order: ['keep_plan'],
+  labels: {'cuts ai keep plan': 'keep_plan'},
+};
+
+/**
+ * Edit styles on polish (Kinetic Typography, Explainer): the polish priority order, but occupancy may draw from the pool like every other stage. The WP8G
+ * one-attempt limit was set for an 8-request Gate 1 cap; under a style's own cap (12) it would stop occupancy's second call on every job and report a
+ * fallback that the cap did not need. Used only by styled jobs; POLISH_BUDGET_PLAN (the env path) is unchanged.
+ */
+export const STYLED_POLISH_BUDGET_PLAN: BudgetPlan = {order: POLISH_BUDGET_PLAN.order, labels: POLISH_BUDGET_PLAN.labels};
+
 /** The budget plan for a profile: polish gets the polish plan, every other profile the default one. */
 export function geminiBudgetPlanFor(profile: ProductEditProfile | undefined): BudgetPlan {
   return profile === 'polish' ? POLISH_BUDGET_PLAN : DEFAULT_BUDGET_PLAN;
@@ -97,6 +114,8 @@ export type GeminiBudgetReport = {
   stopped: boolean;
   /** Attempts per call label (labels are short stage names, never prompts or keys). */
   byLabel: Record<string, number>;
+  /** Refused attempts per call label: the stages that were stopped by the cap (and fell back). */
+  refusedByLabel: Record<string, number>;
   /** Slots handed to each reserved stage at the start, and the general pool that was left. */
   reservedAtStart: Record<string, number>;
   /** Reserved slots that were never used (still held back from everyone else). */
@@ -127,6 +146,11 @@ export function createGeminiEditBudget(maxRequests: number, options: {reservatio
   let attempted = 0;
   let refused = 0;
   const byLabel: Record<string, number> = {};
+  const refusedByLabel: Record<string, number> = {};
+  const refuse = (label: string) => {
+    refused += 1;
+    refusedByLabel[label] = (refusedByLabel[label] ?? 0) + 1;
+  };
   const take = (label: string) => {
     attempted += 1;
     byLabel[label] = (byLabel[label] ?? 0) + 1;
@@ -141,7 +165,7 @@ export function createGeminiEditBudget(maxRequests: number, options: {reservatio
         return {ok: true};
       }
       if (cls !== 'other' && noPool.has(cls)) {
-        refused += 1; // WP8G: a no-pool stage (occupancy) gets one attempt, then its fallback
+        refuse(label); // WP8G: a no-pool stage (occupancy) gets one attempt, then its fallback
         return {ok: false};
       }
       if (pool > 0) {
@@ -149,11 +173,11 @@ export function createGeminiEditBudget(maxRequests: number, options: {reservatio
         take(label);
         return {ok: true};
       }
-      refused += 1;
+      refuse(label);
       return {ok: false};
     },
     report(): GeminiBudgetReport {
-      return {maxRequests: cap, attempted, refused, stopped: refused > 0, byLabel: {...byLabel}, reservedAtStart: {...reservedAtStart}, reservedUnused: {...reserved}, poolAtStart};
+      return {maxRequests: cap, attempted, refused, stopped: refused > 0, byLabel: {...byLabel}, refusedByLabel: {...refusedByLabel}, reservedAtStart: {...reservedAtStart}, reservedUnused: {...reserved}, poolAtStart};
     },
   };
 }

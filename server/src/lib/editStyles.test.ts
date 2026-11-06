@@ -11,11 +11,14 @@ describe('edit-style registry', () => {
     expect(EDIT_STYLE_IDS.some(id => /faceless|documentary|newsroom/.test(id))).toBe(false);
   });
 
-  it('declares tiers, modes and engine support as agreed for Phase 1', () => {
+  it('declares tiers, modes, engine-flag needs and Gemini caps as agreed', () => {
     expect(EDIT_STYLE_IDS.map(id => EDIT_STYLES[id].tier)).toEqual(['free', 'pro', 'pro', 'pro']);
     expect(EDIT_STYLE_IDS.map(id => EDIT_STYLES[id].mode)).toEqual(['basic_captions', 'full_edit', 'full_edit', 'full_edit']);
     expect(EDIT_STYLE_IDS.map(id => EDIT_STYLES[id].available)).toEqual([true, true, false, false]);
-    expect(EDIT_STYLES.kinetic_typography.engineSupport).toBe('pending');
+    // Kinetic / Explainer stay unavailable until the paid verification (Checkpoint 3) passes; enabling them is an EDIT_STYLES_AVAILABLE change.
+    expect(EDIT_STYLE_IDS.map(id => EDIT_STYLES[id].needsEngineFlags)).toEqual([false, false, true, true]);
+    expect(EDIT_STYLE_IDS.map(id => EDIT_STYLES[id].geminiMaxRequests)).toEqual([0, 3, 12, 12]);
+    expect(EDIT_STYLES.kinetic_typography.degradesTo).toBe('ai_clean_cut');
     expect(EDIT_STYLES.explainer.degradesTo).toBe('ai_clean_cut');
   });
 
@@ -52,15 +55,17 @@ describe('edit-style registry', () => {
     expect(resolveRequestedStyle('kinetic_typography', ON)).toEqual({error: 'style_unavailable', style: 'kinetic_typography'});
   });
 
-  it('resolveRequestedStyle: native styles are not degraded; pending ones degrade to Clean Cut when made available', () => {
-    expect(resolveRequestedStyle('basic_captions', ON)).toEqual({style: 'basic_captions', tier: 'free', mode: 'basic_captions'});
-    expect(resolveRequestedStyle('ai_clean_cut', ON)).toEqual({style: 'ai_clean_cut', tier: 'pro', mode: 'full_edit'});
+  it('resolveRequestedStyle: degraded is a boolean + reasons; only a flag-dependent style with the engine flags off is degraded up front', () => {
+    expect(resolveRequestedStyle('basic_captions', ON)).toEqual({style: 'basic_captions', tier: 'free', mode: 'basic_captions', degraded: false, degradedReasons: []});
+    expect(resolveRequestedStyle('ai_clean_cut', ON)).toEqual({style: 'ai_clean_cut', tier: 'pro', mode: 'full_edit', degraded: false, degradedReasons: []});
     expect(resolveRequestedStyle('explainer', {...ON, availableOverride: 'explainer'})).toEqual({
       style: 'explainer',
       tier: 'pro',
       mode: 'full_edit',
-      degraded: {reason: 'engine_style_pending', appliedAs: 'ai_clean_cut'},
+      degraded: true,
+      degradedReasons: ['engine_flags_off'],
     });
+    expect(resolveRequestedStyle('explainer', {...ON, availableOverride: 'explainer', engineFlags: true})).toMatchObject({degraded: false, degradedReasons: []});
     expect(styleTier('explainer')).toBe('pro');
     expect(styleTier(undefined)).toBeUndefined();
   });
