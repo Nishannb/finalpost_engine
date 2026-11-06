@@ -15,10 +15,10 @@ Consequences:
 
 - **What is on the laptop's disk is what ships**, including uncommitted and untracked files. Commit before you deploy
   if you want to be able to tell later what is running.
-- `captionkit_tmp/` is **untracked** but the image and the Basic Captions path need it (`captionkit.py`, `presets.json`,
-  `fonts/`; see the `Dockerfile` and `server/src/lib/captionKitPresets.ts`). A deploy built from a clean git checkout would
-  have no CaptionKit and would reject every `captionPreset`. Commit those three parts (not `previews/`, `samples/`) before
-  ever switching to a git-based deploy.
+- `captionkit_tmp/` runtime files (`captionkit.py`, `presets.json`, `fonts/` with their licences) are committed; `previews/`,
+  `samples/` and `gallery.html` are generated and gitignored (exclude them from the sync, below).
+- rsync's `--exclude .env` does not cover other `.env.*` files (for example a `.env.parked-for-tests` left by a test run): exclude
+  `.env.*` too, and check `git status` before syncing.
 
 Things to confirm on the droplet before relying on this page (not verifiable from the repo):
 
@@ -34,9 +34,10 @@ worktree you deploy from, such as `~/Desktop/apps/finalpost_engine-edit-styles/`
 ```bash
 rsync -avz --delete \
   --exclude .git --exclude node_modules --exclude '**/node_modules' --exclude '**/dist' \
-  --exclude .env --exclude '.env.*.local' --exclude logs --exclude out --exclude remotion/out \
+  --exclude .env --exclude '.env.*' --exclude logs --exclude out --exclude remotion/out \
   --exclude remotion/public/_proof-beds --exclude '**/.venv*' --exclude '**/__pycache__' --exclude '**/.pytest_cache' \
   --exclude subjectmatte/weights \
+  --exclude captionkit_tmp/previews --exclude captionkit_tmp/samples --exclude captionkit_tmp/gallery.html \
   ./ USER@DROPLET:/opt/kinmel/ai-video-engine/
 ```
 
