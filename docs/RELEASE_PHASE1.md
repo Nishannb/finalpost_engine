@@ -209,7 +209,7 @@ Listen on headphones and on the phone speaker:
 - [ ] SFX (if any) are not louder than the voice and not on top of words;
 - [ ] no clicks at cut points, no silence where speech was, A/V in sync at the end.
 
-Compare with an edit of the same clip made before the deploy if you have one. If something is wrong, roll back the engine code (F2)
+Compare with an edit of the same clip made before the deploy if you have one. If something is wrong, roll back the engine code (F, "Engine code")
 before turning anything on.
 
 ### C5. Turn the picker on
