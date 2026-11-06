@@ -1,0 +1,5 @@
+Apache License 2.0 fonts in this folder (full text: LICENSE-Apache-2.0.txt)
+
+Luckiest Guy (LuckiestGuy-Regular.ttf): Copyright (c) 2010 by Brian J. Bonislawsky DBA Astigmatic (AOETI). All rights reserved. Available under the Apache 2.0 licence.http://www.apache.org/licenses/LICENSE-2.0.html
+Permanent Marker (PermanentMarker-Regular.ttf): Copyright (c) 2010 by Font Diner, Inc. All rights reserved.
+Special Elite (SpecialElite-Regular.ttf): Copyright (c) 2010 by Brian J. Bonislawsky DBA Astigmatic (AOETI). All rights reserved. Available under the Apache 2.0 licence.http://www.apache.org/licenses/LICENSE-2.0.html

@@ -17,7 +17,7 @@ user video ──► speech-to-text (word timestamps) ──► transcript ─�
 | `make_previews.py` | Renders the demo clip + poster for every template |
 | `previews/` | `<id>.mp4` (5.5 s, 540×960, ~90 KB), `<id>.jpg` poster, `manifest.json` |
 | `service/` | FastAPI service: templates, uploads, transcription, renders |
-| `fonts/` | All fonts used (SIL OFL / Apache 2.0, free for commercial use and redistribution) |
+| `fonts/` | All fonts used (SIL OFL / Apache 2.0, free for commercial use and redistribution); licence texts and the per-family index in `fonts/LICENSES.md` |
 | `gallery.html` | Browsable gallery of every template's demo clip |
 | `tools/` | Scripts that generated the second batch of presets |
 
