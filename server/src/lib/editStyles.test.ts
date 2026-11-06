@@ -56,16 +56,17 @@ describe('edit-style registry', () => {
   });
 
   it('resolveRequestedStyle: degraded is a boolean + reasons; only a flag-dependent style with the engine flags off is degraded up front', () => {
-    expect(resolveRequestedStyle('basic_captions', ON)).toEqual({style: 'basic_captions', tier: 'free', mode: 'basic_captions', degraded: false, degradedReasons: []});
-    expect(resolveRequestedStyle('ai_clean_cut', ON)).toEqual({style: 'ai_clean_cut', tier: 'pro', mode: 'full_edit', degraded: false, degradedReasons: []});
+    expect(resolveRequestedStyle('basic_captions', ON)).toEqual({style: 'basic_captions', tier: 'free', mode: 'basic_captions', degraded: false, degradedReasons: [], styleNotes: []});
+    expect(resolveRequestedStyle('ai_clean_cut', ON)).toEqual({style: 'ai_clean_cut', tier: 'pro', mode: 'full_edit', degraded: false, degradedReasons: [], styleNotes: []});
     expect(resolveRequestedStyle('explainer', {...ON, availableOverride: 'explainer'})).toEqual({
       style: 'explainer',
       tier: 'pro',
       mode: 'full_edit',
       degraded: true,
       degradedReasons: ['engine_flags_off'],
+      styleNotes: [],
     });
-    expect(resolveRequestedStyle('explainer', {...ON, availableOverride: 'explainer', engineFlags: true})).toMatchObject({degraded: false, degradedReasons: []});
+    expect(resolveRequestedStyle('explainer', {...ON, availableOverride: 'explainer', engineFlags: true})).toMatchObject({degraded: false, degradedReasons: [], styleNotes: []});
     expect(styleTier('explainer')).toBe('pro');
     expect(styleTier(undefined)).toBeUndefined();
   });

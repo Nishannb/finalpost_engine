@@ -75,7 +75,7 @@ describe('the default origin and the VISUAL_CONTEXT_V2 gate are untouched (sourc
     expect(read('remotion/src/lib/timeline.ts')).toContain('about 50% 32%');
   });
   it('the focus-evidence gate (VISUAL_CONTEXT_V2) is as before: the resolver call keeps it and the new step runs after it', () => {
-    expect(analyze).toContain('...(env.VISUAL_CONTEXT_V2');
+    expect(analyze).toContain('...(flags.visualContextV2'); // the job's EffectiveFlags (env unless a style pins it)
     expect(analyze).toContain('const decision = evaluateFocus(broll.visualContext, window, focus);');
     expect(analyze.indexOf('dropUnmeasuredZoomFocus(zoomTriggers')).toBeGreaterThan(analyze.indexOf('zoomTriggers = resolveDirectedZooms({'));
   });

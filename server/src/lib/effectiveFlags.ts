@@ -9,6 +9,8 @@
  *
  * Pure: the env values are passed in (no config import), like productEditProfile.ts.
  */
+import {AsyncLocalStorage} from 'node:async_hooks';
+
 import type {ProductEditProfile} from './productEditProfile.ts';
 
 export type EffectiveFlags = {
@@ -43,6 +45,21 @@ export type EffectiveFlags = {
   risoTemplates: boolean;
   collageBroll: boolean;
   anidoodle: boolean;
+  /** Director / planning settings (the env values are the defaults; styles pin them, lib/editStyles.ts `pins`). */
+  northStar: boolean;
+  directorV2: boolean;
+  visualContextV2: boolean;
+  occupancyContextV2: boolean;
+  contentProfile: boolean;
+  hookTitlePolicy: 'placeholder' | 'optional';
+  hookDurationSec: number;
+  zoomScale: number;
+  zoomMaxDurationSec: number;
+  cutawayScheduling: 'legacy' | 'beat_preserving';
+  generatedTransitions: boolean;
+  klipyOverlays: boolean;
+  forceSpeakerCutout: boolean;
+  deliveryLlmEmphasis: boolean;
 };
 
 /** The env fields EffectiveFlags defaults come from (a structural subset of config/env.ts `env`). */
@@ -65,6 +82,20 @@ export type EffectiveFlagsEnv = {
   POLISH_RISO_TEMPLATES: boolean;
   POLISH_COLLAGE_BROLL: boolean;
   POLISH_ANIDOODLE: boolean;
+  NORTH_STAR: boolean;
+  DIRECTOR_V2: boolean;
+  VISUAL_CONTEXT_V2: boolean;
+  OCCUPANCY_CONTEXT_V2: boolean;
+  CONTENT_PROFILE_ENABLED: boolean;
+  HOOK_TITLE_POLICY: 'placeholder' | 'optional';
+  HOOK_DURATION_SEC: number;
+  ZOOM_SCALE: number;
+  ZOOM_MAX_DURATION_SEC: number;
+  CUTAWAY_SCHEDULING: 'legacy' | 'beat_preserving';
+  GENERATED_TRANSITIONS_ENABLED: boolean;
+  KLIPY_OVERLAYS_ENABLED: boolean;
+  FORCE_SPEAKER_CUTOUT: boolean;
+  DELIVERY_LLM_EMPHASIS: boolean;
 };
 
 /** Exactly what the pipeline read from env before EffectiveFlags existed, for the given profile. */
@@ -90,5 +121,42 @@ export function effectiveFlagsFromEnv(env: EffectiveFlagsEnv, profile: ProductEd
     risoTemplates: Boolean(env.POLISH_RISO_TEMPLATES),
     collageBroll: Boolean(env.POLISH_COLLAGE_BROLL),
     anidoodle: Boolean(env.POLISH_ANIDOODLE),
+    // read exactly as the call sites did (raw values, so `!== false`-style checks keep their meaning)
+    northStar: env.NORTH_STAR,
+    directorV2: env.DIRECTOR_V2,
+    visualContextV2: env.VISUAL_CONTEXT_V2,
+    occupancyContextV2: env.OCCUPANCY_CONTEXT_V2,
+    contentProfile: env.CONTENT_PROFILE_ENABLED,
+    hookTitlePolicy: env.HOOK_TITLE_POLICY,
+    hookDurationSec: env.HOOK_DURATION_SEC,
+    zoomScale: env.ZOOM_SCALE,
+    zoomMaxDurationSec: env.ZOOM_MAX_DURATION_SEC,
+    cutawayScheduling: env.CUTAWAY_SCHEDULING,
+    generatedTransitions: env.GENERATED_TRANSITIONS_ENABLED,
+    klipyOverlays: env.KLIPY_OVERLAYS_ENABLED,
+    forceSpeakerCutout: env.FORCE_SPEAKER_CUTOUT,
+    deliveryLlmEmphasis: env.DELIVERY_LLM_EMPHASIS,
   };
+}
+
+/**
+ * The job's flags for code BELOW analyzeVideo (stages that read a setting deep inside their own helpers). analyzeVideo runs its whole body inside
+ * `withJobFlags`; outside a job (tests calling a stage directly, scripts) `jobFlag` returns the env value exactly as before. Per async context, so
+ * concurrent analyses never see each other's flags; nothing is mutated.
+ */
+
+const jobScope = new AsyncLocalStorage<EffectiveFlags>();
+
+export function withJobFlags<T>(flags: EffectiveFlags, fn: () => Promise<T>): Promise<T> {
+  return jobScope.run(flags, fn);
+}
+
+export function currentJobFlags(): EffectiveFlags | undefined {
+  return jobScope.getStore();
+}
+
+/** A per-job setting: the running job's value, else the env fallback the caller passes (its old read, unchanged). */
+export function jobFlag<K extends keyof EffectiveFlags>(key: K, envFallback: EffectiveFlags[K]): EffectiveFlags[K] {
+  const flags = jobScope.getStore();
+  return flags ? flags[key] : envFallback;
 }

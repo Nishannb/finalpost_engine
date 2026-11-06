@@ -53,6 +53,7 @@ type EditStyleId = 'basic_captions' | 'ai_clean_cut' | 'kinetic_typography' | 'e
 style?: EditStyleId;                 // absent = mode-only job (older app, or EDIT_STYLES_ENABLED=0)
 degraded?: boolean;                  // with `style` only: false = fully honoured; true only on a real fallback
 degradedReasons?: string[];          // with `style` only: [] when honoured
+styleNotes?: string[];               // from the analysis: non-degrading notes, e.g. 'matte_unavailable:no_matte' (front-only Kinetic)
 
 // startAnalysis input (analysisRunner.ts)
 style?: EditStyleId;                 // carried from the edit job
@@ -62,10 +63,12 @@ style?: EditStyleId;
 styleApplied?: EditStyleId;          // == style, or its degradesTo with the engine flags off
 degraded?: boolean;
 degradedReasons?: string[];
+styleNotes?: string[];
 ```
 
 `degradedReasons` values (the full list is the `EditStyleOutcome` comment in `lib/editStyles.ts`): `engine_flags_off`,
-`kinetic_front_only:<no_matte|matte skip reason>`, `kinetic_type_failed`, `kinetic_type_unpublished`, `explainer_layout_a_only`,
+`kinetic_front_only:<why>` (only for a style with `matte: 'required'`; v1 Kinetic is `optional`, so no matte is the note
+`matte_unavailable:<why>`), `kinetic_type_failed`, `kinetic_type_unpublished`, `explainer_layout_a_only`,
 `motion_stage_off`, `motion_templates_failed`, `motion_templates_unpublished`, `gemini_cap_reached:<stage>`.
 
 ### Example requests (HTTP) and the analysis call the runner makes today
@@ -153,6 +156,11 @@ Implementation notes:
   `GEMINI_EDIT_MAX_REQUESTS` can only tighten a style cap.
 - `styleKey` = `style:<id>:v1`; bump `STYLE_FLAGS_VERSION` in `lib/styleRun.ts` when a style's flag set changes.
 - `gemini_edit_budget_unconfigured` is no longer reported for a job that runs inside a budget (a style's cap); unchanged otherwise.
+- Output settings: Kinetic and Explainer carry `pins` in the registry (`POLISH_STYLE_PINS`, today's env defaults: the Skill A tools,
+  `POLISH_DEFAULT_EDITS`, North Star / Director v2 / context switches, content profile, hook, zoom, cutaway scheduling, transitions,
+  Klipy, forced cutout, LLM delivery emphasis), so a style looks the same on every server. These settings are part of `EffectiveFlags`;
+  stages below `analyzeVideo` read them through `jobFlag()` (a per-job scope; env outside a job). Speech-cut tuning, audio mix, matte
+  quality and deployment settings stay on env. `STYLE_FLAGS_VERSION` is `v2`.
 
 Original requirements:
 

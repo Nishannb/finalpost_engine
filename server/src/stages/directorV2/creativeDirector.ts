@@ -16,6 +16,7 @@ import {legalSlots} from '../layout/occupancy.ts';
 import {defaultCaptionDirection} from '../broll/geminiDirector.ts';
 import {inferStockSubject, stockFriendlyQueries} from '../broll/visualQuery.ts';
 import {env} from '../../config/env.ts';
+import {jobFlag} from '../../lib/effectiveFlags.ts';
 import {speakerFramingAllowsDepthOverlay, speakerVisibleRanges} from '../../lib/depthOverlay.ts';
 import {allowedEditsPromptBlock, isKindAllowed} from '../../lib/editToolkits.ts';
 import {insetGraphicTemplatesForDirector} from '../../lib/insetReveal.ts';
@@ -138,7 +139,7 @@ export function fillStage2User(
     ? 'available. You MAY emit kind=depth_overlay when an asset is relevant and the speaker is visible.'
     : 'not available. Do NOT emit kind=depth_overlay.';
   const visible = speakerVisibleRanges(pack.occupancySlices);
-  const visibleText = env.OCCUPANCY_CONTEXT_V2
+  const visibleText = jobFlag('occupancyContextV2', env.OCCUPANCY_CONTEXT_V2)
     ? confirmedVisibilityText(pack)
     : visible.length
       ? visible.map(range => `${range.start.toFixed(2)}–${range.end.toFixed(2)}s`).join(', ')

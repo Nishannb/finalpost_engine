@@ -1232,6 +1232,8 @@ export type AnalysisJob = {
   /** With `style`, once done: false when fully honoured, true only on a real fallback. */
   degraded?: boolean;
   degradedReasons?: string[];
+  /** With `style`, once done: non-degrading notes (e.g. `matte_unavailable:no_matte` for front-only Kinetic). */
+  styleNotes?: string[];
   blueprint?: TimelineBlueprint;
   errorCode?: string;
   errorMessage?: string;
@@ -1301,6 +1303,8 @@ export type CaptionsEditJob = {
   degraded?: boolean;
   /** With `style`: why it is degraded (e.g. `engine_flags_off`, `kinetic_front_only:no_matte`, `gemini_cap_reached:director_story`). Empty when honoured. */
   degradedReasons?: string[];
+  /** With `style`: non-degrading notes from the analysis (e.g. `matte_unavailable:no_matte`: front-only Kinetic, which counts as honoured). */
+  styleNotes?: string[];
   /** Teleprompter script for retake detection (teleprompter_clean). */
   scriptText?: string;
   createdAt: string;

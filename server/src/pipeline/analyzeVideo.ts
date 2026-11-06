@@ -87,7 +87,7 @@ import {stat as statFile} from 'node:fs/promises';
 import {formatKineticTypeForDirector} from '../stages/broll/kineticTypeCapabilities.ts';
 import {LIBRARY_COMPOSITION_IDS} from '../stages/motionDirector/libraryRegistry.ts';
 import {mapPolishSkillToMotionTemplateSkill} from '../stages/broll/motionTemplateCatalog.ts';
-import {effectiveFlagsFromEnv, type EffectiveFlags} from '../lib/effectiveFlags.ts';
+import {effectiveFlagsFromEnv, withJobFlags, type EffectiveFlags} from '../lib/effectiveFlags.ts';
 import {planStillnessFrameInsets} from '../stages/broll/stillnessFrameInsets.ts';
 import {labeledAssetWarnings, mediaKindOfUrl, planLabeledAssetPlacements} from '../stages/broll/labeledAssetPlacement.ts';
 import {coveredFraction, editorialRunRanges, planEditorialStillMontage} from '../stages/broll/editorialStillMontage.ts';
@@ -287,7 +287,12 @@ export async function analyzeVideo(
   input: AnalyzeInput,
   hooks: AnalyzeHooks = {},
 ): Promise<TimelineBlueprint> {
-  return input.strictAiDirection ? runWithBillingGuard(() => analyzeVideoUnguarded(input, hooks)) : analyzeVideoUnguarded(input, hooks);
+  // The job's flags are also in scope for the stages below (lib/effectiveFlags.ts jobFlag): the same values analyzeVideoUnguarded resolves (only the
+  // per-job settings are read through the scope, never the profile). No input flags = the env values, exactly what those stages read before.
+  const jobFlags = input.effectiveFlags ?? effectiveFlagsFromEnv(env, input.editProfile ?? 'legacy');
+  return withJobFlags(jobFlags, () =>
+    input.strictAiDirection ? runWithBillingGuard(() => analyzeVideoUnguarded(input, hooks)) : analyzeVideoUnguarded(input, hooks),
+  );
 }
 
 /** Stage-boundary check for strict runs: throws the exact billing blocker. A no-op outside a strict run. */
@@ -416,8 +421,8 @@ async function analyzeVideoUnguarded(
       ? coerceVideoTemplateRecipe(input.styleRecipe)
       : null;
     const captionGuide = coerceCaptionStyleGuide(input.captionStyleGuide);
-    const northStar = !basicCaptions && Boolean(input.northStar || env.NORTH_STAR);
-    const directorV2 = !basicCaptions && Boolean(input.directorV2 || env.DIRECTOR_V2 || northStar);
+    const northStar = !basicCaptions && Boolean(input.northStar || flags.northStar);
+    const directorV2 = !basicCaptions && Boolean(input.directorV2 || flags.directorV2 || northStar);
     // WP8B: the polish profile works inside an Edit Look (stages/directorV2/editLooks.ts), which lives in the Director v2 Stage 2, so polish runs the v2 visual Director. This switch drives the
     // visual Director only; the LLM delivery direction above keeps reading `directorV2`. Other profiles are unchanged.
     const visualDirectorV2 = directorV2 || polishPath;
@@ -483,7 +488,7 @@ async function analyzeVideoUnguarded(
             preset: direction?.preset,
             explicitOps: direction?.ops,
             useLlmEmphasis:
-              env.DELIVERY_LLM_EMPHASIS &&
+              flags.deliveryLlmEmphasis &&
               (direction ? direction.useLlmEmphasis : true),
           });
           if (delivery.ops.length > 0) {
@@ -508,7 +513,7 @@ async function analyzeVideoUnguarded(
               intensity: delivery.intensity,
               preset: delivery.preset,
               useLlmEmphasis:
-                env.DELIVERY_LLM_EMPHASIS &&
+                flags.deliveryLlmEmphasis &&
                 (direction ? direction.useLlmEmphasis : true),
               ops: delivery.ops,
               timeRemap: delivery.timeRemap,
@@ -788,23 +793,23 @@ async function analyzeVideoUnguarded(
         directorV2, northStar, captionsOnly, visualEditsOn, motionGraphicsOn,
         requestedEdits: requestedEdits ? [...requestedEdits] : null,
         languageCode: input.languageCode,
-        HOOK_TITLE_POLICY: env.HOOK_TITLE_POLICY,
-        OCCUPANCY_CONTEXT_V2: env.OCCUPANCY_CONTEXT_V2,
-        VISUAL_CONTEXT_V2: env.VISUAL_CONTEXT_V2,
-        GENERATED_TRANSITIONS_ENABLED: env.GENERATED_TRANSITIONS_ENABLED,
+        HOOK_TITLE_POLICY: flags.hookTitlePolicy,
+        OCCUPANCY_CONTEXT_V2: flags.occupancyContextV2,
+        VISUAL_CONTEXT_V2: flags.visualContextV2,
+        GENERATED_TRANSITIONS_ENABLED: flags.generatedTransitions,
         DIRECTOR_V2: directorV2,
         NORTH_STAR: northStar,
         PIPELINE_MODE: env.PIPELINE_MODE,
-        ZOOM_SCALE: env.ZOOM_SCALE,
+        ZOOM_SCALE: flags.zoomScale,
         MOTION_GRAPHICS_ENABLED: motionGraphicsOn,
-        CONTENT_PROFILE_ENABLED: env.CONTENT_PROFILE_ENABLED,
-        HOOK_DURATION_SEC: env.HOOK_DURATION_SEC,
+        CONTENT_PROFILE_ENABLED: flags.contentProfile,
+        HOOK_DURATION_SEC: flags.hookDurationSec,
         BROLL_MOMENT_COUNT: env.BROLL_MOMENT_COUNT,
         GEMINI_MODEL: env.GEMINI_MODEL,
       },
     }));
     let contentProfile: ContentProfile | null = null;
-    if (env.CONTENT_PROFILE_ENABLED && (visualEditsOn || motionGraphicsOn)) {
+    if (flags.contentProfile && (visualEditsOn || motionGraphicsOn)) {
       contentProfile = await classifyContent({
         transcript: transcription.transcript,
         durationSec: timeline.outputDurationSec,
@@ -833,7 +838,7 @@ async function analyzeVideoUnguarded(
         : {present: false},
     );
     const occupancyStill = workspace.file('occupancy.jpg');
-    const forceSpeakerCutout = Boolean(input.forceSpeakerCutout || env.FORCE_SPEAKER_CUTOUT);
+    const forceSpeakerCutout = Boolean(input.forceSpeakerCutout || flags.forceSpeakerCutout);
     let occupancy = occupancyFromSpeaker(
       {x: 0.18, y: 0.16, w: 0.64, h: 0.62},
       'fallback',
@@ -948,7 +953,7 @@ async function analyzeVideoUnguarded(
       // Experimental (VISUAL_CONTEXT_V2, default off): what the v1 Director is told about the frame it was measured on.
       // One speaker box at one moment, placed on the OUTPUT timeline; everything else is reported as not observed.
       const visualContext =
-        env.VISUAL_CONTEXT_V2 && !visualDirectorV2
+        flags.visualContextV2 && !visualDirectorV2
           ? visualContextFromSingleOccupancy({
               durationSec: timeline.outputDurationSec,
               keepSegments: timeline.keepSegments,
@@ -1157,11 +1162,11 @@ async function analyzeVideoUnguarded(
         directed: broll.zooms,
         words: activeWords,
         timeline,
-        scale: env.ZOOM_SCALE,
+        scale: flags.zoomScale,
         alreadyOutput: visualDirectorV2,
         trace: zoomResolutionTrace(ledger),
         // VISUAL_CONTEXT_V2: a focus is honoured only if an observation near the zoom contains it (output-time windows).
-        ...(env.VISUAL_CONTEXT_V2
+        ...(flags.visualContextV2
           ? {
               focusEvidence: (_zoom: unknown, window: {start: number; end: number}, focus: {x: number; y: number}) => {
                 const decision = evaluateFocus(broll.visualContext, window, focus);
@@ -1169,7 +1174,7 @@ async function analyzeVideoUnguarded(
               },
             }
           : {}),
-        maxDurationSec: Math.min(3.2, Math.max(2.6, env.ZOOM_MAX_DURATION_SEC)),
+        maxDurationSec: Math.min(3.2, Math.max(2.6, flags.zoomMaxDurationSec)),
         blockedRanges: [
           ...broll.clips.map(clip => ({start: clip.start, end: clip.end})),
           ...broll.overlays
@@ -1662,7 +1667,7 @@ async function analyzeVideoUnguarded(
     dumpDirectorTrace('06-edit-ledger', ledger.toJSON());
     // One explicit outcome per planned cutaway (pipeline evidence, not rendered-frame evidence). Empty when the plan had none.
     const editOutcomes = summarizeEditOutcomes(ledger.entries(), {
-      scheduling: env.CUTAWAY_SCHEDULING,
+      scheduling: flags.cutawayScheduling,
       parseRejections: broll.parseRejections,
       fallbackSubstitutions: broll.fallbackSubstitutions,
       directorFallbackReason: broll.directorFallbackReason,

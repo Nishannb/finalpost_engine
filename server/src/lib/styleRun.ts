@@ -34,7 +34,7 @@ export type StyleRun = {
 };
 
 /** Bump when a style's flag set changes, so a cached blueprint of the old mapping is never served for the new one. */
-export const STYLE_FLAGS_VERSION = 'v1';
+export const STYLE_FLAGS_VERSION = 'v2'; // v2: registry pins (POLISH_STYLE_PINS)
 
 /** Lanes and toolkits no styled job may run, whatever the env says. */
 const STYLED_PINS = {
@@ -58,13 +58,13 @@ function styledFlags(style: EditStyleId, env: EffectiveFlagsEnv): {profile: Prod
       // Polish + Kinetic-Led. Kinetic type is planned by the motion-template stage, which only runs inside the motion stage: graphics on, library only.
       return {
         profile: 'polish',
-        flags: {...effectiveFlagsFromEnv(env, 'polish'), ...STYLED_PINS, motionGraphics: true, libraryOnlyGraphics: true, motionTemplates: true, kineticLed: true, explainerSkill: false, textualMg: false},
+        flags: {...effectiveFlagsFromEnv(env, 'polish'), ...EDIT_STYLES[style].pins, ...STYLED_PINS, motionGraphics: true, libraryOnlyGraphics: true, motionTemplates: true, kineticLed: true, explainerSkill: false, textualMg: false},
       };
     case 'explainer':
       // Polish + the explainer skill (B) + motion templates (explainer allowlist). Same motion-stage requirement: graphics on, library only.
       return {
         profile: 'polish',
-        flags: {...effectiveFlagsFromEnv(env, 'polish'), ...STYLED_PINS, motionGraphics: true, libraryOnlyGraphics: true, motionTemplates: true, explainerSkill: true, kineticLed: false, textualMg: false},
+        flags: {...effectiveFlagsFromEnv(env, 'polish'), ...EDIT_STYLES[style].pins, ...STYLED_PINS, motionGraphics: true, libraryOnlyGraphics: true, motionTemplates: true, explainerSkill: true, kineticLed: false, textualMg: false},
       };
   }
 }
@@ -131,6 +131,9 @@ export function styleOutcome(input: {
   matteConfigured: boolean;
 }): EditStyleOutcome {
   const reasons = [...input.run.plannedReasons];
+  const notes: string[] = [];
+  // a missing matte degrades only a style that requires one; for `optional` it is a note
+  const matteGap = (why: string) => (EDIT_STYLES[input.run.style].matte === 'optional' ? notes.push(`matte_unavailable:${why}`) : reasons.push(`kinetic_front_only:${why}`));
   const has = (prefix: string) => input.warnings.some(warning => warning.startsWith(prefix));
   if (input.run.engineFlags) {
     const style = input.run.style;
@@ -150,13 +153,13 @@ export function styleOutcome(input: {
       if (!has('craft_templates:failed') && !has('polish_motion_templates:skipped:no_motion') && !has('kinetic_type:foreground:')) {
         // No beat was drawn behind the speaker. A fallback only when a matte was wanted and could not be made (skip reason), or no backend exists at all.
         const skipped = input.warnings.find(warning => warning.startsWith('kinetic_type:matte:skipped:'));
-        if (skipped) reasons.push(`kinetic_front_only:${skipped.slice('kinetic_type:matte:skipped:'.length)}`);
-        else if (!input.matteConfigured && !has('kinetic_type:matte:segmentation')) reasons.push('kinetic_front_only:no_matte');
+        if (skipped) matteGap(skipped.slice('kinetic_type:matte:skipped:'.length));
+        else if (!input.matteConfigured && !has('kinetic_type:matte:segmentation')) matteGap('no_matte');
       }
     }
     if (style === 'explainer' && has('polish_explainer_mounted:skipped:no_layouts')) reasons.push('explainer_layout_a_only');
     for (const label of input.refusedLabels ?? []) reasons.push(`gemini_cap_reached:${geminiStageName(label, input.run.geminiPlan)}`);
   }
   const unique = [...new Set(reasons)];
-  return {degraded: unique.length > 0, degradedReasons: unique};
+  return {degraded: unique.length > 0, degradedReasons: unique, styleNotes: [...new Set(notes)]};
 }

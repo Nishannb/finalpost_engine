@@ -105,7 +105,8 @@ describe('edit runner: style on the job record and into the analysis', () => {
   it('the analysis outcome replaces the request-time answer: honoured -> false, a real fallback -> true with its reasons', async () => {
     for (const [outcome, expected] of [
       [{degraded: false, degradedReasons: []}, {degraded: false, degradedReasons: []}],
-      [{degraded: true, degradedReasons: ['kinetic_front_only:no_matte', 'gemini_cap_reached:director_story']}, {degraded: true, degradedReasons: ['kinetic_front_only:no_matte', 'gemini_cap_reached:director_story']}],
+      [{degraded: true, degradedReasons: ['gemini_cap_reached:director_story'], styleNotes: ['matte_unavailable:no_matte']}, {degraded: true, degradedReasons: ['gemini_cap_reached:director_story'], styleNotes: ['matte_unavailable:no_matte']}],
+      [{degraded: false, degradedReasons: [], styleNotes: ['matte_unavailable:no_matte']}, {degraded: false, degradedReasons: [], styleNotes: ['matte_unavailable:no_matte']}],
     ] as const) {
       mocks.startAnalysis.mockImplementationOnce(async () => {
         const analysisJobId = `an_outcome_${mocks.startAnalysis.mock.calls.length}`;

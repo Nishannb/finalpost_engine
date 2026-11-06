@@ -14,8 +14,14 @@ const ALL_ON: EffectiveFlagsEnv = {
   MOTION_GRAPHICS_ENABLED: true, POLISH_DEFAULT_EDITS: 'all', POLISH_FACELESS_DOC: true, POLISH_NEWSROOM_MG: true, POLISH_EXPLAINER_SKILL: true, POLISH_TEXTUAL_MG: true,
   POLISH_MOTION_TEMPLATES: true, POLISH_KINETIC_LED: true, POLISH_SUBJECT_STAGE: true, POLISH_VO_CUT_GRAMMAR: true, POLISH_BARE_CAPTIONS: true, POLISH_ACCUMULATE_CAPTIONS: true,
   POLISH_IMPACT_FX: true, POLISH_TH_SKILL_A_TOOLS: true, POLISH_EDITORIAL_STILLS_ENABLED: true, POLISH_RISO_TEMPLATES: true, POLISH_COLLAGE_BROLL: true, POLISH_ANIDOODLE: true,
+  // planning settings, all AWAY from their defaults
+  NORTH_STAR: true, DIRECTOR_V2: true, VISUAL_CONTEXT_V2: true, OCCUPANCY_CONTEXT_V2: true, CONTENT_PROFILE_ENABLED: false, HOOK_TITLE_POLICY: 'optional', HOOK_DURATION_SEC: 9,
+  ZOOM_SCALE: 2, ZOOM_MAX_DURATION_SEC: 1, CUTAWAY_SCHEDULING: 'beat_preserving', GENERATED_TRANSITIONS_ENABLED: true, KLIPY_OVERLAYS_ENABLED: true, FORCE_SPEAKER_CUTOUT: true,
+  DELIVERY_LLM_EMPHASIS: true,
 };
-const ALL_OFF = Object.fromEntries(Object.entries(ALL_ON).map(([key, value]) => [key, typeof value === 'boolean' ? false : 'lean'])) as EffectiveFlagsEnv;
+const ALL_OFF = Object.fromEntries(
+  Object.entries(ALL_ON).map(([key, value]) => [key, typeof value === 'boolean' ? false : typeof value === 'number' ? 0 : key === 'POLISH_DEFAULT_EDITS' ? 'lean' : value]),
+) as EffectiveFlagsEnv;
 
 const run = (style: EditStyleId, env: EffectiveFlagsEnv = ALL_ON, extra: Partial<Parameters<typeof resolveStyleRun>[0]> = {}) =>
   resolveStyleRun({style, engineFlags: true, envProfile: 'polish', env, envGeminiMaxRequests: 0, ...extra});
@@ -60,9 +66,19 @@ describe('style -> EffectiveFlags (engine flags on)', () => {
     }
   });
 
-  it('the Skill A tools and the polish edit default still come from env (styles do not change classic polish craft)', () => {
-    expect(run('kinetic_typography', ALL_ON).flags).toMatchObject({voCutGrammar: true, impactFx: true, polishDefaultEdits: 'all'});
-    expect(run('kinetic_typography', ALL_OFF).flags).toMatchObject({voCutGrammar: false, impactFx: false, polishDefaultEdits: 'lean'});
+  it('Kinetic and Explainer resolve to the SAME output settings whatever the server env says (registry pins = today\'s defaults)', () => {
+    const PINNED = {
+      polishDefaultEdits: 'lean', voCutGrammar: true, bareCaptions: true, accumulateCaptions: true, impactFx: true, thSkillATools: true, editorialStills: true,
+      northStar: false, directorV2: false, visualContextV2: false, occupancyContextV2: false, contentProfile: true, hookTitlePolicy: 'placeholder', hookDurationSec: 3,
+      zoomScale: 1.25, zoomMaxDurationSec: 6, cutawayScheduling: 'legacy', generatedTransitions: false, klipyOverlays: false, forceSpeakerCutout: false, deliveryLlmEmphasis: false,
+    };
+    for (const style of ['kinetic_typography', 'explainer'] as const) {
+      const a = run(style, ALL_ON).flags;
+      const b = run(style, ALL_OFF).flags;
+      expect(a).toEqual(b); // every field: nothing of the env leaks into a polish style
+      expect(a).toMatchObject(PINNED);
+      expect(EDIT_STYLES[style].pins).toEqual(PINNED);
+    }
   });
 
   it('a style never shares a cache-key fragment with another style or with an unstyled job', () => {
@@ -134,17 +150,33 @@ describe('styleOutcome: degraded only on a real fallback', () => {
     styleOutcome({run: extra.runOverride ?? run(style), warnings, refusedLabels: extra.refusedLabels ?? [], matteConfigured: extra.matteConfigured ?? true});
 
   it('fully honoured: false, no reasons', () => {
-    expect(outcome('ai_clean_cut', ['cuts_keep_plan:applied'])).toEqual({degraded: false, degradedReasons: []});
-    expect(outcome('kinetic_typography', ['polish_kinetic_led:on', 'kinetic_type:matte:segmentation:12s:2_ranges:rvm', 'kinetic_type:foreground:2_spans'])).toEqual({degraded: false, degradedReasons: []});
-    expect(outcome('explainer', ['polish_kinetic_led:off'])).toEqual({degraded: false, degradedReasons: []});
+    expect(outcome('ai_clean_cut', ['cuts_keep_plan:applied'])).toEqual({degraded: false, degradedReasons: [], styleNotes: []});
+    expect(outcome('kinetic_typography', ['polish_kinetic_led:on', 'kinetic_type:matte:segmentation:12s:2_ranges:rvm', 'kinetic_type:foreground:2_spans'])).toEqual({degraded: false, degradedReasons: [], styleNotes: []});
+    expect(outcome('explainer', ['polish_kinetic_led:off'])).toEqual({degraded: false, degradedReasons: [], styleNotes: []});
     // a matte backend exists but no beat wanted one: nothing fell back
-    expect(outcome('kinetic_typography', ['polish_kinetic_led:on'], {matteConfigured: true})).toEqual({degraded: false, degradedReasons: []});
+    expect(outcome('kinetic_typography', ['polish_kinetic_led:on'], {matteConfigured: true})).toEqual({degraded: false, degradedReasons: [], styleNotes: []});
   });
 
-  it('Kinetic with no matte backend (no RVM): front-only, degraded with a reason; a matte that was skipped names why', () => {
-    expect(outcome('kinetic_typography', ['polish_kinetic_led:on'], {matteConfigured: false})).toEqual({degraded: true, degradedReasons: ['kinetic_front_only:no_matte']});
-    expect(outcome('kinetic_typography', ['kinetic_type:matte:skipped:busy'])).toEqual({degraded: true, degradedReasons: ['kinetic_front_only:busy']});
-    expect(outcome('kinetic_typography', ['kinetic_type:matte:skipped:upload_failed']).degradedReasons).toEqual(['kinetic_front_only:upload_failed']);
+  it('Kinetic (matte optional) with no matte: front-only counts as HONOURED, recorded as a non-degrading note naming why', () => {
+    expect(EDIT_STYLES.kinetic_typography.matte).toBe('optional');
+    expect(outcome('kinetic_typography', ['polish_kinetic_led:on'], {matteConfigured: false})).toEqual({degraded: false, degradedReasons: [], styleNotes: ['matte_unavailable:no_matte']});
+    expect(outcome('kinetic_typography', ['kinetic_type:matte:skipped:busy'])).toEqual({degraded: false, degradedReasons: [], styleNotes: ['matte_unavailable:busy']});
+    expect(outcome('kinetic_typography', ['kinetic_type:matte:skipped:upload_failed']).styleNotes).toEqual(['matte_unavailable:upload_failed']);
+    // a real fallback next to it still degrades
+    expect(outcome('kinetic_typography', ['craft_templates:beats:2', 'craft_templates:publish_failed:2'], {matteConfigured: false})).toEqual({
+      degraded: true, degradedReasons: ['kinetic_type_unpublished'], styleNotes: ['matte_unavailable:no_matte'],
+    });
+  });
+
+  it('a style with matte: required degrades without a matte (kinetic_front_only:<why>)', () => {
+    const original = EDIT_STYLES.kinetic_typography.matte;
+    (EDIT_STYLES.kinetic_typography as {matte?: string}).matte = 'required';
+    try {
+      expect(outcome('kinetic_typography', ['polish_kinetic_led:on'], {matteConfigured: false})).toEqual({degraded: true, degradedReasons: ['kinetic_front_only:no_matte'], styleNotes: []});
+      expect(outcome('kinetic_typography', ['kinetic_type:matte:skipped:busy']).degradedReasons).toEqual(['kinetic_front_only:busy']);
+    } finally {
+      (EDIT_STYLES.kinetic_typography as {matte?: string}).matte = original;
+    }
   });
 
   it('stage failures and skips', () => {
@@ -169,9 +201,6 @@ describe('styleOutcome: degraded only on a real fallback', () => {
 
   it('engine flags off: only engine_flags_off (style-specific checks do not apply to a style that did not run)', () => {
     const offRun = resolveStyleRun({style: 'kinetic_typography', engineFlags: false, envProfile: 'cuts', env: ALL_ON, envGeminiMaxRequests: 0});
-    expect(outcome('kinetic_typography', ['kinetic_type:matte:skipped:busy'], {runOverride: offRun, refusedLabels: ['content profile'], matteConfigured: false})).toEqual({
-      degraded: true,
-      degradedReasons: ['engine_flags_off'],
-    });
+    expect(outcome('kinetic_typography', ['kinetic_type:matte:skipped:busy'], {runOverride: offRun, refusedLabels: ['content profile'], matteConfigured: false})).toEqual({degraded: true, degradedReasons: ['engine_flags_off'], styleNotes: []});
   });
 });

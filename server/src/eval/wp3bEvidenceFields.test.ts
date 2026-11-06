@@ -178,7 +178,7 @@ describe('legacy blueprints keep their shape (source text; the wired modules imp
   const planner = read(SRC, 'stages', 'broll', 'brollPlanner.ts');
   const av = read(SRC, 'pipeline', 'analyzeVideo.ts');
   it('the planner records evidence only under the creator-B-roll-only contract, from the gate\'s own function and the live policy', () => {
-    expect(planner).toContain('...(input.userBrollOnly\n      ? {evidence: {version: 1 as const, plannerMinGapSec: cutawayMinGapSec(cutawayListMode), plannerMinGapAppliesTo: \'cutaway_clips\' as const, hookTitlePolicy: env.HOOK_TITLE_POLICY}}\n      : {}),');
+    expect(planner).toContain('...(input.userBrollOnly\n      ? {evidence: {version: 1 as const, plannerMinGapSec: cutawayMinGapSec(cutawayListMode), plannerMinGapAppliesTo: \'cutaway_clips\' as const, hookTitlePolicy: jobFlag(\'hookTitlePolicy\', env.HOOK_TITLE_POLICY)}}\n      : {}),'); // the job's setting (EffectiveFlags), env outside a job
     expect(planner).toContain('const cutawayListMode = listBeatsFromTranscript(input.transcript).length >= 2;');
     expect(planner).toContain('listMode: cutawayListMode,');
     expect(planner.match(/listBeatsFromTranscript\(input\.transcript\)\.length >= 2/g)?.length).toBe(2); // the const, and the unchanged scheduler argument

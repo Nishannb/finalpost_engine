@@ -243,7 +243,7 @@ export async function startAnalysis(input: {
 function styleOutcomeFor(run: StyleRun, blueprint: {stats?: {warnings?: string[]}}, refusedLabels: string[], storedReasons: string[] = []) {
   const outcome = styleOutcome({run, warnings: blueprint.stats?.warnings ?? [], refusedLabels, matteConfigured: subjectMatteConfigured()});
   const degradedReasons = [...new Set([...outcome.degradedReasons, ...(run.engineFlags ? storedReasons : [])])];
-  return {degraded: degradedReasons.length > 0, degradedReasons};
+  return {degraded: degradedReasons.length > 0, degradedReasons, styleNotes: outcome.styleNotes};
 }
 
 /** The Gemini budget of one job: a styled job (engine flags on) gets its style's cap and plan; everything else the env cap exactly as before. */

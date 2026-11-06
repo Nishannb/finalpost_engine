@@ -240,7 +240,7 @@ describe('wiring (source text)', () => {
     expect(analyze).toContain('const visualDirectorV2 = directorV2 || polishPath;');
     expect(analyze).toContain('directorV2: visualDirectorV2,\n        editLooks: polishPath,');
     expect(analyze).toContain('alreadyOutput: visualDirectorV2,');
-    expect(analyze).toContain('env.VISUAL_CONTEXT_V2 && !visualDirectorV2');
+    expect(analyze).toContain('flags.visualContextV2 && !visualDirectorV2'); // the job's EffectiveFlags (env unless a style pins it)
     expect(analyze.match(/editLooks:/g)).toHaveLength(1);
     // the LLM delivery direction still reads the plain switch
     expect(analyze).toContain('const direction = directorV2\n');

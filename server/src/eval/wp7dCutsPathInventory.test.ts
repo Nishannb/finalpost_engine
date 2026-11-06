@@ -45,7 +45,7 @@ describe('cuts path: what must not run', () => {
     expect(captionsBranch).toContain('captionsOnlyVisualPlan(');
   });
   it('the content profile, the Director video proxy and the motion stage need a visual or graphics switch that cuts turns off', () => {
-    expect(analyze).toContain('if (env.CONTENT_PROFILE_ENABLED && (visualEditsOn || motionGraphicsOn)) {');
+    expect(analyze).toContain('if (flags.contentProfile && (visualEditsOn || motionGraphicsOn)) {'); // the job's EffectiveFlags (env unless a style pins it)
     expect(analyze).toContain('if (input.directorVideoInput && (visualEditsOn || motionGraphicsOn)) {');
     expect(analyze).toContain('if (motionGraphicsOn) {');
   });

@@ -192,8 +192,9 @@ describe.skipIf(!ENABLED)('edit styles through the real pipeline (models stubbed
     expect(r.warnings.some(warning => warning.startsWith('kinetic_led:budget:'))).toBe(true); // the Kinetic-Led planner ran
     expect(r.warnings.some(warning => warning.startsWith('craft_templates:beats:'))).toBe(true); // and planned kinetic beats
     expect(r.warnings).not.toContain('gemini_edit_budget_unconfigured'); // the style's cap is in force
-    expect(r.job.degraded).toBe(true);
-    expect(r.job.degradedReasons).toContain('kinetic_front_only:no_matte');
+    // front-only (no RVM here) is honoured for Kinetic (matte optional): a note, not a degradation
+    expect(r.job.styleNotes).toEqual(['matte_unavailable:no_matte']);
+    expect(r.job.degradedReasons!.some(reason => reason.startsWith('kinetic_front_only'))).toBe(false);
     // Offline the beats cannot be published (no Remotion runtime check / R2 upload here), and the outcome says so instead of claiming the style
     if (r.warnings.some(warning => warning.startsWith('craft_templates:publish_failed:')) && !r.warnings.some(warning => warning.startsWith('craft_templates:published:'))) {
       expect(r.job.degradedReasons).toContain('kinetic_type_unpublished');

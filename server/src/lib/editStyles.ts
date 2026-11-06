@@ -12,6 +12,8 @@
  * Faceless Documentary and Newsroom are deliberately NOT in this registry: they are not exposed in v1.
  */
 
+import type {EffectiveFlags} from './effectiveFlags.ts';
+
 export const EDIT_STYLE_IDS = ['basic_captions', 'ai_clean_cut', 'kinetic_typography', 'explainer'] as const;
 export type EditStyleId = (typeof EDIT_STYLE_IDS)[number];
 export type EditStyleTier = 'free' | 'pro';
@@ -38,6 +40,43 @@ export type EditStyleDefinition = {
    * reached, the stage that asked uses its own fallback and the job continues (`gemini_cap_reached:<stage>`).
    */
   geminiMaxRequests: number;
+  /**
+   * Whether the style needs a person matte (RVM) to count as honoured. `optional`: without one the style still counts as honoured (front-only
+   * Kinetic) and the job records a non-degrading note `matte_unavailable:<why>` in `styleNotes`. `required`: no matte = degraded. Absent = not used.
+   */
+  matte?: 'optional' | 'required';
+  /**
+   * Output settings this style fixes whatever the server env says, so a style looks the same on every server (lib/styleRun.ts applies them on top of
+   * the env defaults; the style's own essentials, e.g. Kinetic-Led on, win over them). Speech-cut tuning and deployment settings stay on env.
+   */
+  pins?: Partial<EffectiveFlags>;
+};
+
+/**
+ * Baseline pins for the polish styles (Checkpoint 3 verification baseline; tune per style after the renders). Each value is today's env default.
+ */
+export const POLISH_STYLE_PINS: Partial<EffectiveFlags> = {
+  polishDefaultEdits: 'lean',
+  voCutGrammar: true,
+  bareCaptions: true,
+  accumulateCaptions: true,
+  impactFx: true,
+  thSkillATools: true,
+  editorialStills: true,
+  northStar: false,
+  directorV2: false,
+  visualContextV2: false,
+  occupancyContextV2: false,
+  contentProfile: true,
+  hookTitlePolicy: 'placeholder',
+  hookDurationSec: 3,
+  zoomScale: 1.25,
+  zoomMaxDurationSec: 6,
+  cutawayScheduling: 'legacy',
+  generatedTransitions: false,
+  klipyOverlays: false,
+  forceSpeakerCutout: false,
+  deliveryLlmEmphasis: false,
 };
 
 export const EDIT_STYLES: Readonly<Record<EditStyleId, EditStyleDefinition>> = {
@@ -77,6 +116,8 @@ export const EDIT_STYLES: Readonly<Record<EditStyleId, EditStyleDefinition>> = {
     needsEngineFlags: true,
     degradesTo: 'ai_clean_cut',
     geminiMaxRequests: 12, // the polish plan reserves 6 (keep plan, story, creative, motion director, occupancy, content profile); the rest covers perception, repairs, retries
+    matte: 'optional', // front-only kinetic type is the shipped baseline while RVM is not on the server
+    pins: POLISH_STYLE_PINS,
   },
   explainer: {
     id: 'explainer',
@@ -90,6 +131,7 @@ export const EDIT_STYLES: Readonly<Record<EditStyleId, EditStyleDefinition>> = {
     needsEngineFlags: true,
     degradesTo: 'ai_clean_cut',
     geminiMaxRequests: 12, // the polish plan reserves 6 (keep plan, story, creative, motion director, occupancy, content profile); the rest covers perception, repairs, retries
+    pins: POLISH_STYLE_PINS,
   },
 };
 
@@ -159,7 +201,8 @@ export function buildEditStyleCatalog(input: {config: Pick<EditStyleConfig, 'ava
  * Why a job does not fully look like the style the creator picked. `degraded` is false when the style was fully honoured and true only on a real
  * fallback; the reasons say which (never silent). Known reasons:
  *   engine_flags_off                  EDIT_STYLES_ENGINE_FLAGS is off: the style ran as its `degradesTo` (Phase 1 behaviour)
- *   kinetic_front_only:<why>          Kinetic Typography without a person matte: type planned in front of the speaker only (why: no_matte, or the matte's skip reason)
+ *   kinetic_front_only:<why>          a `matte: 'required'` Kinetic style without a person matte: type in front of the speaker only (why: no_matte, or the skip reason).
+ *                                     With `matte: 'optional'` (the v1 Kinetic) this is NOT a degradation: it is recorded as the note `matte_unavailable:<why>`.
  *   kinetic_type_failed               the kinetic type stage failed; the edit keeps its cuts and captions
  *   kinetic_type_unpublished          kinetic beats were planned but none could be published (validation / runtime check / upload)
  *   motion_templates_unpublished      motion-template beats were planned but none could be published
@@ -168,7 +211,12 @@ export function buildEditStyleCatalog(input: {config: Pick<EditStyleConfig, 'ava
  *   motion_templates_failed           the motion template stage failed; nothing from it was placed
  *   gemini_cap_reached:<stage>        the style's Gemini cap refused that stage; it used its own fallback
  */
-export type EditStyleOutcome = {degraded: boolean; degradedReasons: string[]};
+export type EditStyleOutcome = {
+  degraded: boolean;
+  degradedReasons: string[];
+  /** Non-degrading facts about how the style was produced (e.g. `matte_unavailable:no_matte` for front-only Kinetic). */
+  styleNotes: string[];
+};
 
 export const ENGINE_FLAGS_OFF_REASON = 'engine_flags_off';
 
@@ -202,6 +250,7 @@ export function resolveRequestedStyle(raw: unknown, config: EditStyleConfig): Re
     mode: def.mode,
     degraded: flagsOff,
     degradedReasons: flagsOff ? [ENGINE_FLAGS_OFF_REASON] : [],
+    styleNotes: [],
   };
 }
 

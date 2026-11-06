@@ -399,6 +399,7 @@ async function waitForAnalysis(
       if (job.style && analysis.style && typeof analysis.degraded === 'boolean') {
         job.degraded = analysis.degraded;
         job.degradedReasons = analysis.degradedReasons ?? [];
+        job.styleNotes = analysis.styleNotes ?? [];
       }
       job.progress = 0.52;
       job.updatedAt = new Date().toISOString();

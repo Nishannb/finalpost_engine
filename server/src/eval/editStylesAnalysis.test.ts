@@ -209,11 +209,27 @@ describe('hitting the Gemini cap mid-run never fails the job', () => {
     expect(second).toMatchObject({style: 'ai_clean_cut', degraded: true, degradedReasons: ['gemini_cap_reached:keep_plan']});
   });
 
-  it('Kinetic with no matte backend (no RVM) completes front-only, degraded with a reason', async () => {
+  it('Kinetic with no matte backend (no RVM) completes front-only: honoured (matte optional), with the note', async () => {
     state.matteConfigured = false;
     state.behave = async () => ['polish_kinetic_led:on'];
     const done = await finished(await analyze('kinetic_typography'));
-    expect(done).toMatchObject({status: 'done', degraded: true, degradedReasons: ['kinetic_front_only:no_matte']});
+    expect(done).toMatchObject({status: 'done', degraded: false, degradedReasons: [], styleNotes: ['matte_unavailable:no_matte']});
+  });
+
+  it('the job flags reach stages below analyzeVideo (per job, not env): a pinned setting is what the stage reads', async () => {
+    const {jobFlag} = await import('../lib/effectiveFlags.ts');
+    Object.assign(state.env, {HOOK_TITLE_POLICY: 'optional', KLIPY_OVERLAYS_ENABLED: true});
+    const seen: unknown[] = [];
+    state.behave = async () => {
+      seen.push(jobFlag('hookTitlePolicy', 'optional'), jobFlag('klipyOverlays', true));
+      return [];
+    };
+    // the stand-in analyzeVideo is not the real one, so put the job's flags in scope the way the real one does
+    const {withJobFlags} = await import('../lib/effectiveFlags.ts');
+    const realBehave = state.behave;
+    state.behave = async input => withJobFlags(input.effectiveFlags as never, () => realBehave(input));
+    await finished(await analyze('kinetic_typography'));
+    expect(seen).toEqual(['placeholder', false]);
   });
 });
 

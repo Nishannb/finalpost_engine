@@ -8,6 +8,7 @@
  */
 
 import {env} from '../../config/env.ts';
+import {jobFlag} from '../../lib/effectiveFlags.ts';
 import {EditLedger} from '../../lib/editLedger.ts';
 import {
   LEDGER_ID,
@@ -283,7 +284,7 @@ export async function planBRoll(input: {
     warnings.push('user_broll_only:north_star_ignored');
   }
   const hookDurationSec = Math.min(
-    Math.max(2.6, env.HOOK_DURATION_SEC),
+    Math.max(2.6, jobFlag('hookDurationSec', env.HOOK_DURATION_SEC)),
     Math.max(2.6, input.timeline.outputDurationSec * 0.28),
   );
 
@@ -297,7 +298,7 @@ export async function planBRoll(input: {
       hookTitle: fallback.hookTitle,
       hookSubtitle: '',
       hookStyle: fallback.hookStyle,
-      hookDurationSec: env.HOOK_TITLE_POLICY === 'optional' && !fallback.hookTitle ? 0 : hookDurationSec,
+      hookDurationSec: jobFlag('hookTitlePolicy', env.HOOK_TITLE_POLICY) === 'optional' && !fallback.hookTitle ? 0 : hookDurationSec,
       caption: fallback.caption,
       suggestedLutIds: fallback.suggestedLutIds,
       preferredLutId: fallback.preferredLutId,
@@ -690,7 +691,7 @@ export async function planBRoll(input: {
   let cutawaySchedule: ScheduleDecision[] | undefined;
   let scheduleAdjusted = 0;
   const spacedClips =
-    env.CUTAWAY_SCHEDULING === 'beat_preserving'
+    jobFlag('cutawayScheduling', env.CUTAWAY_SCHEDULING) === 'beat_preserving'
       ? (() => {
           const byId = new Map<string, BRollClip>();
           const decisions = scheduleCutaways(
@@ -990,7 +991,7 @@ export async function planBRoll(input: {
 
   const hookTitle = direction.hookTitle?.trim() || '';
   // optional policy + no title: there is no hook element, so it has no time window either (nothing downstream may reserve one).
-  const noHook = env.HOOK_TITLE_POLICY === 'optional' && !hookTitle;
+  const noHook = jobFlag('hookTitlePolicy', env.HOOK_TITLE_POLICY) === 'optional' && !hookTitle;
   const hookStartSec = noHook ? 0 : round(
     Math.max(0, direction.hookStartSec ?? 0),
   );
@@ -1040,7 +1041,7 @@ export async function planBRoll(input: {
     depthOverlays: depthOut,
     insetReveals: insetRevealsFinal,
     ...(direction.kineticType ? {kineticTypeDirected: direction.kineticType} : {}),
-    transitions: env.GENERATED_TRANSITIONS_ENABLED ? transitionsFinal.map(transition => (transition.assetUrl ? transition : {...transition, renderGenerated: true})) : transitionsFinal,
+    transitions: jobFlag('generatedTransitions', env.GENERATED_TRANSITIONS_ENABLED) ? transitionsFinal.map(transition => (transition.assetUrl ? transition : {...transition, renderGenerated: true})) : transitionsFinal,
     motionGraphics: remapMotionGraphics(
       direction.motionGraphics ?? [],
       input.timeline,
@@ -1069,7 +1070,7 @@ export async function planBRoll(input: {
     ...(cutawaySchedule ? {cutawaySchedule} : {}),
     // WP3B: recording only, and only under the creator-B-roll-only (mvp) contract: the gap the gate enforced and the hook policy in effect.
     ...(input.userBrollOnly
-      ? {evidence: {version: 1 as const, plannerMinGapSec: cutawayMinGapSec(cutawayListMode), plannerMinGapAppliesTo: 'cutaway_clips' as const, hookTitlePolicy: env.HOOK_TITLE_POLICY}}
+      ? {evidence: {version: 1 as const, plannerMinGapSec: cutawayMinGapSec(cutawayListMode), plannerMinGapAppliesTo: 'cutaway_clips' as const, hookTitlePolicy: jobFlag('hookTitlePolicy', env.HOOK_TITLE_POLICY)}}
       : {}),
     ...(input.visualContext || northStarPack?.visualContext ? {visualContext: input.visualContext ?? northStarPack?.visualContext} : {}),
     estimatedCostUsd,
