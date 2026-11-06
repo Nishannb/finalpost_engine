@@ -1,5 +1,11 @@
 # Edit styles: Checkpoint 3 verification plan (paid; NOT run yet)
 
+Status: approved; waiting for the three recorded clips. Harness built (`server/src/scripts/styleVerify.ts`), not run.
+
+Decisions taken: the pins in `lib/editStyles.ts POLISH_STYLE_PINS` are the verification baseline (tunable per style after the renders);
+speech-cut tuning stays on env; front-only Kinetic counts as honoured (`matte: 'optional'`, note `matte_unavailable:<why>` in
+`styleNotes`); RVM on the droplet is out of scope for v1.
+
 Goal: prove Kinetic Typography and Explainer look right in REAL renders (models live, templates published, matte real) before they
 are added to `EDIT_STYLES_AVAILABLE`, with AI Clean Cut as the control. Nothing in this plan runs until it is approved.
 
@@ -29,9 +35,14 @@ Configuration for the runs (a separate env file, `.env.verify`, never the prod `
 | `RVM_DEVICE` | mps | |
 | Keys | `GEMINI_API_KEY`, `GROQ_API_KEY` (live); Pexels / Pixabay optional (free; with them Explainer places stock stills, without them text plates) | |
 
-Harness: a new script `server/src/scripts/styleVerify.ts` (written after approval, reviewed before it runs). Per run it calls
-`startAnalysis` with `useCache: false` (the RVM and no-RVM Kinetic runs share a cache key), renders locally, and writes the output
-folder (§5). It refuses to start unless `R2_BUCKET_NAME` is the verify bucket and the Lambda variables are empty.
+Harness: `server/src/scripts/styleVerify.ts`. Per run it uploads the clip to the verify bucket, calls `startAnalysis` with
+`useCache: false` (the RVM and no-RVM Kinetic runs share a cache key), renders locally (`LOCAL_RENDER_SKIP_R2=1`), counts every outbound
+request through the run observer, and writes the output folder (§5). Default is a dry run (guards + plan, no network); `--approved` runs.
+It refuses to start if: any `.env` that `config/env.ts` loads with `override:true` exists (they would replace the verify settings, so the
+worktree `.env` must be moved aside), `R2_BUCKET_NAME` is not `--bucket` or the name lacks verify / staging / test, the Lambda variables or
+`ANTHROPIC_API_KEY` / `RUNWARE_API_KEY` are set, `MUSIC_SPECIALIST` is not off, `EDIT_STYLES_ENGINE_FLAGS` != 1, `PRODUCT_EDIT_PROFILE` != polish,
+or a clip is missing audio / outside 20-75 s. While running it stops at `--max-gemini` (180) and aborts on any request to a host other
+than Gemini, Groq, Pexels, Pixabay or R2.
 
 ## 2. Fixtures (30-60 s, vertical 9:16, real speech)
 
@@ -130,14 +141,13 @@ What production needs:
   expect CPU inference slower than the Mac's mps figure and the same full-timeline encode cost: many minutes per clip, inside an analysis
   slot (`MAX_CONCURRENT_ANALYSES = 2`) and under `MATTING_TIMEOUT_SEC = 900`. One command on the droplet gives the real number
   (`nproc; free -h`), and a 10 s benchmark there would settle it.
-- **Fix before relying on it**: encode only the matted ranges (or stop refining frames outside them). That is the dominant cost and an
-  easy win, independent of CPU vs GPU.
+- **Future task (not v1)**: encode only the matted ranges (or stop refining frames outside them). That is the dominant cost and an
+  easy win, independent of CPU vs GPU. RVM on the droplet is out of scope for v1.
 
 **Is front-only Kinetic good enough to ship while RVM is pending?** My view: yes, if CP3's no-RVM renders pass the §4 checks
 (readable, never over the face, timing locked). Behind-the-person type is the signature shot, but front-only hero type is still a
 distinct, polished style. Two consequences to decide:
-1. Every Kinetic job will report `degraded: true` (`kinetic_front_only:no_matte`) until RVM exists. If front-only is the shipped product,
-   I suggest treating it as honoured (a registry setting such as `matte: 'optional'`) so `degraded` keeps meaning "something went wrong".
+1. DONE: front-only counts as honoured (`matte: 'optional'` on Kinetic); no matte is the note `matte_unavailable:<why>` in `styleNotes`.
 2. Template publishing in the production image (§1) must be fixed either way: add the Remotion project and Chrome's system libraries to
    the image (simplest; larger image), or publish library templates without the per-beat still check (they are curated and covered by
    repo tests; smaller image, less runtime validation). This is needed for Kinetic AND Explainer, RVM or not.
