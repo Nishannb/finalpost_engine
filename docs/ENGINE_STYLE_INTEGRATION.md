@@ -16,7 +16,7 @@ pure). Tests: `src/lib/editStyles.test.ts`, `src/lib/styleRun.test.ts`, `src/eva
 | id | tier | job `mode` | needs engine flags | Gemini cap | registry `available` |
 |---|---|---|---|---|---|
 | `basic_captions` | free | `basic_captions` | no | 0 | true |
-| `ai_clean_cut` | pro | `full_edit` | no (flags off: the server profile, see §3) | 3 | true |
+| `ai_clean_cut` | pro | `full_edit` | no; always the `cuts` profile, flags on or off | 3 | true |
 | `kinetic_typography` | pro | `full_edit` | **yes**; flags off = runs as `ai_clean_cut` | 12 | **false** |
 | `explainer` | pro | `full_edit` | **yes**; flags off = runs as `ai_clean_cut` | 12 | **false** |
 
@@ -194,7 +194,7 @@ Kill switches:
 - Engine: `EDIT_STYLES_AVAILABLE` / `EDIT_STYLES_ORDER` change availability and order without a release.
 - Engine: `EDIT_STYLES_ENGINE_FLAGS` (Phase 2, default **off**). Off = styled jobs run exactly as in Phase 1 (the server profile and env
   flags and Gemini cap, no style in the cache key; Kinetic / Explainer as `ai_clean_cut`, `degraded` with `engine_flags_off`), so the
-  per-style resolution can be turned off without hiding the picker. Requests with no style are unaffected either way.
+  per-style resolution can be turned off without hiding the picker. AI Clean Cut (and Kinetic / Explainer falling back to it) is the `cuts` profile in both modes. Requests with no style are unaffected either way.
 - App: none needed. It follows the engine (404 → fallback); a picker regression is fixed by turning the engine switch off.
 
 Order for Phase 2: deploy the engine with `EDIT_STYLES_ENGINE_FLAGS=0`, then turn it on, verify (Checkpoint 3), then add the style to

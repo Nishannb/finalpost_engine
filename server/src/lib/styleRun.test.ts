@@ -102,13 +102,16 @@ describe('per-style Gemini cap (never uncapped)', () => {
 
 describe('the engine kill switch (EDIT_STYLES_ENGINE_FLAGS off): exactly the Phase 1 behaviour', () => {
   const off = (style: EditStyleId, envProfile: 'cuts' | 'polish' = 'cuts') => resolveStyleRun({style, engineFlags: false, envProfile, env: ALL_ON, envGeminiMaxRequests: 0});
-  it('env profile, env flags, env Gemini cap, no style in the cache key', () => {
-    for (const style of EDIT_STYLE_IDS) {
-      const r = off(style);
-      expect(r.profile).toBe('cuts');
-      expect(r.flags).toEqual(effectiveFlagsFromEnv(ALL_ON, 'cuts'));
-      expect(r.geminiMaxRequests).toBeUndefined();
-      expect(r.styleKey).toBe('');
+  it('env flags, env Gemini cap, no style in the cache key; Clean Cut (and what falls back to it) is cuts even on a polish server', () => {
+    for (const envProfile of ['cuts', 'polish'] as const) {
+      for (const style of EDIT_STYLE_IDS) {
+        const r = off(style, envProfile);
+        const expected = style === 'basic_captions' ? envProfile : 'cuts';
+        expect({style, profile: r.profile}).toEqual({style, profile: expected});
+        expect(r.flags).toEqual(effectiveFlagsFromEnv(ALL_ON, expected));
+        expect(r.geminiMaxRequests).toBeUndefined();
+        expect(r.styleKey).toBe('');
+      }
     }
   });
   it('Kinetic / Explainer run as AI Clean Cut, degraded `engine_flags_off`; Basic and (on a cuts server) Clean Cut are honoured', () => {
@@ -116,7 +119,7 @@ describe('the engine kill switch (EDIT_STYLES_ENGINE_FLAGS off): exactly the Pha
     expect(off('explainer')).toMatchObject({styleApplied: 'ai_clean_cut', plannedReasons: ['engine_flags_off']});
     expect(off('basic_captions')).toMatchObject({styleApplied: 'basic_captions', plannedReasons: []});
     expect(off('ai_clean_cut')).toMatchObject({styleApplied: 'ai_clean_cut', plannedReasons: []});
-    expect(off('ai_clean_cut', 'polish').plannedReasons).toEqual(['engine_flags_off']); // not pinned: a polish server would not give a Clean Cut
+    expect(off('ai_clean_cut', 'polish')).toMatchObject({profile: 'cuts', plannedReasons: []}); // locked: a polish server still gives a Clean Cut
   });
   it('the route marks the request the same way', () => {
     const config = {enabled: true, availableOverride: 'basic_captions,ai_clean_cut,kinetic_typography,explainer', orderOverride: ''};

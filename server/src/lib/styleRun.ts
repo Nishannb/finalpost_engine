@@ -5,8 +5,8 @@
  *   styleOutcome      after the run: did the pipeline fully honour the style? (`degraded` + reasons, never silent)
  *
  * Requests with no style never come here (startAnalysis keeps its env-derived flags, cache key and Gemini budget byte for byte).
- * With the engine kill switch EDIT_STYLES_ENGINE_FLAGS off, a styled job is resolved exactly as in Phase 1 (env profile, env flags, env Gemini
- * cap, no style in the cache key) and only the outcome says so (`engine_flags_off`).
+ * With the engine kill switch EDIT_STYLES_ENGINE_FLAGS off, a styled job is resolved as in Phase 1 (env flags, env Gemini cap, no style in the
+ * cache key; Kinetic / Explainer run as AI Clean Cut and say so with `engine_flags_off`). AI Clean Cut is the `cuts` profile in BOTH modes.
  *
  * Styled jobs, whatever the env says: Faceless Documentary and Newsroom are pinned OFF (not exposed), the Subject Stage is off (it would make
  * Kinetic-Led yield), the WP53 visual backends are off, and motion graphics are LIBRARY ONLY (no Claude call).
@@ -84,17 +84,18 @@ export function resolveStyleRun(input: {
 }): StyleRun {
   const def = EDIT_STYLES[input.style];
   if (!input.engineFlags) {
-    // Phase 1 behaviour: the mode on the server profile; a style that needs the flags runs as its `degradesTo`. Clean Cut is only honoured if the server profile happens to be `cuts`.
+    // Phase 1 behaviour (env flags, env Gemini cap, no style in the key), except that AI Clean Cut is ALWAYS the `cuts` profile, whatever
+    // PRODUCT_EDIT_PROFILE says: also when Kinetic / Explainer fall back to it. Basic Captions keeps its own legacy path (analysisRunner).
     const appliedAs = def.needsEngineFlags ? def.degradesTo ?? 'ai_clean_cut' : input.style;
-    const honoured = !def.needsEngineFlags && (input.style !== 'ai_clean_cut' || input.envProfile === 'cuts');
+    const profile: ProductEditProfile = appliedAs === 'ai_clean_cut' ? 'cuts' : input.envProfile;
     return {
       style: input.style,
       engineFlags: false,
       styleApplied: appliedAs,
-      profile: input.envProfile,
-      flags: effectiveFlagsFromEnv(input.env, input.envProfile),
+      profile,
+      flags: effectiveFlagsFromEnv(input.env, profile),
       styleKey: '',
-      plannedReasons: honoured ? [] : [ENGINE_FLAGS_OFF_REASON],
+      plannedReasons: def.needsEngineFlags ? [ENGINE_FLAGS_OFF_REASON] : [],
     };
   }
   const {profile, flags} = styledFlags(input.style, input.env);

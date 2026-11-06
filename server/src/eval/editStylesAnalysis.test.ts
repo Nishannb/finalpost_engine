@@ -151,6 +151,23 @@ describe('each style resolves its own flags and Gemini cap (engine flags on, eve
   });
 });
 
+describe('AI Clean Cut is the cuts profile no matter what (PRODUCT_EDIT_PROFILE=polish, engine flags on AND off)', () => {
+  it.each([true, false])('EDIT_STYLES_ENGINE_FLAGS=%s', async engineFlags => {
+    Object.assign(state.env, SERVER_WIDE_ON, {PRODUCT_EDIT_PROFILE: 'polish', EDIT_STYLES_ENGINE_FLAGS: engineFlags});
+    const done = await finished(await analyze('ai_clean_cut'));
+    const {input} = state.calls[0]!;
+    expect(input.editProfile).toBe('cuts');
+    expect((input.effectiveFlags as {profile: string}).profile).toBe('cuts');
+    expect(done).toMatchObject({editProfile: 'cuts', style: 'ai_clean_cut', styleApplied: 'ai_clean_cut', degraded: false, degradedReasons: []});
+  });
+  it('a Kinetic job falling back to Clean Cut (flags off) is cuts too, on a polish server', async () => {
+    Object.assign(state.env, {PRODUCT_EDIT_PROFILE: 'polish', EDIT_STYLES_ENGINE_FLAGS: false});
+    const done = await finished(await analyze('kinetic_typography'));
+    expect(state.calls[0]!.input.editProfile).toBe('cuts');
+    expect(done).toMatchObject({styleApplied: 'ai_clean_cut', degraded: true, degradedReasons: ['engine_flags_off']});
+  });
+});
+
 describe('the engine kill switch off: Phase 1 behaviour', () => {
   it('Kinetic runs on the env profile and env flags with the env budget, degraded engine_flags_off', async () => {
     Object.assign(state.env, {EDIT_STYLES_ENGINE_FLAGS: false, PRODUCT_EDIT_PROFILE: 'cuts', POLISH_FACELESS_DOC: true});
