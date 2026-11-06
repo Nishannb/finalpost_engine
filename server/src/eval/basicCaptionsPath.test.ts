@@ -86,8 +86,8 @@ describe('B: the free path is gated in the analysis code (source pins)', () => {
     }
     // The gate sits before the profile switches are derived from the input.
     expect(analyze.indexOf('if (input.basicCaptions) {')).toBeLessThan(analyze.indexOf('const speechCutsOn ='));
-    expect(analyze).toContain('const northStar = !basicCaptions && Boolean(input.northStar || env.NORTH_STAR);');
-    expect(analyze).toContain('const directorV2 = !basicCaptions && Boolean(input.directorV2 || env.DIRECTOR_V2 || northStar);');
+    expect(analyze).toContain('const northStar = !basicCaptions && Boolean(input.northStar || flags.northStar);'); // flags = the job's EffectiveFlags (env unless a style pins it)
+    expect(analyze).toContain('const directorV2 = !basicCaptions && Boolean(input.directorV2 || flags.directorV2 || northStar);');
   });
 
   it('legacy means no speech cuts, so the keep-plan, denoise and retake branches are never entered', () => {

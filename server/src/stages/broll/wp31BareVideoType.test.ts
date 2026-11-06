@@ -118,12 +118,12 @@ describe('WP31 3) wiring', () => {
   const analyze = read('../../pipeline/analyzeVideo.ts');
   it('analyzeVideo applies polishBareCaption on polish only, behind the env switch, skipping CaptionKit presets and designed style guides', () => {
     expect(analyze).toContain("import {polishBareCaption} from '../lib/polishBareCaption.ts';");
-    expect(analyze).toMatch(/if \(polishPath && env\.POLISH_BARE_CAPTIONS && !\(input\.captionPreset \|\| ''\)\.trim\(\) && !captionGuide\)/);
+    expect(analyze).toMatch(/if \(polishPath && flags\.bareCaptions && !\(input\.captionPreset \|\| ''\)\.trim\(\) && !captionGuide\)/);
     expect(analyze).toContain('polishBareCaption(broll.caption,');
   });
   it('the switch is NOT gated on motion graphics, creator B-roll or a missing caller template (the WP28 hole)', () => {
     const block = analyze.slice(analyze.indexOf('WP31: the one switch'), analyze.indexOf('WP13B: grade-flip face beats'));
-    expect(block).toContain('polishPath && env.POLISH_BARE_CAPTIONS');
+    expect(block).toContain('polishPath && flags.bareCaptions');
     expect(block).not.toMatch(/userBrollUrls/);
     expect(block).not.toMatch(/&& motion\b/);
   });

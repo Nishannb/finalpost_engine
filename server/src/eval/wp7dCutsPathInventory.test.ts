@@ -25,7 +25,7 @@ describe('cuts path: what must not run', () => {
   it('visual edits, motion graphics and delivery shaping are switched off by cutsPath', () => {
     expect(analyze).toContain("const cutsOnlyVisualsOff = input.editProfile === 'cuts';");
     expect(analyze).toContain('const visualEditsOn = !cutsOnlyVisualsOff && visualToolkitsRequested(requestedEdits);');
-    expect(analyze).toContain('const motionGraphicsRequested = !cutsOnlyVisualsOff && (input.generatedGraphicsEnabled ?? env.MOTION_GRAPHICS_ENABLED);');
+    expect(analyze).toContain('const motionGraphicsRequested = !cutsOnlyVisualsOff && (input.generatedGraphicsEnabled ?? flags.motionGraphics);');
     expect(analyze).toContain('const deliveryDenied = input.forceDeliveryShaping === false || cutsOnlyVisualsOff;');
     expect(analyze).toContain("warnings.push('delivery_shaping_skipped:cuts_profile');");
     expect(analyze).toContain('const captionsOnly = !visualEditsOn;');
@@ -45,7 +45,7 @@ describe('cuts path: what must not run', () => {
     expect(captionsBranch).toContain('captionsOnlyVisualPlan(');
   });
   it('the content profile, the Director video proxy and the motion stage need a visual or graphics switch that cuts turns off', () => {
-    expect(analyze).toContain('if (env.CONTENT_PROFILE_ENABLED && (visualEditsOn || motionGraphicsOn)) {');
+    expect(analyze).toContain('if (flags.contentProfile && (visualEditsOn || motionGraphicsOn)) {'); // the job's EffectiveFlags (env unless a style pins it)
     expect(analyze).toContain('if (input.directorVideoInput && (visualEditsOn || motionGraphicsOn)) {');
     expect(analyze).toContain('if (motionGraphicsOn) {');
   });

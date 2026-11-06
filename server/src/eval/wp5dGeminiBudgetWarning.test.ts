@@ -52,7 +52,8 @@ describe('the call site and what is not changed (source text)', () => {
   const budget = stripComments(read('lib', 'geminiEditBudget.ts'));
   it('analyzeVideo pushes it once, from the profile and the configured cap, only when non-null, right after the Claude-bound warning', () => {
     expect(analyze.match(/geminiBudgetUnconfiguredWarning\(/g)).toHaveLength(1);
-    expect(analyze).toContain('const geminiUncapped = geminiBudgetUnconfiguredWarning(input.editProfile, env.GEMINI_EDIT_MAX_REQUESTS);');
+    // Edit styles (Phase 2): a job already inside a budget (a style's own cap) is not "unconfigured"; with no budget in scope the reading is exactly the env one.
+    expect(analyze).toContain('const geminiUncapped = currentGeminiBudget() ? null : geminiBudgetUnconfiguredWarning(input.editProfile, env.GEMINI_EDIT_MAX_REQUESTS);');
     expect(analyze).toContain('if (geminiUncapped) {\n      warnings.push(geminiUncapped);\n    }');
     expect(analyze.indexOf('geminiBudgetUnconfiguredWarning(')).toBeGreaterThan(analyze.indexOf('warnings.push(`claude_graphics_disabled:${claudeBound.reason}`);'));
     expect(analyze).toContain("import {currentGeminiBudget, geminiBudgetUnconfiguredWarning} from '../lib/geminiEditBudget.ts';");
@@ -61,7 +62,8 @@ describe('the call site and what is not changed (source text)', () => {
     const at = analyze.indexOf('const geminiUncapped');
     const block = analyze.slice(at, at + 260);
     expect(block).not.toMatch(/throw|return|EngineError/);
-    expect(analyze).toContain('const claudeBound = decideClaudeBound({');
+    // Edit styles (Phase 2): a library-only style disables the bound up front; every other job takes decideClaudeBound exactly as before.
+    expect(analyze).toContain("const claudeBound: ClaudeBoundDecision = flags.libraryOnlyGraphics && motionGraphicsRequested ? {action: 'disabled', reason: 'library_only_style'} : decideClaudeBound({");
     expect(analyze).toContain("warnings.push(`claude_graphics_disabled:${claudeBound.reason}`);");
   });
   it('the default of GEMINI_EDIT_MAX_REQUESTS and the budget semantics are unchanged', () => {
@@ -74,7 +76,9 @@ describe('the call site and what is not changed (source text)', () => {
     expect([...budget.matchAll(/^import .* from '([^']+)'/gm)].map(match => match[1]).sort()).toEqual(['./errors.ts', './productEditProfile.ts', 'node:async_hooks']); // WP8A: the shared mvp-like profile helper (itself import-free)
   });
   it('the runner still wraps the job with the budget from the same variable', () => {
-    expect(stripComments(read('pipeline', 'analysisRunner.ts'))).toContain('withGeminiBudget(geminiBudgetFromLimit(env.GEMINI_EDIT_MAX_REQUESTS, geminiBudgetPlanFor(extras.editProfile))');
+    const runner = stripComments(read('pipeline', 'analysisRunner.ts'));
+    expect(runner).toContain('withGeminiBudget(geminiBudget, () => analyzeVideo(');
+    expect(runner).toContain('return geminiBudgetFromLimit(env.GEMINI_EDIT_MAX_REQUESTS, geminiBudgetPlanFor(extras.editProfile));');
   });
   it('the other defaults are untouched', () => {
     expect(env).toMatch(/PRODUCT_EDIT_PROFILE:[^\n]*cuts/);

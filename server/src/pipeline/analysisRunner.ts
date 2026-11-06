@@ -11,7 +11,7 @@ import {randomUUID} from 'node:crypto';
 import {env} from '../config/env.ts';
 import {polishRequestedEdits} from '../lib/editToolkits.ts';
 import {isEngineError, toEngineError} from '../lib/errors.ts';
-import {geminiBudgetFromLimit, geminiBudgetPlanFor, withGeminiBudget, withNoGemini} from '../lib/geminiEditBudget.ts';
+import {createGeminiEditBudget, geminiBudgetFromLimit, geminiBudgetPlanFor, withGeminiBudget, withNoGemini, type GeminiEditBudget} from '../lib/geminiEditBudget.ts';
 import {analyzeOverridesFor, graphicsFingerprintKey, normalizeEditProfile, profileFingerprintKey, unrecognizedEditProfile, requestGraphicsStatus, type ProductEditProfile} from '../lib/productEditProfile.ts';
 import {stageLogger} from '../lib/logger.ts';
 import {normalizeProvidedCutoutUrl} from '../lib/providedCutout.ts';
@@ -20,6 +20,7 @@ import {
   grantBlueprintAccess,
   loadBlueprintByFingerprint,
   loadBlueprintGraphicsStatus,
+  loadBlueprintStyleReasons,
   saveAnalysisJob,
   saveBlueprint,
 } from '../store/engineStore.ts';
@@ -36,6 +37,9 @@ import type {
 import {analyzeVideo} from './analyzeVideo.ts';
 import type {AnalyzeInput} from './analyzeVideo.ts';
 import type {EditStyleId} from '../lib/editStyles.ts';
+import {effectiveFlagsFromEnv, type EffectiveFlags} from '../lib/effectiveFlags.ts';
+import {resolveStyleRun, styleOutcome, type StyleRun} from '../lib/styleRun.ts';
+import {subjectMatteConfigured} from '../media/personMatte.ts';
 
 const log = stageLogger('analysis-runner');
 
@@ -88,9 +92,8 @@ export async function startAnalysis(input: {
    */
   basicCaptions?: boolean;
   /**
-   * Edit style picked in the app (lib/editStyles.ts). Phase 1: CARRIED ONLY: recorded on the job, never read by the pipeline and not part of
-   * the cache fingerprint (a styled job runs exactly like its mode today). Phase 2 resolves it into per-job flags here; see
-   * docs/ENGINE_STYLE_INTEGRATION.md.
+   * Edit style picked in the app (lib/editStyles.ts). With EDIT_STYLES_ENGINE_FLAGS on it is resolved HERE, once, into this job's profile, EffectiveFlags,
+   * Gemini cap and cache-key fragment (lib/styleRun.ts); off, the job runs exactly as in Phase 1. Absent: nothing below changes.
    */
   style?: EditStyleId;
 }): Promise<AnalysisJob> {
@@ -112,16 +115,23 @@ export async function startAnalysis(input: {
   const labeledAssetBindings = input.labeledAssetBindings ?? [];
   const scriptKey = (input.scriptText || '').trim().slice(0, 800);
   // WP1: resolved once per job from server configuration (never from the request), so the cache key and the run agree.
-  const editProfile = normalizeEditProfile(env.PRODUCT_EDIT_PROFILE);
+  const envProfile = normalizeEditProfile(env.PRODUCT_EDIT_PROFILE);
   const unknownProfile = unrecognizedEditProfile(env.PRODUCT_EDIT_PROFILE);
-  if (unknownProfile) log.warn({value: unknownProfile, resolved: editProfile}, 'PRODUCT_EDIT_PROFILE is not legacy, mvp, cuts or polish; using the default (cuts)');
+  if (unknownProfile) log.warn({value: unknownProfile, resolved: envProfile}, 'PRODUCT_EDIT_PROFILE is not legacy, mvp, cuts or polish; using the default (cuts)');
+  // Edit styles: a styled job's profile / flags / Gemini cap / key fragment, resolved once (null = unstyled: everything below is exactly the env path).
+  const styleRun = input.style
+    ? resolveStyleRun({style: input.style, engineFlags: env.EDIT_STYLES_ENGINE_FLAGS, envProfile, env, envGeminiMaxRequests: env.GEMINI_EDIT_MAX_REQUESTS})
+    : null;
+  const editProfile = styleRun ? styleRun.profile : envProfile;
+  // EffectiveFlags (lib/effectiveFlags.ts): every per-job switch, resolved ONCE here and passed down; the pipeline never reads them from env.
+  const effectiveFlags = styleRun ? styleRun.flags : effectiveFlagsFromEnv(env, editProfile);
   // WP8I: on polish, the edits the job will really run (an omitted list means the polish default; `all` is its own key), so a change of POLISH_DEFAULT_EDITS or an explicit list never serves a stale blueprint.
-  const polishEdits = editProfile === 'polish' ? polishRequestedEdits(input.requestedEdits, env.POLISH_DEFAULT_EDITS) : undefined;
+  const polishEdits = editProfile === 'polish' ? polishRequestedEdits(input.requestedEdits, effectiveFlags.polishDefaultEdits) : undefined;
   // WP3Z: the graphics decision this request would make now (server flag + Claude budget, the same helpers analyzeVideo uses), computed before the lookup; `off` adds nothing to the key.
   const graphicsAtRequest = requestGraphicsStatus({
     profile: editProfile,
-    graphicsFlag: env.MOTION_GRAPHICS_ENABLED,
-    capUsd: env.CLAUDE_EDIT_BUDGET_USD,
+    graphicsFlag: effectiveFlags.motionGraphics,
+    capUsd: effectiveFlags.libraryOnlyGraphics ? 0 : env.CLAUDE_EDIT_BUDGET_USD, // library-only styles never call Claude (analyzeVideo disables the bound the same way)
     maxRequests: env.CLAUDE_EDIT_MAX_REQUESTS,
     maxTokensPerCall: env.CLAUDE_EDIT_MAX_TOKENS,
   });
@@ -149,6 +159,7 @@ export async function startAnalysis(input: {
     scriptKey: basicCaptions ? 'basic_captions' : scriptKey,
     editProfileKey: profileFingerprintKey(editProfile),
     graphicsKey: graphicsFingerprintKey(graphicsAtRequest),
+    styleKey: styleRun?.styleKey,
   });
 
   const hasUploadedBindings = labeledAssetBindings.some(
@@ -174,7 +185,7 @@ export async function startAnalysis(input: {
         updatedAt: now,
         cached: true,
         editProfile, // the profile is part of the cache key, so a hit is a blueprint of this profile
-        ...(input.style ? {style: input.style} : {}),
+        ...(styleRun ? {style: styleRun.style, styleApplied: styleRun.styleApplied, ...styleOutcomeFor(styleRun, cached, [], (await loadBlueprintStyleReasons(cached.blueprintId)) ?? [])} : {}),
         ...(storedGraphics ? {graphics: storedGraphics} : {}),
         blueprint: cached,
       };
@@ -197,8 +208,8 @@ export async function startAnalysis(input: {
     createdAt: now,
     updatedAt: now,
     cached: false,
-    editProfile, // WP3X: from server configuration, never from the request
-    ...(input.style ? {style: input.style} : {}),
+    editProfile, // WP3X: from server configuration (or the style's pinned profile), never from the request
+    ...(styleRun ? {style: styleRun.style, styleApplied: styleRun.styleApplied} : {}),
   };
   await saveAnalysisJob(job);
 
@@ -221,9 +232,25 @@ export async function startAnalysis(input: {
     teleprompterClean: input.teleprompterClean,
     scriptText: input.scriptText,
     editProfile,
+    effectiveFlags,
     basicCaptions,
+    ...(styleRun ? {styleRun} : {}),
   }));
   return job;
+}
+
+/** The style outcome of a finished (or cached) styled analysis: blueprint warnings + this run's Gemini refusals + reasons stored with a cached blueprint. */
+function styleOutcomeFor(run: StyleRun, blueprint: {stats?: {warnings?: string[]}}, refusedLabels: string[], storedReasons: string[] = []) {
+  const outcome = styleOutcome({run, warnings: blueprint.stats?.warnings ?? [], refusedLabels, matteConfigured: subjectMatteConfigured()});
+  const degradedReasons = [...new Set([...outcome.degradedReasons, ...(run.engineFlags ? storedReasons : [])])];
+  return {degraded: degradedReasons.length > 0, degradedReasons, styleNotes: outcome.styleNotes};
+}
+
+/** The Gemini budget of one job: a styled job (engine flags on) gets its style's cap and plan; everything else the env cap exactly as before. */
+function geminiBudgetFor(extras: {styleRun?: StyleRun; editProfile?: ProductEditProfile}): GeminiEditBudget | undefined {
+  const run = extras.styleRun;
+  if (run && run.geminiMaxRequests !== undefined) return createGeminiEditBudget(run.geminiMaxRequests, {plan: run.geminiPlan});
+  return geminiBudgetFromLimit(env.GEMINI_EDIT_MAX_REQUESTS, geminiBudgetPlanFor(extras.editProfile));
 }
 
 async function runAnalysis(
@@ -246,7 +273,9 @@ async function runAnalysis(
     teleprompterClean?: boolean;
     scriptText?: string;
     editProfile?: ProductEditProfile;
+    effectiveFlags?: EffectiveFlags;
     basicCaptions?: boolean;
+    styleRun?: StyleRun;
   },
 ): Promise<void> {
   // Basic captions run the legacy (no cuts / no director) profile whatever the server profile is.
@@ -269,7 +298,9 @@ async function runAnalysis(
 
   try {
     // WP3C: with GEMINI_EDIT_MAX_REQUESTS set (server env only) every Gemini attempt of this job takes a slot; unset, `withGeminiBudget` just runs the job.
-    const blueprint = await withGeminiBudget(geminiBudgetFromLimit(env.GEMINI_EDIT_MAX_REQUESTS, geminiBudgetPlanFor(extras.editProfile)), () => analyzeVideo(
+    // Edit styles: a styled job (engine flags on) is always capped by its style (lib/editStyles.ts geminiMaxRequests); a refusal makes that stage fall back, never fails the job.
+    const geminiBudget = geminiBudgetFor(extras);
+    const blueprint = await withGeminiBudget(geminiBudget, () => analyzeVideo(
       {
         videoUrl: job.videoUrl,
         languageCode: job.languageCode,
@@ -293,6 +324,8 @@ async function runAnalysis(
         // WP1: empty for the legacy profile; the explicit MVP options otherwise (see lib/productEditProfile.ts).
         ...analyzeOverridesFor(extras.editProfile ?? 'legacy'),
         editProfile: extras.editProfile ?? 'legacy',
+        // The job's flags, with the profile this run really uses (basic captions forces legacy above).
+        ...(extras.effectiveFlags ? {effectiveFlags: {...extras.effectiveFlags, profile: extras.editProfile ?? 'legacy'}} : {}),
       },
       {
         onStage: (stage, progress) => {
@@ -306,10 +339,15 @@ async function runAnalysis(
       },
     ));
 
-    await saveBlueprint(blueprint, fingerprint, job.graphics ? {graphics: job.graphics} : {});
+    // Edit styles: what the pipeline really produced (degraded only on a real fallback). The cap refusals exist only in this run, so they are kept beside the blueprint for a later cache hit.
+    const refusedLabels = extras.styleRun?.engineFlags ? Object.keys(geminiBudget?.report().refusedByLabel ?? {}) : [];
+    const outcome = extras.styleRun ? styleOutcomeFor(extras.styleRun, blueprint, refusedLabels) : null;
+    const capReasons = outcome ? outcome.degradedReasons.filter(reason => reason.startsWith('gemini_cap_reached:')) : [];
+    await saveBlueprint(blueprint, fingerprint, {...(job.graphics ? {graphics: job.graphics} : {}), ...(extras.styleRun?.engineFlags ? {styleReasons: capReasons} : {})});
     await grantBlueprintAccess(blueprint.blueprintId, job.userId);
     await recordAnalysis(job.userId);
-    await patch('done', 1, {blueprint});
+    if (outcome && outcome.degraded) log.info({analysisJobId: job.analysisJobId, style: extras.styleRun?.style, reasons: outcome.degradedReasons}, 'style degraded');
+    await patch('done', 1, {blueprint, ...(outcome ?? {})});
   } catch (error) {
     const engineError = toEngineError(error);
     log.error(

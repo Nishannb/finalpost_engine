@@ -8,6 +8,7 @@ import type {CaptionWord, WordToken} from '../../types/blueprint.ts';
 import type {Timeline} from '../filters/timeline.ts';
 import {CAPTION_BAND, describeOccupancyForDirector, legalSlots, measureOccupancyAt, occupancyFromSpeaker, occupancySampleSec} from '../layout/occupancy.ts';
 import {env} from '../../config/env.ts';
+import {jobFlag} from '../../lib/effectiveFlags.ts';
 import {LEGACY_FRAME_SEND_LIMIT, legacyOccupancySliceTimes, legacyStoryboardTimes} from './storyboardPlan.ts';
 import {buildVisualContext, coverageFrameTimes, formatVisualContext, outputToSourceSec} from './visualContext.ts';
 import type {PerceptionPack, WordRef} from './types.ts';
@@ -59,7 +60,7 @@ export async function buildPerceptionPack(input: {
   });
 
   const duration = input.timeline.outputDurationSec;
-  const useVisualContext = input.visualContext ?? env.VISUAL_CONTEXT_V2;
+  const useVisualContext = input.visualContext ?? jobFlag('visualContextV2', env.VISUAL_CONTEXT_V2);
   const keepSegments = input.timeline.keepSegments;
   /**
    * Stills are cut from the (untrimmed) source file, but every time in this pack is an OUTPUT time on the silence-trimmed
@@ -281,7 +282,7 @@ export function formatOccupancySlices(pack: PerceptionPack): string {
   if (pack.occupancySlices.length === 0) {
     return 'No occupancy slices.';
   }
-  if (env.OCCUPANCY_CONTEXT_V2) {
+  if (jobFlag('occupancyContextV2', env.OCCUPANCY_CONTEXT_V2)) {
     return formatOccupancyContextV2(pack);
   }
   if (pack.measuredOccupancy) {

@@ -25,7 +25,7 @@ vi.mock('../config/env.ts', async importOriginal => {
 vi.mock('../pipeline/captionsEditRunner.ts', () => ({
   createCaptionsEditJob: async (input: Record<string, unknown>) => {
     state.created.push(input);
-    const job = {editJobId: `ed_${state.created.length}`, userId: input.userId, status: 'awaiting_upload', mode: input.mode ?? 'captions', style: input.style, degraded: input.degraded, sourcePublicUrl: 'https://cdn/src.mp4', sourceKey: 'k'};
+    const job = {editJobId: `ed_${state.created.length}`, userId: input.userId, status: 'awaiting_upload', mode: input.mode ?? 'captions', style: input.style, degraded: input.degraded, degradedReasons: input.degradedReasons, sourcePublicUrl: 'https://cdn/src.mp4', sourceKey: 'k'};
     state.jobs.set(job.editJobId, job);
     return {job, uploadUrl: 'https://up'};
   },
@@ -218,7 +218,7 @@ describe('POST /v1/edits/captions with `style`', () => {
     const response = await post('/v1/edits/captions', 'free-user', {...BASE, style: 'basic_captions', captionPreset: undefined});
     expect(response.status).toBe(202);
     expect(state.created[0]).toEqual(expect.objectContaining({mode: 'basic_captions', style: 'basic_captions'}));
-    expect(state.created[0]).not.toHaveProperty('degraded');
+    expect(state.created[0]).toEqual(expect.objectContaining({degraded: false, degradedReasons: []})); // honoured (free style, no engine flags needed)
     expect((await json(response)).job).toEqual(expect.objectContaining({style: 'basic_captions', mode: 'basic_captions'}));
   });
 
@@ -233,16 +233,26 @@ describe('POST /v1/edits/captions with `style`', () => {
     expect(state.created[1]).not.toHaveProperty('fullEdit');
   });
 
-  it('a pending style made available runs as Clean Cut and is recorded as degraded on the job', async () => {
+  it('engine flags off (default): a flag-dependent style made available runs as Clean Cut and is recorded as degraded `engine_flags_off`', async () => {
     state.env.EDIT_STYLES_AVAILABLE = 'basic_captions,ai_clean_cut,kinetic_typography';
     const response = await post('/v1/edits/captions', 'pro-user', {...BASE, style: 'kinetic_typography'});
     expect(response.status).toBe(202);
-    expect(state.created[0]).toEqual(
-      expect.objectContaining({mode: 'full_edit', style: 'kinetic_typography', degraded: {reason: 'engine_style_pending', appliedAs: 'ai_clean_cut'}}),
-    );
+    expect(state.created[0]).toEqual(expect.objectContaining({mode: 'full_edit', style: 'kinetic_typography', degraded: true, degradedReasons: ['engine_flags_off']}));
     const editJobId = String((await json(response)).job?.editJobId);
     const status = await json(await get(`/v1/edits/${editJobId}`, 'pro-user'));
-    expect(status.job).toEqual(expect.objectContaining({style: 'kinetic_typography', degraded: {reason: 'engine_style_pending', appliedAs: 'ai_clean_cut'}}));
+    expect(status.job).toEqual(expect.objectContaining({style: 'kinetic_typography', degraded: true, degradedReasons: ['engine_flags_off']}));
+  });
+
+  it('engine flags on: the same request starts not degraded (the analysis reports any real fallback later)', async () => {
+    state.env.EDIT_STYLES_AVAILABLE = 'basic_captions,ai_clean_cut,kinetic_typography';
+    state.env.EDIT_STYLES_ENGINE_FLAGS = true;
+    try {
+      const response = await post('/v1/edits/captions', 'pro-user', {...BASE, style: 'kinetic_typography'});
+      expect(response.status).toBe(202);
+      expect(state.created[0]).toEqual(expect.objectContaining({mode: 'full_edit', style: 'kinetic_typography', degraded: false, degradedReasons: []}));
+    } finally {
+      state.env.EDIT_STYLES_ENGINE_FLAGS = false;
+    }
   });
 
   it('mode-only requests (older apps) are unchanged', async () => {

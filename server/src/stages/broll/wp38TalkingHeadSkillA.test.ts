@@ -214,7 +214,7 @@ describe('WP38 5) honest warnings', () => {
 describe('WP38 6) wiring + isolation of Skill A / Skill B', () => {
   const analyze = stripComments(read('../../pipeline/analyzeVideo.ts'));
   it('analyzeVideo computes the switch from the env flags and applies it only through the TH helpers', () => {
-    expect(analyze).toContain('resolveTalkingHeadSkillA({polish: Boolean(polishPath), skillAToolsEnabled: env.POLISH_TH_SKILL_A_TOOLS, faceless: env.POLISH_FACELESS_DOC, explainer: env.POLISH_EXPLAINER_SKILL})');
+    expect(analyze).toContain('resolveTalkingHeadSkillA({polish: Boolean(polishPath), skillAToolsEnabled: flags.thSkillATools, faceless: flags.facelessDoc, explainer: flags.explainerSkill})');
     expect(analyze).toContain('if (thSkillA) {');
     expect(analyze).toContain('talkingHeadCaption(broll.caption)');
     expect(analyze).toContain('...(thSkillA ? talkingHeadStillOptions(timeline.outputDurationSec, coveredFraction(0, timeline.outputDurationSec, stillBlocked) * timeline.outputDurationSec) : {})');
@@ -229,9 +229,9 @@ describe('WP38 6) wiring + isolation of Skill A / Skill B', () => {
     expect(explainerAt).toBeGreaterThan(thAt);
   });
   it('the Skill A (faceless) and Skill B (explainer) wiring is untouched', () => {
-    expect(analyze).toContain('const facelessDoc = Boolean(polishPath && env.POLISH_FACELESS_DOC && voGrammar && motion && stockConfigured());');
-    expect(analyze).toContain("resolvePolishSkill({faceless: Boolean(polishPath && env.POLISH_FACELESS_DOC), explainer: Boolean(polishPath && env.POLISH_EXPLAINER_SKILL)})");
-    expect(analyze).toContain('!facelessDoc && env.POLISH_EDITORIAL_STILLS_ENABLED');
+    expect(analyze).toContain('const facelessDoc = Boolean(polishPath && flags.facelessDoc && voGrammar && motion && stockConfigured());');
+    expect(analyze).toContain("resolvePolishSkill({faceless: Boolean(polishPath && flags.facelessDoc), explainer: Boolean(polishPath && flags.explainerSkill)})");
+    expect(analyze).toContain('!facelessDoc && flags.editorialStills');
     const facelessBlock = analyze.slice(analyze.indexOf('if (facelessDoc && voGrammar && motion) {'), analyze.indexOf('let thStillCount = 0;'));
     expect(facelessBlock).not.toContain('thSkillA');
     expect(facelessBlock).not.toContain('talkingHead');

@@ -387,7 +387,7 @@ describe('WP54 flags + wiring', () => {
     expect(env.POLISH_MOTION_TEMPLATES).toBe(false);
     expect(read('server/src/config/env.ts')).not.toMatch(/POLISH_KINETIC_TYPE/);
     const analyze = read('server/src/pipeline/analyzeVideo.ts');
-    expect(analyze).toMatch(/if \(polishPath && env\.POLISH_MOTION_TEMPLATES && motion\) \{\s*try \{\s*const slotUrls/);
+    expect(analyze).toMatch(/if \(polishPath && flags\.motionTemplates && motion\) \{\s*try \{\s*const slotUrls/);
     expect(analyze.indexOf('runVisualBackendStage(')).toBeLessThan(analyze.indexOf('runCraftTemplateStage('));
     expect(analyze.indexOf('runCraftTemplateStage(')).toBeLessThan(analyze.indexOf('runMotionTemplateStage('));
     expect(analyze).toMatch(/motionTemplateMute = \[\.\.\.motionTemplateMute, \.\.\.craftTemplateMute\]/);

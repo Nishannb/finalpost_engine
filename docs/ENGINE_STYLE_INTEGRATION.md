@@ -1,21 +1,24 @@
 # Edit styles: engine integration contract (Phase 1 → Phase 2)
 
-Internal contract inside `finalpost_engine/server`, between the **HTTP layer / edit runner** (Phase 1, done) and the
-**analysis pipeline** (`startAnalysis` / `analyzeVideo`, Phase 2, to do). Phase 1 shipped the picker, the catalog, validation,
-entitlements and a pass-through `style` field. The pipeline does not read the style yet: until Phase 2 lands, every styled job
-runs exactly like its `mode` does today, and a style the pipeline cannot produce is marked `degraded` on the job.
+Internal contract inside `finalpost_engine/server`, between the **HTTP layer / edit runner** (Phase 1) and the
+**analysis pipeline** (`startAnalysis` / `analyzeVideo`, Phase 2). Phase 1 shipped the picker, the catalog, validation,
+entitlements and a pass-through `style` field. Phase 2 (Checkpoints 1 and 2, branch `feat/edit-styles-engine`) resolves each style
+into per-job pipeline flags and a Gemini cap, behind the engine kill switch `EDIT_STYLES_ENGINE_FLAGS` (default **off** = Phase 1
+behaviour). Kinetic and Explainer stay `available: false` until the paid verification (Checkpoint 3) passes.
 
-Source of truth for styles: `server/src/lib/editStyles.ts` (registry, pure). Tests: `src/lib/editStyles.test.ts`,
-`src/eval/editStylesRoutes.test.ts`, `src/eval/editStylesRunner.test.ts`.
+Source of truth for styles: `server/src/lib/editStyles.ts` (registry, pure) and `server/src/lib/styleRun.ts` (style -> per-job run,
+pure). Tests: `src/lib/editStyles.test.ts`, `src/lib/styleRun.test.ts`, `src/eval/editStylesRoutes.test.ts`,
+`src/eval/editStylesRunner.test.ts`, `src/eval/editStylesAnalysis.test.ts`, and the real-pipeline
+`src/eval/editStylesPipeline.test.ts` (explicit step, `PARITY_TESTS=1`, like `effectiveFlagsParity.test.ts`).
 
 ## 0. The four styles
 
-| id | tier | job `mode` | engine support (Phase 1) | registry `available` |
-|---|---|---|---|---|
-| `basic_captions` | free | `basic_captions` | native | true |
-| `ai_clean_cut` | pro | `full_edit` | native (today's `full_edit` = the `cuts` profile, see §3) | true |
-| `kinetic_typography` | pro | `full_edit` | **pending**, degrades to `ai_clean_cut` | **false** |
-| `explainer` | pro | `full_edit` | **pending**, degrades to `ai_clean_cut` | **false** |
+| id | tier | job `mode` | needs engine flags | Gemini cap | registry `available` |
+|---|---|---|---|---|---|
+| `basic_captions` | free | `basic_captions` | no | 0 | true |
+| `ai_clean_cut` | pro | `full_edit` | no; always the `cuts` profile, flags on or off | 3 | true |
+| `kinetic_typography` | pro | `full_edit` | **yes**; flags off = runs as `ai_clean_cut` | 12 | **false** |
+| `explainer` | pro | `full_edit` | **yes**; flags off = runs as `ai_clean_cut` | 12 | **false** |
 
 Faceless Documentary (skill A) and Newsroom (skill D) are not in the registry and must stay unreachable from a styled request.
 
@@ -23,36 +26,50 @@ Faceless Documentary (skill A) and Newsroom (skill D) are not in the registry an
 
 ```
 App ──POST /v1/edits/captions {mode?, style?}──▶ editRoutes.ts
-      resolveRequestedStyle(style, config)        → {style, tier, mode, degraded?} | null | error
+      resolveRequestedStyle(style, config)        → {style, tier, mode, degraded, degradedReasons} | null | error
       mode := resolved.mode ?? request.mode        (style WINS over mode)
-      createCaptionsEditJob({... mode, style, degraded})
+      createCaptionsEditJob({... mode, style, degraded, degradedReasons})
             │
-            ▼  CaptionsEditJob { mode, style?, degraded? }   (KV + durable store; the durable row keeps the whole job JSON)
+            ▼  CaptionsEditJob { mode, style?, degraded?, degradedReasons? }   (KV + durable store; the durable row keeps the whole job JSON)
 captionsEditRunner.ts
       runCaptionsPipeline / runFullEditPipeline / resumeFullEditAfterAssets
-      startAnalysis({ ...existing fields, style: job.style })     ◀── THE field Phase 2 reads
+      startAnalysis({ ...existing fields, style: job.style })
             │
             ▼  analysisRunner.ts startAnalysis(input.style)
-      Phase 1: recorded on AnalysisJob.style only. NOT passed to analyzeVideo, NOT in the cache fingerprint.
-      Phase 2: resolve EffectiveFlags HERE (next to normalizeEditProfile), pass them to analyzeVideo, add styleKey to the fingerprint.
+      resolveStyleRun(style, EDIT_STYLES_ENGINE_FLAGS, env)  → {profile, flags: EffectiveFlags, geminiMaxRequests, geminiPlan, styleKey}
+      analyzeVideo({... editProfile: run.profile, effectiveFlags: run.flags})   inside   withGeminiBudget(style cap)
+      fingerprint += styleKey ('' with the flags off or no style)
+      on done: AnalysisJob {styleApplied, degraded, degradedReasons} = styleOutcome(blueprint warnings, cap refusals, RVM present?)
+            │
+            ▼  waitForAnalysis copies degraded / degradedReasons onto the CaptionsEditJob (a re-analysis after the asset gate replaces them)
 ```
 
 Types (`server/src/types/blueprint.ts`, `server/src/lib/editStyles.ts`):
 
 ```ts
 type EditStyleId = 'basic_captions' | 'ai_clean_cut' | 'kinetic_typography' | 'explainer';
-type EditStyleDegradation = {reason: 'engine_style_pending'; appliedAs: EditStyleId};
 
 // CaptionsEditJob (edit job record, returned by GET /v1/edits/:id)
 style?: EditStyleId;                 // absent = mode-only job (older app, or EDIT_STYLES_ENABLED=0)
-degraded?: EditStyleDegradation;     // present only with `style`
+degraded?: boolean;                  // with `style` only: false = fully honoured; true only on a real fallback
+degradedReasons?: string[];          // with `style` only: [] when honoured
+styleNotes?: string[];               // from the analysis: non-degrading notes, e.g. 'matte_unavailable:no_matte' (front-only Kinetic)
 
 // startAnalysis input (analysisRunner.ts)
-style?: EditStyleId;                 // carried untouched from the edit job
+style?: EditStyleId;                 // carried from the edit job
 
-// AnalysisJob (GET /v1/analyze/:id)
-style?: EditStyleId;                 // recorded only in Phase 1
+// AnalysisJob (GET /v1/analyze/:id), all absent for unstyled jobs
+style?: EditStyleId;
+styleApplied?: EditStyleId;          // == style, or its degradesTo with the engine flags off
+degraded?: boolean;
+degradedReasons?: string[];
+styleNotes?: string[];
 ```
+
+`degradedReasons` values (the full list is the `EditStyleOutcome` comment in `lib/editStyles.ts`): `engine_flags_off`,
+`kinetic_front_only:<why>` (only for a style with `matte: 'required'`; v1 Kinetic is `optional`, so no matte is the note
+`matte_unavailable:<why>`), `kinetic_type_failed`, `kinetic_type_unpublished`, `explainer_layout_a_only`,
+`motion_stage_off`, `motion_templates_failed`, `motion_templates_unpublished`, `gemini_cap_reached:<stage>`.
 
 ### Example requests (HTTP) and the analysis call the runner makes today
 
@@ -75,9 +92,10 @@ All four with `EDIT_STYLES_ENABLED=1`. Common body: `{"contentType":"video/mp4",
    ```json
    {"mode":"full_edit","style":"kinetic_typography","fullEdit":{...}}
    ```
-   Today it answers `409 style_unavailable`. If forced available with `EDIT_STYLES_AVAILABLE`, the job is
-   `{mode:"full_edit", style:"kinetic_typography", degraded:{reason:"engine_style_pending", appliedAs:"ai_clean_cut"}}`
-   and the analysis is identical to `ai_clean_cut`.
+   Today it answers `409 style_unavailable`. If made available with `EDIT_STYLES_AVAILABLE`:
+   - `EDIT_STYLES_ENGINE_FLAGS=0`: the job is `{style:"kinetic_typography", degraded:true, degradedReasons:["engine_flags_off"]}` and the
+     analysis is the Phase 1 one (the server profile, env flags).
+   - `EDIT_STYLES_ENGINE_FLAGS=1`: polish + Kinetic-Led (see §3), `degraded:false` unless a real fallback happened.
 4. **explainer** (Pro, only once made available): the same as kinetic, with `style:"explainer"`.
 
 Errors the route returns: `400 bad_request` (unknown style), `409 style_unavailable`, `403 pro_required` (free plan + Pro style,
@@ -91,15 +109,15 @@ paid work and fails the job with the same codes.
     (front-only; never over the face). Add a warning.
   - Kinetic, motion stage refused (no library hit): keep the cuts + captions. Add a warning.
   - Explainer layouts unmountable: talking-head layout A only. Add a warning.
-- Report it on the **AnalysisJob**, and the runner copies it to the edit job:
-  ```ts
-  // AnalysisJob (new in Phase 2)
-  styleApplied?: EditStyleId;        // what the pipeline actually produced (== style when fully honoured)
-  styleWarnings?: string[];          // e.g. 'style_fallback:kinetic_front_only:no_matte', 'style_fallback:explainer_layout_a_only'
-  // CaptionsEditJob.degraded: the runner sets {reason:'engine_style_fallback', appliedAs: styleApplied} when styleApplied !== style,
-  // and clears the Phase 1 'engine_style_pending' value once the registry marks the style native.
-  ```
-  (`EditStyleDegradation.reason` then gains `'engine_style_fallback'`.)
+- Report it on the **AnalysisJob** (`styleApplied`, `degraded`, `degradedReasons`, §1); the runner copies `degraded` / `degradedReasons` to
+  the edit job. The reasons are derived from the blueprint warnings (strings pinned by the stage tests) and the Gemini budget's per-label
+  refusals (`lib/styleRun.ts styleOutcome`). Cap refusals exist only in the run, so they are stored beside the blueprint
+  (`engine:blueprint-style-reasons:<id>`) and a cache hit reports them too.
+- **Gemini cap reached mid-run** (what happens today, unchanged): `requestWithRetry` asks the budget before EVERY attempt; a refusal throws
+  a `GeminiBudgetError` carrying the stage's own failure code before anything is sent, so the stage's existing catch / fallback runs
+  (keep plan -> deterministic retakes, Director -> fallback plan, occupancy -> fallback box, motion Director -> no graphics, ...) and the
+  job continues. What already ran is kept. Styled jobs add `gemini_cap_reached:<stage>`. Verified for every style with caps of 1-3 in
+  `editStylesPipeline.test.ts`: every job completed.
 - Blueprint: unchanged shape. Old blueprints must render exactly as before.
 - Errors: the existing `EngineError` codes. A style must not introduce a new terminal failure mode.
 
@@ -110,7 +128,7 @@ paid work and fails the job with the same codes.
 | basic_captions | `legacy` via the existing `basicCaptions` path | transcription + captions only | none; `withNoGemini` | CaptionKit (ffmpeg/libass) when `captionPreset`, else Remotion captions | none (Groq ASR only) |
 | ai_clean_cut | **`cuts`, pinned by the style** | Stage A: denoise, AI keep-plan, retakes, forced trim + captions | visuals forced off | Remotion, `trimEnabled` | Gemini keep-plan (1 call) |
 | kinetic_typography | `polish` | Stage A + Director (whole-video) | `kineticLed`, `motionTemplates`, `motionGraphicsRequested` with the **library-only** Claude bound; skill `default` | Remotion | Gemini (keep-plan, story, creative (+repair), occupancy, content profile, motion director); **Claude: none** |
-| explainer | `polish` | Stage A + Director | `explainerSkill`, `motionTemplates` (explainer allowlist); `motionGraphicsRequested` needed for the template stage | Remotion | as kinetic; Claude: none |
+| explainer | `polish` | Stage A + Director | `explainerSkill`, `motionTemplates` (explainer allowlist), `motionGraphicsRequested` **library-only** (the template stage needs the motion stage) | Remotion | as kinetic; Claude: none |
 
 Notes:
 
@@ -125,7 +143,26 @@ Notes:
 - Explainer: `resolvePolishSkill` priority is faceless > newsroom > explainer. A styled explainer request must pin faceless and
   newsroom off so the explainer lane always wins.
 
-## 4. Engine-side requirements for Phase 2
+## 4. Engine-side requirements for Phase 2 (all done on `feat/edit-styles-engine`)
+
+Implementation notes:
+- Every styled job (flags on) pins Faceless Documentary, Newsroom, the Subject Stage (it would make Kinetic-Led yield) and the WP53 visual
+  backends off, whatever the env says. Skill A tools and `POLISH_DEFAULT_EDITS` still come from env.
+- "Library only" is `EffectiveFlags.libraryOnlyGraphics`: `analyzeVideo` disables the Claude bound (`claude_graphics_disabled:library_only_style`)
+  whatever `CLAUDE_EDIT_BUDGET_USD` says, so the motion stage runs for library hits only. Verified with a Claude budget AND a key set: no
+  request to any non-Groq / non-Gemini host.
+- Gemini plans: Clean Cut reserves its slot for the keep plan (`CUTS_BUDGET_PLAN`; the default plan would reserve Director slots cuts never
+  uses). Polish styles use the polish priority order without the WP8G occupancy one-attempt limit (`STYLED_POLISH_BUDGET_PLAN`). A positive
+  `GEMINI_EDIT_MAX_REQUESTS` can only tighten a style cap.
+- `styleKey` = `style:<id>:v1`; bump `STYLE_FLAGS_VERSION` in `lib/styleRun.ts` when a style's flag set changes.
+- `gemini_edit_budget_unconfigured` is no longer reported for a job that runs inside a budget (a style's cap); unchanged otherwise.
+- Output settings: Kinetic and Explainer carry `pins` in the registry (`POLISH_STYLE_PINS`, today's env defaults: the Skill A tools,
+  `POLISH_DEFAULT_EDITS`, North Star / Director v2 / context switches, content profile, hook, zoom, cutaway scheduling, transitions,
+  Klipy, forced cutout, LLM delivery emphasis), so a style looks the same on every server. These settings are part of `EffectiveFlags`;
+  stages below `analyzeVideo` read them through `jobFlag()` (a per-job scope; env outside a job). Speech-cut tuning, audio mix, matte
+  quality and deployment settings stay on env. `STYLE_FLAGS_VERSION` is `v2`.
+
+Original requirements:
 
 1. **Resolve once per job.** In `startAnalysis`, next to `normalizeEditProfile`, compute
    `EffectiveFlags = resolveEffectiveFlags(style, envDefaults)` and pass it in the `analyzeVideo` input. **No `env` mutation**:
@@ -148,8 +185,8 @@ Notes:
    runs like its mode today, so a cache hit across styles is correct now and wrong after Phase 2.
 5. **Gemini budget plan from the resolved profile** (`geminiBudgetPlanFor(effectiveFlags.profile)`), not from the env profile.
 6. **Requests with no style are unchanged**: same profile, flags, cache keys and outputs.
-7. When a style is produced natively, flip its registry entry to `engineSupport: 'native'` (that stops the route from writing
-   `engine_style_pending`), and only then add it to `EDIT_STYLES_AVAILABLE`.
+7. ~~`engineSupport`~~ replaced by `needsEngineFlags` + `EDIT_STYLES_ENGINE_FLAGS`: with the flags on, the style is produced natively and
+   the route writes `degraded:false`. Add it to `EDIT_STYLES_AVAILABLE` only after Checkpoint 3.
 
 ## 5. Versioning and rollout (app and engine deploy separately)
 
@@ -163,12 +200,13 @@ Notes:
 Kill switches:
 - Engine: `EDIT_STYLES_ENABLED` (default **off**). Off restores the pre-picker behaviour for every app version.
 - Engine: `EDIT_STYLES_AVAILABLE` / `EDIT_STYLES_ORDER` change availability and order without a release.
-- Phase 2 must add its own switch (for example `EDIT_STYLES_ENGINE_FLAGS`, default off). Off = styled jobs run as their
-  `degradesTo` (Phase 1 behaviour), so the per-style flag resolution can be turned off without hiding the picker.
+- Engine: `EDIT_STYLES_ENGINE_FLAGS` (Phase 2, default **off**). Off = styled jobs run exactly as in Phase 1 (the server profile and env
+  flags and Gemini cap, no style in the cache key; Kinetic / Explainer as `ai_clean_cut`, `degraded` with `engine_flags_off`), so the
+  per-style resolution can be turned off without hiding the picker. AI Clean Cut (and Kinetic / Explainer falling back to it) is the `cuts` profile in both modes. Requests with no style are unaffected either way.
 - App: none needed. It follows the engine (404 → fallback); a picker regression is fixed by turning the engine switch off.
 
-Order for Phase 2: deploy the engine with `EDIT_STYLES_ENGINE_FLAGS=0`, then turn it on, verify, flip `engineSupport` for the style,
-then add it to `EDIT_STYLES_AVAILABLE`. No app release is needed to expose Kinetic or Explainer.
+Order for Phase 2: deploy the engine with `EDIT_STYLES_ENGINE_FLAGS=0`, then turn it on, verify (Checkpoint 3), then add the style to
+`EDIT_STYLES_AVAILABLE`. No app release is needed to expose Kinetic or Explainer (the app's `degraded` type change is not read by any UI).
 
 ## 6. Integration checklist (both sides, before prod)
 
@@ -179,11 +217,13 @@ then add it to `EDIT_STYLES_AVAILABLE`. No app release is needed to expose Kinet
 - [ ] `kinetic_typography` / `explainer` → 409 `style_unavailable` while unavailable; the cards say "Coming soon".
 - [ ] `basic_captions` styled job: CaptionKit output, zero Gemini requests (`withNoGemini`), free watermark still burned by the app.
 - [ ] `ai_clean_cut` styled job: the cuts profile (keep-plan applied, no visual stages), `trimEnabled` render.
-- [ ] Phase 2: unstyled job blueprint and cache key identical to before (golden test), styled keys differ per style.
-- [ ] Phase 2: two concurrent analyses with different styles do not leak flags into each other.
-- [ ] Phase 2: Documentary / Newsroom env flags on + a styled request: neither lane runs.
-- [ ] Phase 2: kinetic with no RVM: completes front-only, with `styleWarnings` and `degraded` set; never fails.
-- [ ] Phase 2: explainer layouts are visibly mounted in a real Remotion render (not only planned).
+- [x] Phase 2: unstyled job blueprint identical to before (`effectiveFlagsParity`, 23 combos); unstyled cache key unchanged (styleKey empty);
+      styled keys differ per style (`editStylesAnalysis`).
+- [x] Phase 2: two concurrent analyses with different styles do not leak flags or budgets into each other.
+- [x] Phase 2: Documentary / Newsroom env flags on + a styled request: neither lane runs (`editStylesPipeline`, with a control run).
+- [x] Phase 2: kinetic with no RVM: completes front-only, `degraded: true` with `kinetic_front_only:no_matte`; never fails (offline).
+- [ ] Phase 2: kinetic beats and explainer templates PUBLISH (offline they cannot: no Remotion runtime check / R2; the outcome reports
+      `kinetic_type_unpublished` / `motion_templates_unpublished`) and explainer layouts are visibly mounted in a real render (Checkpoint 3).
 - [ ] Job status (`GET /v1/edits/:id`) shows `style` and `degraded`; the durable store round-trips them (whole-job JSON column).
 
 ## 7. Open questions for the engine (Phase 2)
@@ -195,6 +235,6 @@ then add it to `EDIT_STYLES_AVAILABLE`. No app release is needed to expose Kinet
    the production render (WP41 …)", but `analyzeVideo.ts` builds an `explainerMount` layout track. Confirm with a real render.
 3. **RVM in production.** Is the RVM venv and weights provisioned on the droplet? Without it Kinetic is always front-only.
 4. **Clean Cut profile pinning.** Confirm that `ai_clean_cut` should be `cuts` even if `PRODUCT_EDIT_PROFILE` changes.
-5. **Cost.** Polish styles run about 5–7 Gemini calls plus longer renders. Set `GEMINI_EDIT_MAX_REQUESTS` before exposing them.
-6. **`captionkit_tmp/` is untracked** but the Basic Captions path and the Dockerfile need it (`docs/DEPLOY_ENGINE.md`). Commit
-   `captionkit.py`, `presets.json` and `fonts/`.
+5. **Cost.** Polish styles ran 9 Gemini attempts in the stubbed pipeline (keep plan 1, occupancy 3, story 1 + repair 1, creative 1, layout
+   critique 1, motion Director 1); each style is capped in the registry (§0). Real counts are a Checkpoint 3 measurement.
+6. ~~`captionkit_tmp/` is untracked~~ Done: `captionkit.py`, `presets.json`, `fonts/` and the font licences are committed.

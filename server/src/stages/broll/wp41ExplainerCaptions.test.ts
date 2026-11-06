@@ -481,13 +481,13 @@ describe('WP41 6) analyze wiring + offline proof', () => {
   });
 
   it('Skill A path unchanged: the exact accumulate gate, the faceless gate and the single lane call', () => {
-    expect(analyze).toMatch(/if \(polishPath && env\.POLISH_ACCUMULATE_CAPTIONS && voGrammar && !\(input\.captionPreset \|\| ''\)\.trim\(\) && !captionGuide && !input\.captionTemplate\)/);
-    expect(analyze).toContain('const facelessDoc = Boolean(polishPath && env.POLISH_FACELESS_DOC && voGrammar && motion && stockConfigured());');
+    expect(analyze).toMatch(/if \(polishPath && flags\.accumulateCaptions && voGrammar && !\(input\.captionPreset \|\| ''\)\.trim\(\) && !captionGuide && !input\.captionTemplate\)/);
+    expect(analyze).toContain('const facelessDoc = Boolean(polishPath && flags.facelessDoc && voGrammar && motion && stockConfigured());');
     expect(analyze.match(/planFacelessDocLane\(/g)).toHaveLength(1);
     expect(analyze.split('\n').filter(line => line.includes('polishAccumulateCaptions(')).length).toBe(1);
     // faceless wins over explainer / newsroom in resolvePolishSkill
     expect(analyze).toContain('resolvePolishSkill({');
-    expect(analyze).toContain('POLISH_NEWSROOM_MG');
+    expect(analyze).toContain('flags.newsroomMg');
   });
 
   const root = '../../../../remotion/';

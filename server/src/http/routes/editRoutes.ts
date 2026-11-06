@@ -80,7 +80,7 @@ export const editRoutes = Router();
 const EDIT_STYLES_REFRESH_WINDOW_SEC = 10;
 
 function editStyleConfig(): EditStyleConfig {
-  return {enabled: env.EDIT_STYLES_ENABLED, availableOverride: env.EDIT_STYLES_AVAILABLE, orderOverride: env.EDIT_STYLES_ORDER};
+  return {enabled: env.EDIT_STYLES_ENABLED, availableOverride: env.EDIT_STYLES_AVAILABLE, orderOverride: env.EDIT_STYLES_ORDER, engineFlags: env.EDIT_STYLES_ENGINE_FLAGS};
 }
 
 /**
@@ -143,7 +143,7 @@ editRoutes.post('/edits/captions', async (req, res) => {
     mode,
     scriptText: parsed.data.scriptText,
     ...(mode === 'full_edit' && parsed.data.fullEdit ? {fullEdit: parsed.data.fullEdit} : {}),
-    ...(styled ? {style: styled.style, ...(styled.degraded ? {degraded: styled.degraded} : {})} : {}),
+    ...(styled ? {style: styled.style, degraded: styled.degraded, degradedReasons: styled.degradedReasons} : {}),
   });
   res.status(202).json({
     ok: true,

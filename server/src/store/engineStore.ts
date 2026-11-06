@@ -58,6 +58,8 @@ export function fingerprintSource(input: {
   editProfileKey?: string;
   /** WP3Z: non-empty only when the request's graphics decision is `on` or `skipped_budget` (lib/productEditProfile.ts), so keys made while graphics were off are unchanged. */
   graphicsKey?: string;
+  /** Edit styles (lib/styleRun.ts): non-empty only for a styled job with the engine flags on, so every unstyled key is unchanged. */
+  styleKey?: string;
 }): string {
   return createHash('sha256')
     .update(
@@ -93,6 +95,7 @@ export function fingerprintSource(input: {
         (input.scriptKey ?? '').trim(),
         ...(input.editProfileKey ? [input.editProfileKey] : []),
         ...(input.graphicsKey ? [input.graphicsKey] : []),
+        ...(input.styleKey ? [input.styleKey] : []),
       ].join('|'),
     )
     .digest('hex')
@@ -103,7 +106,7 @@ export async function saveBlueprint(
   blueprint: TimelineBlueprint,
   fingerprint: string,
   /** WP3Y: the graphics decision of the run that made this blueprint, kept beside it so a cache hit can report it. Omitted = nothing stored (the field stays absent on a hit). */
-  meta: {graphics?: JobGraphicsStatus} = {},
+  meta: {graphics?: JobGraphicsStatus; styleReasons?: string[]} = {},
 ): Promise<void> {
   const kv = await getKv();
   const ttl = env.BLUEPRINT_TTL_SEC;
@@ -119,6 +122,27 @@ export async function saveBlueprint(
   );
   if (meta.graphics) {
     await kv.set(graphicsStatusKey(blueprint.blueprintId), meta.graphics, ttl);
+  }
+  if (meta.styleReasons) {
+    await kv.set(`${STYLE_REASONS_PREFIX}${blueprint.blueprintId}`, JSON.stringify(meta.styleReasons), ttl);
+  }
+}
+
+const STYLE_REASONS_PREFIX = 'engine:blueprint-style-reasons:';
+
+/**
+ * Edit styles: the run-only degraded reasons (Gemini cap refusals) of a styled blueprint, kept beside it so a cache hit reports what the run that made it
+ * reported. `undefined` for an unstyled or older entry.
+ */
+export async function loadBlueprintStyleReasons(blueprintId: string): Promise<string[] | undefined> {
+  const kv = await getKv();
+  const raw = await kv.get(`${STYLE_REASONS_PREFIX}${blueprintId}`);
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string').slice(0, 40) : undefined;
+  } catch {
+    return undefined;
   }
 }
 

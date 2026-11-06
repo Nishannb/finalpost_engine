@@ -102,7 +102,7 @@ describe('analyzeVideo: the cuts / polish split (source text)', () => {
   });
   it('visual stages are forced off by cutsOnlyVisualsOff only: polish keeps visualEditsOn, the motion flag and (explicit) delivery shaping', () => {
     expect(analyze).toContain('const visualEditsOn = !cutsOnlyVisualsOff && visualToolkitsRequested(requestedEdits);');
-    expect(analyze).toContain('const motionGraphicsRequested = !cutsOnlyVisualsOff && (input.generatedGraphicsEnabled ?? env.MOTION_GRAPHICS_ENABLED);');
+    expect(analyze).toContain('const motionGraphicsRequested = !cutsOnlyVisualsOff && (input.generatedGraphicsEnabled ?? flags.motionGraphics);');
     expect(analyze).toContain('const deliveryDenied = input.forceDeliveryShaping === false || cutsOnlyVisualsOff;');
     expect(analyze).toContain("if (cutsOnlyVisualsOff) {\n      warnings.push('delivery_shaping_skipped:cuts_profile');");
     expect(analyze).not.toMatch(/visualEditsOn = [^;]*speechCutsOn/);

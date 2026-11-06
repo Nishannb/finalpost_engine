@@ -684,7 +684,7 @@ describe('WP45 analyzeVideo wiring (flag-gated)', () => {
 
   it('exactly one block, gated by polishPath && the flag, after the lane resolution + explainer mount, before Skill C and the caption mute', () => {
     expect(analyze.match(/runMotionTemplateStage\(/g)).toHaveLength(1);
-    expect(wp45Block).toMatch(/if \(polishPath && env\.POLISH_MOTION_TEMPLATES\)/);
+    expect(wp45Block).toMatch(/if \(polishPath && flags\.motionTemplates\)/);
     expect(analyze.indexOf('runMotionTemplateStage({')).toBeGreaterThan(analyze.indexOf('const polishSkill = resolvePolishSkill('));
     expect(analyze.indexOf('runMotionTemplateStage({')).toBeGreaterThan(analyze.indexOf('explainerMount = mount;'));
     expect(analyze.indexOf('runMotionTemplateStage({')).toBeGreaterThan(analyze.indexOf('planFacelessDocLane('));

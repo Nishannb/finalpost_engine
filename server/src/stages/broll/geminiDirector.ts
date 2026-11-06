@@ -8,6 +8,7 @@
 
 import {COLOR_DIRECTION_RESPONSE_SCHEMA, OPENING_DIRECTIVE, OPENING_RESPONSE_SCHEMA} from '../openingPlan/openingPlan.ts';
 import {env} from '../../config/env.ts';
+import {jobFlag} from '../../lib/effectiveFlags.ts';
 import {observe} from '../../lib/runObserver.ts';
 import {dumpDirectorTrace} from '../../lib/directorDump.ts';
 import type {DirectorParseRejection} from '../../lib/cutawayOutcomes.ts';
@@ -599,9 +600,9 @@ async function callGemini(input: {
         `\nDocuments → layout=card treatment=focus with focus_region matching spoken words.\n` +
         `Tall clips/images → treatment=scroll. Photos → treatment=card with glow.\n`
       : '';
-  observe(() => ({type: 'director_occupancy_input', path: 'v1', occupancy: input.occupancy ?? null, occupancyAtSec: input.occupancyAtSec ?? null, occupancyContextV2: env.OCCUPANCY_CONTEXT_V2}));
+  observe(() => ({type: 'director_occupancy_input', path: 'v1', occupancy: input.occupancy ?? null, occupancyAtSec: input.occupancyAtSec ?? null, occupancyContextV2: jobFlag('occupancyContextV2', env.OCCUPANCY_CONTEXT_V2)}));
   const occupancyBlock = input.occupancy
-    ? `${describeOccupancyForDirector(input.occupancy, env.OCCUPANCY_CONTEXT_V2 ? {atSec: input.occupancyAtSec ?? null} : undefined)}\n` +
+    ? `${describeOccupancyForDirector(input.occupancy, jobFlag('occupancyContextV2', env.OCCUPANCY_CONTEXT_V2) ? {atSec: input.occupancyAtSec ?? null} : undefined)}\n` +
       (input.speakerCutout ? `${describeCutoutForDirector(input.speakerCutout)}\n\n` : '\n')
     : input.speakerCutout
       ? `${describeCutoutForDirector(input.speakerCutout)}\n\n`
@@ -1386,7 +1387,7 @@ export function oneLineHook(value: string): string {
 
 /** True when a missing hook title means "no hook element" (HOOK_TITLE_POLICY=optional). */
 export function hookTitleIsOptional(): boolean {
-  return env.HOOK_TITLE_POLICY === 'optional';
+  return jobFlag('hookTitlePolicy', env.HOOK_TITLE_POLICY) === 'optional';
 }
 
 export function factualOverlayText(raw: string, transcript: string): string {

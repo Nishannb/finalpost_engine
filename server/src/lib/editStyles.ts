@@ -5,12 +5,14 @@
  * resolve a style the same way. The app renders from GET /v1/edit-styles (which serializes this registry), so a
  * style can be made available or reordered with a server config change, without an app release.
  *
- * Phase 1 boundary: a style only decides the job `mode` the existing runner already understands, plus a pass-through
- * `style` id for the analysis. The pipeline does not read the style yet (Phase 2, docs/ENGINE_STYLE_INTEGRATION.md),
- * so a style whose engine support is `pending` runs as its `degradesTo` style and the job records that as `degraded`.
+ * A style decides the job `mode` the existing runner already understands, and (Phase 2) the per-job pipeline flags and Gemini cap
+ * (lib/styleRun.ts). Styles that need those flags (`needsEngineFlags`) run as their `degradesTo` style while the engine kill switch
+ * EDIT_STYLES_ENGINE_FLAGS is off, and the job records that as `degraded` (docs/ENGINE_STYLE_INTEGRATION.md).
  *
  * Faceless Documentary and Newsroom are deliberately NOT in this registry: they are not exposed in v1.
  */
+
+import type {EffectiveFlags} from './effectiveFlags.ts';
 
 export const EDIT_STYLE_IDS = ['basic_captions', 'ai_clean_cut', 'kinetic_typography', 'explainer'] as const;
 export type EditStyleId = (typeof EDIT_STYLE_IDS)[number];
@@ -30,9 +32,51 @@ export type EditStyleDefinition = {
   previewAsset: string;
   /** The job mode existing consumers (runner, durable store, push routing) see. */
   mode: EditStyleJobMode;
-  /** `native`: today's pipeline already produces this style. `pending`: needs Phase 2; until then the job runs as `degradesTo`. */
-  engineSupport: 'native' | 'pending';
+  /** True when the style is produced by per-job pipeline flags (lib/styleRun.ts); with EDIT_STYLES_ENGINE_FLAGS off it runs as `degradesTo`. */
+  needsEngineFlags: boolean;
   degradesTo?: EditStyleId;
+  /**
+   * Hard per-job cap on Gemini HTTP attempts (retries and model fallbacks included). Never uncapped. 0 = no Gemini request at all. When the cap is
+   * reached, the stage that asked uses its own fallback and the job continues (`gemini_cap_reached:<stage>`).
+   */
+  geminiMaxRequests: number;
+  /**
+   * Whether the style needs a person matte (RVM) to count as honoured. `optional`: without one the style still counts as honoured (front-only
+   * Kinetic) and the job records a non-degrading note `matte_unavailable:<why>` in `styleNotes`. `required`: no matte = degraded. Absent = not used.
+   */
+  matte?: 'optional' | 'required';
+  /**
+   * Output settings this style fixes whatever the server env says, so a style looks the same on every server (lib/styleRun.ts applies them on top of
+   * the env defaults; the style's own essentials, e.g. Kinetic-Led on, win over them). Speech-cut tuning and deployment settings stay on env.
+   */
+  pins?: Partial<EffectiveFlags>;
+};
+
+/**
+ * Baseline pins for the polish styles (Checkpoint 3 verification baseline; tune per style after the renders). Each value is today's env default.
+ */
+export const POLISH_STYLE_PINS: Partial<EffectiveFlags> = {
+  polishDefaultEdits: 'lean',
+  voCutGrammar: true,
+  bareCaptions: true,
+  accumulateCaptions: true,
+  impactFx: true,
+  thSkillATools: true,
+  editorialStills: true,
+  northStar: false,
+  directorV2: false,
+  visualContextV2: false,
+  occupancyContextV2: false,
+  contentProfile: true,
+  hookTitlePolicy: 'placeholder',
+  hookDurationSec: 3,
+  zoomScale: 1.25,
+  zoomMaxDurationSec: 6,
+  cutawayScheduling: 'legacy',
+  generatedTransitions: false,
+  klipyOverlays: false,
+  forceSpeakerCutout: false,
+  deliveryLlmEmphasis: false,
 };
 
 export const EDIT_STYLES: Readonly<Record<EditStyleId, EditStyleDefinition>> = {
@@ -45,7 +89,8 @@ export const EDIT_STYLES: Readonly<Record<EditStyleId, EditStyleDefinition>> = {
     sortOrder: 10,
     previewAsset: 'basic_captions',
     mode: 'basic_captions',
-    engineSupport: 'native',
+    needsEngineFlags: false,
+    geminiMaxRequests: 0, // Groq ASR only; the job also runs inside withNoGemini
   },
   ai_clean_cut: {
     id: 'ai_clean_cut',
@@ -56,7 +101,8 @@ export const EDIT_STYLES: Readonly<Record<EditStyleId, EditStyleDefinition>> = {
     sortOrder: 20,
     previewAsset: 'ai_clean_cut',
     mode: 'full_edit',
-    engineSupport: 'native',
+    needsEngineFlags: false,
+    geminiMaxRequests: 3, // the keep-plan call plus its retries
   },
   kinetic_typography: {
     id: 'kinetic_typography',
@@ -67,8 +113,11 @@ export const EDIT_STYLES: Readonly<Record<EditStyleId, EditStyleDefinition>> = {
     sortOrder: 30,
     previewAsset: 'kinetic_typography',
     mode: 'full_edit',
-    engineSupport: 'pending',
+    needsEngineFlags: true,
     degradesTo: 'ai_clean_cut',
+    geminiMaxRequests: 12, // the polish plan reserves 6 (keep plan, story, creative, motion director, occupancy, content profile); the rest covers perception, repairs, retries
+    matte: 'optional', // front-only kinetic type is the shipped baseline while RVM is not on the server
+    pins: POLISH_STYLE_PINS,
   },
   explainer: {
     id: 'explainer',
@@ -79,8 +128,10 @@ export const EDIT_STYLES: Readonly<Record<EditStyleId, EditStyleDefinition>> = {
     sortOrder: 40,
     previewAsset: 'explainer',
     mode: 'full_edit',
-    engineSupport: 'pending',
+    needsEngineFlags: true,
     degradesTo: 'ai_clean_cut',
+    geminiMaxRequests: 12, // the polish plan reserves 6 (keep plan, story, creative, motion director, occupancy, content profile); the rest covers perception, repairs, retries
+    pins: POLISH_STYLE_PINS,
   },
 };
 
@@ -96,6 +147,8 @@ export type EditStyleConfig = {
   availableOverride: string;
   /** EDIT_STYLES_ORDER: comma list of style ids in display order. Ids not listed keep registry order after the listed ones. Empty = registry order. */
   orderOverride: string;
+  /** EDIT_STYLES_ENGINE_FLAGS: off = styles run exactly as in Phase 1 (their mode on the server profile; `needsEngineFlags` styles as `degradesTo`). Default off. */
+  engineFlags?: boolean;
 };
 
 const csv = (raw: string) =>
@@ -144,18 +197,33 @@ export function buildEditStyleCatalog(input: {config: Pick<EditStyleConfig, 'ava
     }));
 }
 
-/** Why a job does not (yet) look like the style the creator picked. Recorded on the job so it is visible, never silent. */
-export type EditStyleDegradation = {
-  reason: 'engine_style_pending';
-  /** The style the pipeline actually produced. */
-  appliedAs: EditStyleId;
+/**
+ * Why a job does not fully look like the style the creator picked. `degraded` is false when the style was fully honoured and true only on a real
+ * fallback; the reasons say which (never silent). Known reasons:
+ *   engine_flags_off                  EDIT_STYLES_ENGINE_FLAGS is off: the style ran as its `degradesTo` (Phase 1 behaviour)
+ *   kinetic_front_only:<why>          a `matte: 'required'` Kinetic style without a person matte: type in front of the speaker only (why: no_matte, or the skip reason).
+ *                                     With `matte: 'optional'` (the v1 Kinetic) this is NOT a degradation: it is recorded as the note `matte_unavailable:<why>`.
+ *   kinetic_type_failed               the kinetic type stage failed; the edit keeps its cuts and captions
+ *   kinetic_type_unpublished          kinetic beats were planned but none could be published (validation / runtime check / upload)
+ *   motion_templates_unpublished      motion-template beats were planned but none could be published
+ *   explainer_layout_a_only           no explainer layout could be mounted: talking-head layout A only
+ *   motion_stage_off                  the motion stage did not run, so no motion templates
+ *   motion_templates_failed           the motion template stage failed; nothing from it was placed
+ *   gemini_cap_reached:<stage>        the style's Gemini cap refused that stage; it used its own fallback
+ */
+export type EditStyleOutcome = {
+  degraded: boolean;
+  degradedReasons: string[];
+  /** Non-degrading facts about how the style was produced (e.g. `matte_unavailable:no_matte` for front-only Kinetic). */
+  styleNotes: string[];
 };
 
-export type ResolvedEditStyle = {
+export const ENGINE_FLAGS_OFF_REASON = 'engine_flags_off';
+
+export type ResolvedEditStyle = EditStyleOutcome & {
   style: EditStyleId;
   tier: EditStyleTier;
   mode: EditStyleJobMode;
-  degraded?: EditStyleDegradation;
 };
 
 /**
@@ -174,11 +242,15 @@ export function resolveRequestedStyle(raw: unknown, config: EditStyleConfig): Re
     return {error: 'style_unavailable', style: raw};
   }
   const def = EDIT_STYLES[raw];
+  // What is known at request time; the analysis replaces it with what the pipeline really produced (lib/styleRun.ts styleOutcome).
+  const flagsOff = def.needsEngineFlags && !config.engineFlags;
   return {
     style: def.id,
     tier: def.tier,
     mode: def.mode,
-    ...(def.engineSupport === 'pending' ? {degraded: {reason: 'engine_style_pending', appliedAs: def.degradesTo ?? 'ai_clean_cut'}} : {}),
+    degraded: flagsOff,
+    degradedReasons: flagsOff ? [ENGINE_FLAGS_OFF_REASON] : [],
+    styleNotes: [],
   };
 }
 

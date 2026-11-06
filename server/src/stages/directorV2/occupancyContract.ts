@@ -13,6 +13,7 @@ import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 import {env} from '../../config/env.ts';
+import {jobFlag} from '../../lib/effectiveFlags.ts';
 import {formatOccupancySlices} from './perception.ts';
 import type {PerceptionPack} from './types.ts';
 
@@ -52,9 +53,9 @@ export function producedOccupancySampling(pack: PerceptionPack): ProducedOccupan
   // Dense slices share their measurement by reference (nearest-neighbour copy), so distinct objects = real measurements.
   const distinct = new Set(measured.map(slice => slice.occupancy)).size;
   return {
-    mode: pack.measuredOccupancy || env.OCCUPANCY_CONTEXT_V2 ? 'measured_only' : 'dense_copies',
+    mode: pack.measuredOccupancy || jobFlag('occupancyContextV2', env.OCCUPANCY_CONTEXT_V2) ? 'measured_only' : 'dense_copies',
     linesShown: lines.length,
-    measurements: pack.measuredOccupancy ? pack.measuredOccupancy.length : pack.occupancyMeasured && env.OCCUPANCY_CONTEXT_V2 ? pack.occupancyMeasured.length : distinct,
+    measurements: pack.measuredOccupancy ? pack.measuredOccupancy.length : pack.occupancyMeasured && jobFlag('occupancyContextV2', env.OCCUPANCY_CONTEXT_V2) ? pack.occupancyMeasured.length : distinct,
     spacingSec: gaps.length > 0 ? Number(gaps[Math.floor(gaps.length / 2)]!.toFixed(2)) : null,
     facePrinted: /\bface=/.test(text),
     lastShownSec: times.length > 0 ? times.at(-1)! : null,

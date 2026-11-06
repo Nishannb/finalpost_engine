@@ -22,6 +22,7 @@ import {
   VISUAL_ANCHORS,
 } from '../../types/blueprint.ts';
 import {env} from '../../config/env.ts';
+import {jobFlag} from '../../lib/effectiveFlags.ts';
 import {colorOrigin, stampProvenance} from '../../lib/provenance.ts';
 import {holdFromPhrase} from './speechAlign.ts';
 import {isHugeSpokenNumber, parseSpokenMagnitude} from './fastCounter.ts';
@@ -90,7 +91,7 @@ export function fallbackMotionPlan(input: {
   const phrases = keyPhrasesFromTranscript(input.transcript, 3);
   const source = phrases[0] || input.hookTitle;
   // optional hook policy: with no phrase and no title there is nothing to show; do not invent "WATCH THIS" text.
-  const noText = !source && env.HOOK_TITLE_POLICY === 'optional';
+  const noText = !source && jobFlag('hookTitlePolicy', env.HOOK_TITLE_POLICY) === 'optional';
   const primary = (source || 'WATCH THIS')
     .slice(0, 28)
     .toUpperCase();

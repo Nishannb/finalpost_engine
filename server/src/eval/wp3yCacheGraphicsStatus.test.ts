@@ -80,7 +80,7 @@ describe('wiring (source text)', () => {
   const runner = stripComments(read('pipeline', 'analysisRunner.ts'));
   const schemas = read('http', 'schemas.ts');
   it('saveBlueprint stores the decision under the graphics key, with the blueprint\'s TTL, and only when there is one', () => {
-    expect(store).toContain('meta: {graphics?: JobGraphicsStatus} = {}');
+    expect(store).toContain('meta: {graphics?: JobGraphicsStatus; styleReasons?: string[]} = {}'); // styleReasons: edit styles (Phase 2), stored under its own key
     expect(store).toContain('if (meta.graphics) {\n    await kv.set(graphicsStatusKey(blueprint.blueprintId), meta.graphics, ttl);');
   });
   it('the blueprint itself is stored exactly as before (no new field inside it)', () => {
@@ -97,7 +97,8 @@ describe('wiring (source text)', () => {
     expect(hit).not.toMatch(/MOTION_GRAPHICS_ENABLED|CLAUDE_EDIT|decideClaudeBound|jobGraphicsStatus|generatedGraphicsEnabled/);
   });
   it('a fresh run saves the decision the job recorded (and nothing when none was made)', () => {
-    expect(runner).toContain('await saveBlueprint(blueprint, fingerprint, job.graphics ? {graphics: job.graphics} : {});');
+    // Edit styles (Phase 2) add the styled run's cap reasons under their own key; an unstyled run passes exactly what it did before.
+    expect(runner).toContain('await saveBlueprint(blueprint, fingerprint, {...(job.graphics ? {graphics: job.graphics} : {}), ...(extras.styleRun?.engineFlags ? {styleReasons: capReasons} : {})});');
   });
   it('the other callers of saveBlueprint are untouched (two arguments, so nothing is stored)', () => {
     expect(read('pipeline', 'templateDesignerRunner.ts')).not.toMatch(/graphics:\s*(job|input)/);

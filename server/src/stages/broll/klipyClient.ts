@@ -5,6 +5,7 @@
  */
 
 import {env} from '../../config/env.ts';
+import {jobFlag} from '../../lib/effectiveFlags.ts';
 import {requestJson} from '../../lib/http.ts';
 import {stageLogger} from '../../lib/logger.ts';
 import type {KlipyKind} from './klipyContextQuery.ts';
@@ -45,7 +46,7 @@ type KlipySearchResponse = {
 };
 
 export function klipyConfigured(): boolean {
-  return Boolean(env.KLIPY_APP_KEY?.trim()) && env.KLIPY_OVERLAYS_ENABLED !== false;
+  return Boolean(env.KLIPY_APP_KEY?.trim()) && jobFlag('klipyOverlays', env.KLIPY_OVERLAYS_ENABLED) !== false;
 }
 
 function pickFile(item: KlipyItem): {url: string; mediaKind: 'video' | 'image'; width: number; height: number} | null {
