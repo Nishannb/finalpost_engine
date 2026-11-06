@@ -3,5 +3,9 @@ node_modules
 **/dist
 .env
 .env.local
-remotion
+remotion/out
+remotion/public/_proof-beds
 README.md
+.env.*
+!.env.example
+!.env.production.example

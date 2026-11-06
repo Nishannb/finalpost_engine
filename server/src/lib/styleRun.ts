@@ -34,7 +34,7 @@ export type StyleRun = {
 };
 
 /** Bump when a style's flag set changes, so a cached blueprint of the old mapping is never served for the new one. */
-export const STYLE_FLAGS_VERSION = 'v2'; // v2: registry pins (POLISH_STYLE_PINS)
+export const STYLE_FLAGS_VERSION = 'v3'; // v2: registry pins (POLISH_STYLE_PINS); v3: Kinetic without editorial stills
 
 /** Lanes and toolkits no styled job may run, whatever the env says. */
 const STYLED_PINS = {

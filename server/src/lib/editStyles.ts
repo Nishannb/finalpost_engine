@@ -109,7 +109,7 @@ export const EDIT_STYLES: Readonly<Record<EditStyleId, EditStyleDefinition>> = {
     name: 'Kinetic Typography',
     description: 'Clean cuts plus bold animated type on your key lines.',
     tier: 'pro',
-    available: false,
+    available: true,
     sortOrder: 30,
     previewAsset: 'kinetic_typography',
     mode: 'full_edit',
@@ -117,14 +117,15 @@ export const EDIT_STYLES: Readonly<Record<EditStyleId, EditStyleDefinition>> = {
     degradesTo: 'ai_clean_cut',
     geminiMaxRequests: 12, // the polish plan reserves 6 (keep plan, story, creative, motion director, occupancy, content profile); the rest covers perception, repairs, retries
     matte: 'optional', // front-only kinetic type is the shipped baseline while RVM is not on the server
-    pins: POLISH_STYLE_PINS,
+    // type-led: no editorial stock stills (verification render: a still search pulled a copyrighted character into the opening and a template)
+    pins: {...POLISH_STYLE_PINS, editorialStills: false},
   },
   explainer: {
     id: 'explainer',
     name: 'Explainer',
     description: 'Clean cuts plus diagrams and cutaways for talking-head explainers.',
     tier: 'pro',
-    available: false,
+    available: true,
     sortOrder: 40,
     previewAsset: 'explainer',
     mode: 'full_edit',

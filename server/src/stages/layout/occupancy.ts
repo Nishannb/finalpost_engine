@@ -463,7 +463,7 @@ async function detectSpeakerFromStill(jpegPath: string): Promise<NormRect | null
       ],
       generationConfig: {
         temperature: 0,
-        maxOutputTokens: 80,
+        maxOutputTokens: 1024, // thinking models spend output tokens on thoughts first: 80 truncated the JSON (silent fallback box)
       },
     }),
   });

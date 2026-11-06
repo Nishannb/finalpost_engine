@@ -405,7 +405,7 @@ async function critiqueLayoutWithVision(input: {
         ],
         generationConfig: {
           temperature: 0,
-          maxOutputTokens: 400,
+          maxOutputTokens: 2048, // room for the thinking tokens before the JSON
         },
       }),
     });

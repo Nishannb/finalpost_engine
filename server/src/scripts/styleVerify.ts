@@ -1,7 +1,7 @@
 /**
  * Checkpoint 3 harness: real (paid) verification renders for the edit styles. docs/STYLE_VERIFICATION_PLAN.md.
  *
- *   node --experimental-strip-types src/scripts/styleVerify.ts --env-file ../.env.verify --bucket <verify-bucket> --out ~/Desktop/style-verify-<date> \
+ *   node --experimental-strip-types src/scripts/styleVerify.ts --env-file ../.env.verify [--env-file overrides.env] --bucket <verify-bucket> [--allow-bucket <name>] [--styles a,b] [--no-repeat] --out ~/Desktop/style-verify-<date> \
  *     --clip list=/path/list.mp4 --clip punchy=/path/punchy.mp4 --clip busy=/path/busy.mp4 --clip hi=../remotion/public/hi.mp4 \
  *     --rvm-python /path/to/subjectmatte/.venv-rvm/bin/python  [--dry-run | --approved]
  *
@@ -44,8 +44,14 @@ function args() {
     if (eq <= 0) throw new Error(`--clip must be id=path, got "${spec}"`);
     return {id: spec.slice(0, eq), file: path.resolve(spec.slice(eq + 1))};
   });
+  const envFiles = argv.flatMap((value, i) => (argv[i - 1] === '--env-file' ? [path.resolve(value)] : []));
+  const styles = (get('--styles') ?? 'ai_clean_cut,kinetic_typography,explainer').split(',').map(item => item.trim()).filter(Boolean) as Style[];
   return {
-    envFile: get('--env-file'),
+    envFiles,
+    allowBucket: get('--allow-bucket'),
+    styles,
+    noRepeat: argv.includes('--no-repeat'),
+    envFile: envFiles[0],
     bucket: get('--bucket'),
     out: get('--out'),
     rvmPython: get('--rvm-python'),
@@ -56,15 +62,15 @@ function args() {
   };
 }
 
-function planRuns(clips: Array<{id: string; file: string}>, repeatClip: string | undefined, withRvm: boolean): Run[] {
+function planRuns(clips: Array<{id: string; file: string}>, repeatClip: string | undefined, withRvm: boolean, styles: Style[] = ['ai_clean_cut', 'kinetic_typography', 'explainer']): Run[] {
   const runs: Run[] = [];
   for (const clip of clips) {
-    runs.push({clip: clip.id, file: clip.file, style: 'ai_clean_cut', rvm: false});
-    runs.push({clip: clip.id, file: clip.file, style: 'kinetic_typography', rvm: false});
-    if (withRvm) runs.push({clip: clip.id, file: clip.file, style: 'kinetic_typography', rvm: true});
-    runs.push({clip: clip.id, file: clip.file, style: 'explainer', rvm: false});
+    if (styles.includes('ai_clean_cut')) runs.push({clip: clip.id, file: clip.file, style: 'ai_clean_cut', rvm: false});
+    if (styles.includes('kinetic_typography')) runs.push({clip: clip.id, file: clip.file, style: 'kinetic_typography', rvm: false});
+    if (withRvm && styles.includes('kinetic_typography')) runs.push({clip: clip.id, file: clip.file, style: 'kinetic_typography', rvm: true});
+    if (styles.includes('explainer')) runs.push({clip: clip.id, file: clip.file, style: 'explainer', rvm: false});
   }
-  const again = clips.find(clip => clip.id === repeatClip);
+  const again = repeatClip ? clips.find(clip => clip.id === repeatClip) : undefined;
   if (again) {
     if (withRvm) runs.push({clip: again.id, file: again.file, style: 'kinetic_typography', rvm: true, repeat: 2});
     runs.push({clip: again.id, file: again.file, style: 'explainer', rvm: false, repeat: 2});
@@ -87,20 +93,27 @@ function guards(a: ReturnType<typeof args>): string[] {
   for (const candidate of [path.resolve(configDir, '../../../../server/.env'), path.resolve(configDir, '../../../.env'), path.resolve(configDir, '../../.env')]) {
     if (existsSync(candidate)) problems.push(`${candidate} exists and would override --env-file (config/env.ts loads it with override:true): move it aside for the run`);
   }
-  if (!a.envFile || !existsSync(a.envFile)) problems.push('--env-file <path> is required and must exist');
+  if (a.envFiles.length === 0) problems.push('--env-file <path> is required (repeatable: later files override earlier ones)');
+  for (const file of a.envFiles) if (!existsSync(file)) problems.push(`--env-file ${file} does not exist`);
   if (!a.out) problems.push('--out <folder> is required');
   if (a.clips.length === 0) problems.push('at least one --clip id=path');
   if (!a.bucket) problems.push('--bucket <verify bucket> is required');
-  if (a.bucket && !/(verify|staging|test)/i.test(a.bucket)) problems.push(`--bucket "${a.bucket}" does not look like a verification bucket (name must contain verify / staging / test)`);
+  // --allow-bucket <exact name> is the owner's explicit approval to write to a non-test bucket; uploads are then add-only (never overwrite, never delete)
+  // and the test sources go under verify/<date>/.
+  if (a.bucket && !/(verify|staging|test)/i.test(a.bucket) && a.allowBucket !== a.bucket) {
+    problems.push(`--bucket "${a.bucket}" does not look like a verification bucket (name must contain verify / staging / test, or pass --allow-bucket ${a.bucket})`);
+  }
   if (!Number.isFinite(a.maxGemini) || a.maxGemini <= 0) problems.push('--max-gemini must be a positive number');
   if (problems.length > 0) return problems;
   // the settings come from --env-file ONLY (process.env starts without them: nothing else is loaded)
-  dotenv.config({path: a.envFile, quiet: true, override: true});
+  for (const file of a.envFiles) dotenv.config({path: file, quiet: true, override: true});
   const e = process.env;
   const want = (name: string, ok: boolean, why: string) => (ok ? undefined : problems.push(`${name}: ${why}`));
   want('R2_BUCKET_NAME', e.R2_BUCKET_NAME === a.bucket, `must equal --bucket (${a.bucket}), is "${e.R2_BUCKET_NAME ?? ''}"`);
   for (const name of ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_PUBLIC_BASE_URL', 'GEMINI_API_KEY', 'GROQ_API_KEY']) want(name, Boolean(e[name]?.trim()), 'must be set');
-  for (const name of ['REMOTION_FUNCTION_NAME', 'REMOTION_SERVE_URL', 'ANTHROPIC_API_KEY', 'RUNWARE_API_KEY', 'MUSIC_BED_FRESH', 'MUSIC_SPECIALIST_CALLER']) want(name, !e[name]?.trim(), 'must be empty');
+  for (const name of ['REMOTION_FUNCTION_NAME', 'REMOTION_SERVE_URL', 'ANTHROPIC_API_KEY', 'RUNWARE_API_KEY', 'MUSIC_BED_FRESH', 'MUSIC_SPECIALIST_CALLER', 'SPEAKER_CUTOUT_API_URL', 'REDIS_URL']) {
+    want(name, !e[name]?.trim(), 'must be empty');
+  }
   want('LOCAL_RENDER_SKIP_R2', e.LOCAL_RENDER_SKIP_R2 === '1', 'must be 1 (renders stay on disk)');
   want('MUSIC_SPECIALIST', !e.MUSIC_SPECIALIST || e.MUSIC_SPECIALIST === 'off', 'must be off');
   want('NODE_ENV', e.NODE_ENV !== 'production', 'must not be production');
@@ -124,7 +137,7 @@ function guards(a: ReturnType<typeof args>): string[] {
 async function main(): Promise<void> {
   const a = args();
   const problems = guards(a);
-  const runs = planRuns(a.clips, a.repeatClip, Boolean(a.rvmPython));
+  const runs = planRuns(a.clips, a.noRepeat ? undefined : a.repeatClip, Boolean(a.rvmPython), a.styles);
   const worstGemini = runs.reduce((sum, run) => sum + CAPS[run.style], 0);
   console.log(`runs: ${runs.length}\n${runs.map(run => `  ${runName(run)}`).join('\n')}`);
   console.log(`worst case: ${worstGemini} Gemini attempts (stopped at --max-gemini ${a.maxGemini}), ${runs.length} Groq transcriptions, 0 Claude / Runware / Lambda`);
@@ -142,7 +155,9 @@ async function main(): Promise<void> {
   const {startAnalysis} = await import('../pipeline/analysisRunner.ts');
   const {startRender, renderMode} = await import('../pipeline/renderRunner.ts');
   const {loadAnalysisJob, loadRenderJob} = await import('../store/engineStore.ts');
-  const {uploadSourceVideo} = await import('../storage/r2.ts');
+  const {uploadSourceVideo, setVerificationUploadPolicy} = await import('../storage/r2.ts');
+  // add-only uploads; test sources under verify/<date>/ (the owner's conditions for using a non-test bucket)
+  setVerificationUploadPolicy({sourcePrefix: `verify/${new Date().toISOString().slice(0, 10)}/`, noOverwrite: true});
   const {withObserver} = await import('../lib/runObserver.ts');
   const {subjectMatteConfigured} = await import('../media/personMatte.ts');
   const {localServedRenderPath} = await import('../stages/render/localRender.ts');

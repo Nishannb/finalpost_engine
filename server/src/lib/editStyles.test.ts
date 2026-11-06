@@ -14,8 +14,7 @@ describe('edit-style registry', () => {
   it('declares tiers, modes, engine-flag needs and Gemini caps as agreed', () => {
     expect(EDIT_STYLE_IDS.map(id => EDIT_STYLES[id].tier)).toEqual(['free', 'pro', 'pro', 'pro']);
     expect(EDIT_STYLE_IDS.map(id => EDIT_STYLES[id].mode)).toEqual(['basic_captions', 'full_edit', 'full_edit', 'full_edit']);
-    expect(EDIT_STYLE_IDS.map(id => EDIT_STYLES[id].available)).toEqual([true, true, false, false]);
-    // Kinetic / Explainer stay unavailable until the paid verification (Checkpoint 3) passes; enabling them is an EDIT_STYLES_AVAILABLE change.
+    expect(EDIT_STYLE_IDS.map(id => EDIT_STYLES[id].available)).toEqual([true, true, true, true]); // production: all four ship
     expect(EDIT_STYLE_IDS.map(id => EDIT_STYLES[id].needsEngineFlags)).toEqual([false, false, true, true]);
     expect(EDIT_STYLE_IDS.map(id => EDIT_STYLES[id].geminiMaxRequests)).toEqual([0, 3, 12, 12]);
     expect(EDIT_STYLES.kinetic_typography.degradesTo).toBe('ai_clean_cut');
@@ -52,7 +51,7 @@ describe('edit-style registry', () => {
 
   it('resolveRequestedStyle: unknown and unavailable are distinct errors', () => {
     expect(resolveRequestedStyle('faceless_documentary', ON)).toEqual({error: 'unknown_style', style: 'faceless_documentary'});
-    expect(resolveRequestedStyle('kinetic_typography', ON)).toEqual({error: 'style_unavailable', style: 'kinetic_typography'});
+    expect(resolveRequestedStyle('kinetic_typography', {...ON, availableOverride: 'basic_captions,ai_clean_cut'})).toEqual({error: 'style_unavailable', style: 'kinetic_typography'});
   });
 
   it('resolveRequestedStyle: degraded is a boolean + reasons; only a flag-dependent style with the engine flags off is degraded up front', () => {

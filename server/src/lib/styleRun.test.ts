@@ -76,8 +76,9 @@ describe('style -> EffectiveFlags (engine flags on)', () => {
       const a = run(style, ALL_ON).flags;
       const b = run(style, ALL_OFF).flags;
       expect(a).toEqual(b); // every field: nothing of the env leaks into a polish style
-      expect(a).toMatchObject(PINNED);
-      expect(EDIT_STYLES[style].pins).toEqual(PINNED);
+      const expected = style === 'kinetic_typography' ? {...PINNED, editorialStills: false} : PINNED; // Kinetic is type-led: no stock stills
+      expect(a).toMatchObject(expected);
+      expect(EDIT_STYLES[style].pins).toEqual(expected);
     }
   });
 

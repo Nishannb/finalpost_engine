@@ -230,7 +230,9 @@ export function bindMotionTemplateContent(input: MotionTemplateBindInput): Motio
       return withAccent(images[0] ? {imageSrc: images[0], personalized: true} : {personalized: true});
     }
     case 'clip_02_slit_carousel': {
-      return withAccent(images.length >= 2 ? {imageUrls: images.slice(0, 6), personalized: true} : {personalized: true});
+      // photo-forward like the stacks below: without two real stills the shell shows empty placeholder slats (seen in a real render), so the beat is skipped
+      if (images.length < 2) return null;
+      return withAccent({imageUrls: images.slice(0, 6), personalized: true});
     }
     case 'clip_03_bento_camera': {
       const labels = uniqPreserve(pool.map(titleCase), 6);

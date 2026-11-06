@@ -1,13 +1,13 @@
 # Video engine API — Node 22 + ffmpeg.
 #
-# Only the server ships in this image. The Remotion project is deployed
-# separately to Lambda/S3 (`npm run deploy --workspace=remotion`), so the runtime
-# container stays small and holds no Chromium.
+# Final renders run on Remotion Lambda (`npm run deploy --workspace=remotion` deploys the site). The image ALSO carries the
+# Remotion project and a headless browser: publishing a motion template / kinetic-type beat (Kinetic Typography, Explainer)
+# validates it with a one-frame Remotion still render first (server/src/motionWorker/runtimeCheck.ts).
 
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
 
-COPY package.json ./
+COPY package.json package-lock.json .npmrc ./
 COPY server/package.json ./server/
 RUN npm install --omit=dev --workspace=server --ignore-scripts \
   && npm install --workspace=server --include=dev --ignore-scripts
@@ -24,12 +24,22 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends ffmpeg python3 python3-venv ca-certificates curl \
   && rm -rf /var/lib/apt/lists/*
 
-COPY package.json ./
+# Headless-browser libraries for the template runtime check (Remotion's chrome-headless-shell on Debian bookworm).
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends libnss3 libdbus-1-3 libatk1.0-0 libatk-bridge2.0-0 libgbm1 libasound2 \
+     libxrandr2 libxkbcommon0 libxfixes3 libxcomposite1 libxdamage1 libpango-1.0-0 libcairo2 libcups2 fonts-liberation \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY package.json package-lock.json .npmrc ./
 COPY server/package.json ./server/
-RUN npm install --omit=dev --workspace=server --ignore-scripts \
+COPY remotion/package.json ./remotion/
+RUN npm install --omit=dev --workspace=server --workspace=remotion --ignore-scripts \
   && npm cache clean --force
 
 COPY --from=build /app/server/dist ./server/dist
+# The Remotion project (sources + public assets) for the template runtime check; the browser is fetched at build time.
+COPY remotion ./remotion
+RUN cd remotion && npx remotion browser ensure
 # Person matte = Robust Video Matting (RVM). MediaPipe is retired; there is no matte build stage any more. Only the RVM CODE is copied (not .venv-rvm, weights or out/):
 # production must PROVISION the RVM virtualenv (torch CPU/CUDA, requirements-rvm.txt) and the weights file (subjectmatte/weights/rvm_mobilenetv3.pth) on the host / a mounted volume and point
 # RVM_PYTHON at that interpreter (RVM_DEVICE=auto|cuda|mps|cpu). Without them the matte reports not_configured and kinetic type keeps the headroom layout. Weights are never baked into this image.

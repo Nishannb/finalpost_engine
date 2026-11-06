@@ -109,6 +109,16 @@ export async function uploadRenderedVideo(
   );
 }
 
+/**
+ * Verification harness only (scripts/styleVerify.ts; never set by the server): source uploads go under `sourcePrefix` (e.g. `verify/2026-11-06/`)
+ * so test files can be found and cleaned up, and `noOverwrite` makes every upload check the key first and leave an existing object untouched
+ * (content-addressed template modules that already exist are reused as they are). Default: no policy, behaviour unchanged.
+ */
+let verificationPolicy: {sourcePrefix?: string; noOverwrite?: boolean} = {};
+export function setVerificationUploadPolicy(policy: {sourcePrefix?: string; noOverwrite?: boolean}): void {
+  verificationPolicy = {...policy};
+}
+
 /** Local first-video: Remotion can only fetch http(s), so the source goes to R2. */
 export async function uploadSourceVideo(
   filePath: string,
@@ -119,7 +129,7 @@ export async function uploadSourceVideo(
     ext === '.mov' ? 'video/quicktime' : ext === '.webm' ? 'video/webm' : 'video/mp4';
   return uploadPublicFile(
     filePath,
-    `ai-video/source/${new Date().toISOString().slice(0, 10)}/${randomUUID()}${ext}`,
+    `${verificationPolicy.sourcePrefix ?? `ai-video/source/${new Date().toISOString().slice(0, 10)}/`}${randomUUID()}${ext}`,
     contentType,
   );
 }
@@ -163,6 +173,16 @@ export async function uploadPublicFile(
   const stat = await fs.stat(filePath).catch(() => null);
   if (!stat || stat.size < 1) {
     throw new EngineError('render_failed', 'File to upload was empty');
+  }
+
+  if (verificationPolicy.noOverwrite) {
+    const exists = await getClient()
+      .send(new HeadObjectCommand({Bucket: env.R2_BUCKET_NAME, Key: key}))
+      .then(() => true, (error: {$metadata?: {httpStatusCode?: number}; name?: string}) => {
+        if (error?.$metadata?.httpStatusCode === 404 || error?.name === 'NotFound') return false;
+        throw error; // cannot tell: refuse rather than risk an overwrite
+      });
+    if (exists) return {publicUrl: publicUrlFor(key), key};
   }
 
   const maxAttempts = 5;

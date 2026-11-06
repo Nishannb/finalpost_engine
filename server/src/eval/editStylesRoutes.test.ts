@@ -78,7 +78,7 @@ afterAll(() => {
 
 beforeEach(() => {
   clearEntitlementCache();
-  Object.assign(state.env, {ENTITLEMENT_ENFORCEMENT: true, EDIT_STYLES_ENABLED: true, EDIT_STYLES_AVAILABLE: '', EDIT_STYLES_ORDER: ''});
+  Object.assign(state.env, {ENTITLEMENT_ENFORCEMENT: true, EDIT_STYLES_ENABLED: true, EDIT_STYLES_AVAILABLE: '', EDIT_STYLES_ORDER: '', EDIT_STYLES_ENGINE_FLAGS: true});
   state.created.length = 0;
   state.lookups.length = 0;
   state.jobs.clear();
@@ -107,13 +107,13 @@ const ids = (styles: Array<Record<string, unknown>> = []) => styles.map(s => s.i
 const locked = (styles: Array<Record<string, unknown>> = []) => Object.fromEntries(styles.map(s => [s.id, s.locked]));
 
 describe('GET /v1/edit-styles', () => {
-  it('free plan: the four styles, Pro ones locked, Kinetic and Explainer unavailable', async () => {
+  it('free plan: the four styles, all available, Pro ones locked', async () => {
     const response = await get('/v1/edit-styles', 'free-user');
     expect(response.status).toBe(200);
     const body = await json(response);
     expect(ids(body.styles)).toEqual(['basic_captions', 'ai_clean_cut', 'kinetic_typography', 'explainer']);
     expect(locked(body.styles)).toEqual({basic_captions: false, ai_clean_cut: true, kinetic_typography: true, explainer: true});
-    expect(body.styles?.map(s => s.available)).toEqual([true, true, false, false]);
+    expect(body.styles?.map(s => s.available)).toEqual([true, true, true, true]);
     expect(body.styles?.[0]).toEqual(expect.objectContaining({name: 'Basic Captions', tier: 'free', previewAsset: 'basic_captions', sortOrder: 10}));
     expect(body.plan).toBe('free');
   });
@@ -196,7 +196,8 @@ describe('POST /v1/edits/captions with `style`', () => {
     expect(state.created).toHaveLength(0);
   });
 
-  it('unavailable style: 409 style_unavailable, nothing created (Pro or not)', async () => {
+  it('a style switched off with EDIT_STYLES_AVAILABLE: 409 style_unavailable, nothing created (Pro or not)', async () => {
+    state.env.EDIT_STYLES_AVAILABLE = 'basic_captions,ai_clean_cut';
     for (const style of ['kinetic_typography', 'explainer']) {
       const response = await post('/v1/edits/captions', 'pro-user', {...BASE, style});
       expect(response.status, style).toBe(409);
@@ -233,8 +234,9 @@ describe('POST /v1/edits/captions with `style`', () => {
     expect(state.created[1]).not.toHaveProperty('fullEdit');
   });
 
-  it('engine flags off (default): a flag-dependent style made available runs as Clean Cut and is recorded as degraded `engine_flags_off`', async () => {
+  it('engine flags switched off: a flag-dependent style runs as Clean Cut and is recorded as degraded `engine_flags_off`', async () => {
     state.env.EDIT_STYLES_AVAILABLE = 'basic_captions,ai_clean_cut,kinetic_typography';
+    state.env.EDIT_STYLES_ENGINE_FLAGS = false;
     const response = await post('/v1/edits/captions', 'pro-user', {...BASE, style: 'kinetic_typography'});
     expect(response.status).toBe(202);
     expect(state.created[0]).toEqual(expect.objectContaining({mode: 'full_edit', style: 'kinetic_typography', degraded: true, degradedReasons: ['engine_flags_off']}));

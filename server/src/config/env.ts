@@ -79,10 +79,10 @@ const schema = z.object({
   /** Comma list of style ids in display order. Empty = the registry order. */
   EDIT_STYLES_ORDER: str(),
   /**
-   * Phase 2 engine kill switch, default OFF: styled jobs run exactly as in Phase 1 (their mode on PRODUCT_EDIT_PROFILE; Kinetic / Explainer as AI Clean Cut,
+   * Phase 2 engine kill switch, default ON (production: every style is produced natively). 0 = styled jobs run exactly as in Phase 1 (their mode on PRODUCT_EDIT_PROFILE; Kinetic / Explainer as AI Clean Cut,
    * marked degraded `engine_flags_off`). 1 = each style resolves its own per-job flags and Gemini cap (lib/styleRun.ts). Requests with no style are unaffected either way.
    */
-  EDIT_STYLES_ENGINE_FLAGS: bool(false),
+  EDIT_STYLES_ENGINE_FLAGS: bool(true),
   /**
    * Creators Supabase project URL — required in production for ES256/RS256
    * access tokens (JWKS at `/auth/v1/.well-known/jwks.json`).
