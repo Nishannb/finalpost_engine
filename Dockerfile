@@ -20,8 +20,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 # ffmpeg/ffprobe are required by src/media/ffmpeg.ts for audio extraction.
+# python3-fonttools + python3-pil: CaptionKit (Basic Captions burn, CAPTIONKIT_PYTHON=python3) measures text with them; without them every burn crashes.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ffmpeg python3 python3-venv ca-certificates curl \
+  && apt-get install -y --no-install-recommends ffmpeg python3 python3-venv python3-fonttools python3-pil ca-certificates curl \
   && rm -rf /var/lib/apt/lists/*
 
 # Headless-browser libraries for the template runtime check (Remotion's chrome-headless-shell on Debian bookworm).

@@ -2,6 +2,15 @@
 
 Run in order. `<...>` = fill in. Paste the output of every `# CHECK` line back.
 
+**Also fixed in this release:** the engine image had no `fontTools` / `PIL`, so CaptionKit (Basic Captions) crashed on
+the Docker route. Both are now in the image; the systemd route installs them in 2d.
+
+**Also shipping in this release (affects today's polish edits, any style):** the speaker-position (occupancy) Gemini call
+had `maxOutputTokens` 80, which truncated the thinking model's JSON, so every polish edit silently fell back to a guessed
+subject box. Now 1024 (layout critique 400 -> 2048, user b-roll describe 280 -> 1024). Effect: text and graphics are placed
+around the real speaker position; Gemini output tokens per edit go up slightly (fractions of a cent). Rollback = the
+engine rollback below (no separate switch).
+
 ## 0. Droplet check (engine droplet, read-only)
 ```bash
 nproc; free -h; swapon --show; df -h /; uptime                       # CHECK
@@ -70,6 +79,8 @@ sudo apt-get update && sudo apt-get install -y libnss3 libdbus-1-3 libatk1.0-0 l
   libxkbcommon0 libxfixes3 libxcomposite1 libxdamage1 libpango-1.0-0 libcairo2 libcups2 fonts-liberation
 npm install
 npm run build --workspace=server
+sudo apt-get install -y python3-fonttools python3-pil  # CaptionKit (Basic Captions) needs both
+python3 -c 'import fontTools, PIL; print("captionkit deps ok")'   # CHECK: captionkit deps ok
 (cd remotion && npx remotion browser ensure)          # CHECK: "Browser ready" (downloads chrome-headless-shell once)
 sudo chown -R $(stat -c %U server):$(stat -c %G server) node_modules   # the service user must read the browser
 sudo systemctl restart kinmel-video-engine

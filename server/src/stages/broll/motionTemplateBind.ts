@@ -245,13 +245,12 @@ export function bindMotionTemplateContent(input: MotionTemplateBindInput): Motio
       return withAccent({cards});
     }
     case 'clip_04_stacked_cards': {
+      // photo cards: a card without a real still renders as a grey placeholder (circle + bar, seen in a real Kinetic render), so only cards with a still are shown and fewer than two skips the beat
       const labels = uniqPreserve(pool.map(titleCase), 4);
-      if (labels.length < 2) return null;
+      const count = Math.min(labels.length, images.length, 4);
+      if (count < 2) return null;
       return withPalette({
-        cards: labels.slice(0, 4).map((label, index) => ({
-          label,
-          ...(images[index] ? {src: images[index]} : {}),
-        })),
+        cards: labels.slice(0, count).map((label, index) => ({label, src: images[index]!})),
       });
     }
     case 'clip_05_config_brand_loop': {
