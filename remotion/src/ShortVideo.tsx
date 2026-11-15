@@ -21,7 +21,7 @@ import {DepthOverlayTrack} from './components/DepthOverlayTrack';
 import {SubjectForegroundTrack} from './components/SubjectForegroundTrack';
 import {KineticTrack} from './kinetic/KineticTrack';import {SubjectStageFront} from './components/SubjectStage/SubjectStageFront';
 import {SubjectStageTrack} from './components/SubjectStage/SubjectStageTrack';
-import {combineFilters, foregroundFromStage, stageBackdropFilterAt} from './components/SubjectStage/stageMotion';
+import {combineFilters, stageBackdropFilterAt, stageCompositing, stageForegroundAt} from './components/SubjectStage/stageMotion';
 import {TextBehindSubjectTrack} from './components/TextBehindSubjectTrack';
 import {InsetRevealTrack} from './components/InsetRevealTrack';
 import {HookTitle} from './components/HookTitle';
@@ -92,7 +92,9 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({blueprint, style}) => {
   // cutout / cutaway) and the planned layout media are then drawn only inside the layouts. No track = every line below behaves exactly as before.
   const explainerTrack = style.brollEnabled ? blueprint.explainerLayoutTrack ?? NO_EXPLAINER_SPANS : NO_EXPLAINER_SPANS;
   const explainerOn = explainerTrack.length > 0;
-  const allOverlays = style.brollEnabled ? blueprint.visualOverlays ?? [] : [];
+  // Phase 5.24: a Subject Stage edit (active or degraded) OWNS its pictures: only its own planned cutaways are drawn (SubjectStageFront); free B-roll / picture overlays are not.
+  const stageOwnsPictures = !blueprint.kinetic && !blueprint.subjectForeground && Boolean(blueprint.subjectStage) && (stageCompositing(blueprint.subjectStage).active || Boolean(stageCompositing(blueprint.subjectStage).degraded));
+  const allOverlays = style.brollEnabled && !stageOwnsPictures ? blueprint.visualOverlays ?? [] : [];
   const overlays = explainerOn
     ? allOverlays.filter(overlay => !isExplainerMedia(overlay) && !(EXPLAINER_PICTURE_OWNING_OVERLAYS as readonly string[]).includes(overlay.layout))
     : allOverlays;
@@ -191,14 +193,29 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({blueprint, style}) => {
     sourceDurationSec: blueprint.sourceDurationSec,
   });
 
-  // SUBJECT STAGE: the person foreground the stage needs (undefined for a blueprint without `subjectStage`)
-  const subjectStageForeground = foregroundFromStage(blueprint.subjectStage);
-  const hideBaseUnderMatte = Boolean(blueprint.subjectStage && (blueprint.subjectForeground || subjectStageForeground));
+  // SUBJECT STAGE (Phase 5.23 compositing ownership): ONE owner of the person layer. A Kinetic blueprint (`kinetic` or its `subjectForeground`) owns it, so a Subject Stage payload next to
+  // one is ignored entirely (never two person layers, never the stage's plates over Kinetic's partial foreground). The stage draws only when it is ACTIVE (a usable alpha matte + valid
+  // spans, stageCompositing) and only while its foreground covers the frame. The original footage is NEVER hidden by the stage: a missing / invalid matte = the original footage alone.
+  const subjectStage = blueprint.kinetic || blueprint.subjectForeground ? undefined : blueprint.subjectStage;
+  const stageComp = stageCompositing(subjectStage);
+  const activeStage = stageComp.active ? subjectStage : undefined;
+  // Phase 5.24: the cutout is missing at render time: the original footage + only matte-independent stage elements (front designs that do not need the matte, a valid S5, the stage's cutaways)
+  const degradedStage = stageComp.degraded ? subjectStage : undefined;
+  const subjectStageForeground = stageComp.foreground;
+  const stageOnNow = stageForegroundAt(stageComp, timeSec);
 
   // Keep the creator's face in the half-panel: bias toward the upper face band.
   const speakerObjectPosition =
     speakerSide === 'top' ? '50% 28%' : '50% 18%';
 
+  // The speaker's frame-level transforms (WP26 smash zoom, impact punch-in), shared with the person-matte foreground below so the matte is transformed exactly like the footage it was cut from.
+  const speakerEffects = (children: React.ReactNode) => (
+    <SmashPunch clips={blueprint.transitions} enabled={style.brollEnabled}>
+      <ImpactPunch fx={blueprint.impactFx} enabled={style.brollEnabled}>
+        {children}
+      </ImpactPunch>
+    </SmashPunch>
+  );
   // WP26: a `smash zoom` transition punches the real footage (scale + a touch of blur) in sync with its edge blowout.
   const speakerAt = (objectPosition: string) => {
     const baseVideo = (
@@ -208,21 +225,22 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({blueprint, style}) => {
         layoutStyle={style.layoutStyle}
         objectPosition={objectPosition}
         // Dim-only stage treatment (never CSS blur).
-        grade={combineFilters(gradeFilterAt(blueprint.gradeBeats, timeSec), stageBackdropFilterAt(blueprint.subjectStage, timeSec))}
+        grade={combineFilters(gradeFilterAt(blueprint.gradeBeats, timeSec), stageOnNow ? stageBackdropFilterAt(activeStage, timeSec) : undefined)}
       />
     );
-    return (
-    <SmashPunch clips={blueprint.transitions} enabled={style.brollEnabled}>
-      <ImpactPunch fx={blueprint.impactFx} enabled={style.brollEnabled}>
+    return speakerEffects(
       <ZoomFrame triggers={blueprint.zoomTriggers} enabled={style.zoomEnabled}>
-        {/* SUBJECT STAGE: the behind-layer (SubjectStageTrack) is what sits behind the cutout; the base talking-head body is NOT shown under the matte. The speaker stays mounted at opacity 0 so its audio keeps playing (the cutout track is muted). Absent subjectStage = plain VideoTrack, unchanged. */}
-        {hideBaseUnderMatte ? <AbsoluteFill style={{opacity: 0}}>{baseVideo}</AbsoluteFill> : baseVideo}
-      </ZoomFrame>
-      </ImpactPunch>
-    </SmashPunch>
+        {/* Phase 5.23: the original footage is always drawn (it is the person whenever the stage foreground is not); the stage's behind-layer and the RVM person are composited over it. */}
+        {baseVideo}
+      </ZoomFrame>,
     );
   };
   const speaker = speakerAt(split || generatedSplit ? speakerObjectPosition : '50% 42%');
+  // the SAME object-position rule as the speaker line above (keep the two identical): the person-matte foreground is cropped exactly like the footage
+  const speakerPosition = split || generatedSplit ? speakerObjectPosition : '50% 42%';
+  // The person-matte foreground (kinetic subjectForeground / Subject Stage) is cut from the same footage: same crop position, same frame effects, same colour grade as the speaker
+  // (the Subject Stage room filter is NOT applied to the person: it treats the backdrop the person stands in front of).
+  const speakerGrade = gradeFilterAt(blueprint.gradeBeats, timeSec);
 
   const containedSpeaker = mediaContainer ? (
     <MediaContainerFrame
@@ -382,7 +400,7 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({blueprint, style}) => {
         classicStack
       )}
 
-      {style.brollEnabled && blueprint.brollClips.length > 0 && !split && !cutout && !explainerOn ? (
+      {style.brollEnabled && !stageOwnsPictures && blueprint.brollClips.length > 0 && !split && !cutout && !explainerOn ? (
         <BRollTrack clips={blueprint.brollClips} />
       ) : null}
 
@@ -414,36 +432,49 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({blueprint, style}) => {
         <KineticTrack spec={blueprint.kinetic} layer="behind" foreground={Boolean(blueprint.subjectForeground || subjectStageForeground)} />
       ) : null}
 
-      {blueprint.subjectStage ? (
-        // SUBJECT STAGE (absent = nothing mounted): the layer BEHIND the person (S1 plate / S2 card / S3 ghost scroll / S4 accents). Above the speaker footage, below the person (SubjectForegroundTrack).
-        <SubjectStageTrack stage={blueprint.subjectStage} zoomTriggers={blueprint.zoomTriggers} zoomEnabled={style.zoomEnabled} />
+      {activeStage ? (
+        // SUBJECT STAGE (inactive / absent = nothing mounted): the layer BEHIND the person (S1 plate / S2 card / S3 ghost scroll / S4 accents). Above the speaker footage, below the person (SubjectForegroundTrack).
+        // It draws only on frames the stage foreground covers, so a plate can never cover the person without the person drawn over it.
+        <SubjectStageTrack stage={activeStage} foregroundOn={stageOnNow} zoomTriggers={blueprint.zoomTriggers} zoomEnabled={style.zoomEnabled} />
       ) : null}
 
       {blueprint.subjectForeground ? (
         // WP55 phase 2: the presenter in front of host-composited kinetic environmental type (same keep segments + zoom as the speaker, so cuts stay in sync)
-        <SubjectForegroundTrack
-          foreground={blueprint.subjectForeground}
-          segments={segments}
-          layoutStyle={style.layoutStyle}
-          zoomTriggers={blueprint.zoomTriggers}
-          zoomEnabled={style.zoomEnabled}
-        />
+        speakerEffects(
+          <SubjectForegroundTrack
+            foreground={blueprint.subjectForeground}
+            segments={segments}
+            layoutStyle={style.layoutStyle}
+            zoomTriggers={blueprint.zoomTriggers}
+            zoomEnabled={style.zoomEnabled}
+            objectPosition={speakerPosition}
+            grade={speakerGrade}
+          />,
+        )
       ) : null}
 
-      {!blueprint.subjectForeground && subjectStageForeground ? (
-        // SUBJECT STAGE: the person (RVM matte) over the stage spans, through the same keep segments + zoom as the speaker. Only when kinetic's own subjectForeground is not set.
-        <SubjectForegroundTrack
-          foreground={subjectStageForeground}
-          segments={segments}
-          layoutStyle={style.layoutStyle}
-          zoomTriggers={blueprint.zoomTriggers}
-          zoomEnabled={style.zoomEnabled}
-        />
+      {subjectStageForeground ? (
+        // SUBJECT STAGE: the person (RVM matte) over the stage spans, through the same keep segments + zoom as the speaker. Only for an active stage that owns the person layer (never with a kinetic one).
+        speakerEffects(
+          <SubjectForegroundTrack
+            foreground={subjectStageForeground}
+            segments={segments}
+            layoutStyle={style.layoutStyle}
+            zoomTriggers={blueprint.zoomTriggers}
+            zoomEnabled={style.zoomEnabled}
+            objectPosition={speakerPosition}
+            grade={speakerGrade}
+          />,
+        )
       ) : null}
 
-      {blueprint.subjectStage ? (
-        // SUBJECT STAGE: S5 foreground takeover + flash_cut, IN FRONT of the person
-        <SubjectStageFront stage={blueprint.subjectStage} />
+      {activeStage ? (
+        // SUBJECT STAGE: S5 foreground takeover (only an explicitly authorised, valid S5: validInterruption) + flash_cut, IN FRONT of the person
+        <SubjectStageFront stage={activeStage} />
+      ) : null}
+      {degradedStage ? (
+        // SUBJECT STAGE, degraded render (cutout missing): matte-independent front elements only, over the original footage
+        <SubjectStageFront stage={degradedStage} degraded />
       ) : null}
 
       {blueprint.kinetic ? (
@@ -487,6 +518,7 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({blueprint, style}) => {
         }
         duck={blueprint.audioDesign?.duck ?? null}
         speechWindows={(blueprint.captionWords ?? []).map(word => ({start: word.start, end: word.end}))}
+        timeline={(blueprint.audioDesign as {musicTimeline?: unknown} | undefined)?.musicTimeline}
       />
       <SfxTrack hits={blueprint.audioDesign?.hits} />
 

@@ -29,6 +29,10 @@ export type EngineErrorCode =
   | 'upstream_timeout'
   | 'billing_blocked'
   | 'ai_direction_failed'
+  /** V1 release: the Kinetic Typography edit could not be produced. Retryable; the job never silently becomes another edit. */
+  | 'kinetic_unavailable'
+  /** V1 release: the footage cannot enter the Kinetic pipeline (screen recording, or the app did not say it is camera footage). Not retryable. */
+  | 'footage_unsupported'
   | 'internal';
 
 const STATUS_BY_CODE: Record<EngineErrorCode, number> = {
@@ -55,6 +59,8 @@ const STATUS_BY_CODE: Record<EngineErrorCode, number> = {
   upstream_timeout: 504,
   billing_blocked: 402,
   ai_direction_failed: 502,
+  kinetic_unavailable: 503,
+  footage_unsupported: 422,
   internal: 500,
 };
 

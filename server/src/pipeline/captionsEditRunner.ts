@@ -3,11 +3,12 @@
  * analyze + burn without requiring the app to stay in the foreground.
  */
 
+import type {FootageKind} from '../lib/footageKind.ts';
 import {randomUUID} from 'node:crypto';
 
 import {EngineError, isEngineError, toEngineError} from '../lib/errors.ts';
 import {stageLogger} from '../lib/logger.ts';
-import {notifyCreatorEditDone, type EditNotificationType} from '../http/notifyCreator.ts';
+import {notifyCreatorEditDone, reopenCallback, stageCallback, type CreatorCallback, type EditNotificationType} from '../http/notifyCreator.ts';
 import {randomUUID as workerUuid} from 'node:crypto';
 
 import {env} from '../config/env.ts';
@@ -33,6 +34,7 @@ import {
 } from '../stages/broll/labeledAssetBrief.ts';
 import {presignSourceVideo, sourceObjectExists} from '../storage/r2.ts';
 import type {
+  CallbackDeliveryRecord,
   CaptionTemplateId,
   CaptionsEditJob,
   LanguageCode,
@@ -75,6 +77,8 @@ export async function createCaptionsEditJob(input: {
   style?: EditStyleId;
   degraded?: boolean;
   degradedReasons?: string[];
+  /** What the caller says the video is (lib/footageKind.ts); absent = 'unknown'. Only 'camera' may enter Kinetic V2. */
+  footageKind?: FootageKind;
 }): Promise<{job: CaptionsEditJob; uploadUrl: string}> {
   if (input.mode === 'full_edit' && env.NODE_ENV === 'production' && !getDurableJobStore()) {
     // A full edit can wait days for the creator's assets: refuse to start one that would only live in KV (24h).
@@ -110,6 +114,7 @@ export async function createCaptionsEditJob(input: {
     ...(mode === 'full_edit' && input.fullEdit ? {fullEdit: input.fullEdit} : {}),
     ...(input.style ? {style: input.style} : {}),
     ...(input.style ? {degraded: Boolean(input.degraded), degradedReasons: input.degradedReasons ?? []} : {}),
+    ...(input.footageKind ? {footageKind: input.footageKind} : {}),
     createdAt: now,
     updatedAt: now,
   };
@@ -234,6 +239,7 @@ async function runCaptionsPipeline(job: CaptionsEditJob): Promise<void> {
     teleprompterClean,
     scriptText: job.scriptText,
     ...(job.style ? {style: job.style} : {}), // startAnalysis resolves its flags (lib/styleRun.ts)
+    ...(job.footageKind ? {footageKind: job.footageKind} : {}), // only 'camera' may enter Kinetic V2 (lib/footageKind.ts)
   });
   job.analysisJobId = analysis.analysisJobId;
   job.updatedAt = new Date().toISOString();
@@ -366,7 +372,7 @@ async function burnCaptionsWithCaptionKit(
     job.outputDurationSec = outputDurationSec;
     job.updatedAt = new Date().toISOString();
     await saveCaptionsEditJob(job);
-    await notifyCreatorEditDone({
+    await sendCallback(job, {
       userId: job.userId,
       editJobId: job.editJobId,
       status: 'done',
@@ -469,6 +475,84 @@ async function waitForRenderJob(job: CaptionsEditJob): Promise<void> {
   }
 }
 
+/**
+ * Completion callbacks are an OUTBOX on the job document. The event (its complete payload, attempt count, next due time, last response) is saved with the job BEFORE the first
+ * attempt and again after every attempt; the Pro durable store therefore holds it across engine restarts, and `recoverPendingCallbacks` resumes whatever is still pending.
+ * A callback problem never changes the job's state or usage: it only changes this record.
+ */
+function callbackEventIdFor(job: CaptionsEditJob, payload: CreatorCallback): string {
+  const round = job.retryCount ?? 0;
+  const kind = payload.type ?? (payload.status === 'failed' ? 'captions_failed' : 'edit_done');
+  return `${kind}:${job.editJobId}:${round}`;
+}
+
+const hasPending = (job: CaptionsEditJob) => Object.values(job.callbacks ?? {}).some(record => record.status === 'pending');
+
+/** Puts the event in the job's outbox (no save: the caller saves it together with the state change it belongs to). */
+function stageOnJob(job: CaptionsEditJob, payload: CreatorCallback): string {
+  const eventId = callbackEventIdFor(job, payload);
+  job.callbacks = {...(job.callbacks ?? {}), [eventId]: stageCallback(payload, eventId).record};
+  job.callbacksPending = true;
+  return eventId;
+}
+
+function recordSaver(editJobId: string) {
+  return async (eventId: string, record: CallbackDeliveryRecord): Promise<void> => {
+    const fresh = await loadCaptionsEditJob(editJobId);
+    if (!fresh) return;
+    fresh.callbacks = {...(fresh.callbacks ?? {}), [eventId]: record};
+    fresh.callbacksPending = hasPending(fresh);
+    await saveCaptionsEditJob(fresh);
+  };
+}
+
+async function sendCallback(job: CaptionsEditJob, payload: CreatorCallback, stagedEventId?: string): Promise<void> {
+  let eventId = stagedEventId;
+  if (!eventId) {
+    eventId = stageOnJob(job, payload);
+    await saveCaptionsEditJob(job); // the outbox entry is durable before anything is sent
+  }
+  const record = job.callbacks![eventId]!;
+  await notifyCreatorEditDone({...payload, eventId, occurredAt: record.payload?.occurredAt as string | undefined}, {resume: {eventId, record}, onRecord: recordSaver(job.editJobId)});
+}
+
+/** Boot / periodic scan: resume every callback still owed (Pro jobs live in the durable store; Free jobs and a store-less development engine keep their retries in process). */
+export async function recoverPendingCallbacks(): Promise<number> {
+  const durable = getDurableJobStore();
+  if (!durable) return 0;
+  let resumed = 0;
+  for (const editJobId of await durable.listPendingCallbacks({limit: 50})) {
+    const job = await loadCaptionsEditJob(editJobId);
+    if (!job) continue;
+    for (const [eventId, record] of Object.entries(job.callbacks ?? {})) {
+      if (record.status !== 'pending') continue;
+      if (!record.payload) { log.warn({editJobId, eventId}, 'pending callback has no payload; cannot resume'); continue; }
+      resumed += 1;
+      log.info({editJobId, eventId, attempts: record.attempts}, 'resuming pending completion callback');
+      void notifyCreatorEditDone(record.payload as unknown as CreatorCallback, {resume: {eventId, record: structuredClone(record)}, onRecord: recordSaver(editJobId), background: true});
+    }
+  }
+  return resumed;
+}
+
+/** Operator re-drive: events that ended `exhausted` / `rejected` become pending again with a fresh attempt budget (history kept). Returns how many were reopened. */
+export async function redeliverCallbacks(editJobId: string): Promise<number> {
+  const job = await loadCaptionsEditJob(editJobId);
+  if (!job) return 0;
+  const reopened: Array<[string, CallbackDeliveryRecord]> = [];
+  for (const [eventId, record] of Object.entries(job.callbacks ?? {})) {
+    if ((record.status === 'exhausted' || record.status === 'rejected') && record.payload) reopened.push([eventId, reopenCallback(record)]);
+  }
+  if (reopened.length === 0) return 0;
+  job.callbacks = {...job.callbacks, ...Object.fromEntries(reopened)};
+  job.callbacksPending = true;
+  await saveCaptionsEditJob(job);
+  for (const [eventId, record] of reopened) {
+    void notifyCreatorEditDone(record.payload as unknown as CreatorCallback, {resume: {eventId, record: structuredClone(record)}, onRecord: recordSaver(editJobId), background: true});
+  }
+  return reopened.length;
+}
+
 async function failJob(
   job: CaptionsEditJob,
   code: string,
@@ -503,7 +587,7 @@ async function notifyEnd(
   extra: {outputUrl?: string; errorMessage?: string},
 ): Promise<void> {
   if (job.mode !== 'full_edit') {
-    await notifyCreatorEditDone({
+    await sendCallback(job, {
       userId: job.userId,
       editJobId: job.editJobId,
       status,
@@ -541,15 +625,17 @@ async function notifyOnce(
   sent.add(type);
   job.notified = [...sent];
   job.updatedAt = new Date().toISOString();
-  await saveCaptionsEditJob(job);
-  await notifyCreatorEditDone({
+  const payload: CreatorCallback = {
     userId: job.userId,
     editJobId: job.editJobId,
     status,
     type,
     ...(job.blueprintId ? {blueprintId: job.blueprintId} : {}),
     ...extra,
-  });
+  };
+  const eventId = stageOnJob(job, payload); // `notified` and the outbox entry are saved in ONE write
+  await saveCaptionsEditJob(job);
+  await sendCallback(job, payload, eventId);
 }
 
 /** Retries a transient engine start (never a bad request) once before the job is failed. */
@@ -598,7 +684,9 @@ async function runFullEditPipeline(job: CaptionsEditJob): Promise<void> {
       captionStyleGuide: job.captionStyleGuide || null,
       ...(options.userBrollUrls?.length ? {userBrollUrls: options.userBrollUrls} : {}),
       ...(options.subjectCutoutUrl ? {subjectCutoutUrl: options.subjectCutoutUrl} : {}),
+      ...(job.captionPreset ? {captionPreset: job.captionPreset} : {}), // V1: the creator's selected preset becomes Kinetic's visual identity (analyzeVideo -> resolveKineticIdentity)
       ...(job.style ? {style: job.style} : {}), // startAnalysis resolves its flags (lib/styleRun.ts)
+      ...(job.footageKind ? {footageKind: job.footageKind} : {}), // only 'camera' may enter Kinetic V2 (lib/footageKind.ts)
     }),
   );
   job.analysisJobId = analysis.analysisJobId;
@@ -821,10 +909,12 @@ async function resumeFullEditAfterAssets(job: CaptionsEditJob): Promise<void> {
         languageCode: job.languageCode,
         useCache: false,
         captionStyleGuide: job.captionStyleGuide || null,
+        ...(job.captionPreset ? {captionPreset: job.captionPreset} : {}),
         userBrollUrls: merged,
         labeledAssetBindings: bindings,
         ...(options.subjectCutoutUrl ? {subjectCutoutUrl: options.subjectCutoutUrl} : {}),
         ...(job.style ? {style: job.style} : {}), // startAnalysis resolves its flags (lib/styleRun.ts)
+        ...(job.footageKind ? {footageKind: job.footageKind} : {}), // only 'camera' may enter Kinetic V2 (lib/footageKind.ts)
       }),
     );
     job.analysisJobId = analysis.analysisJobId;
@@ -859,6 +949,7 @@ export async function retryFullEdit(input: {editJobId: string; userId: string}):
   }
   job.errorCode = undefined;
   job.errorMessage = undefined;
+  job.retryCount = (job.retryCount ?? 0) + 1; // a new round: its failure / success are new callback events
   job.notified = (job.notified ?? []).filter(type => type !== 'edit_failed');
   await (await getKv()).del(notifyClaimKey(job.editJobId, 'edit_failed')); // a new failure may notify again
   if (job.blueprintId && (job.labeledAssetBindings || (job.assetBrief?.slots.length ?? 0) === 0)) {
@@ -923,6 +1014,7 @@ export function startFullEditRecoveryWorker(): void {
   }
   const scan = setInterval(() => {
     void recoverFullEditJobs().catch(error => log.warn({error}, 'full edit recovery scan failed'));
+    void recoverPendingCallbacks().catch(error => log.warn({error}, 'pending callback scan failed'));
   }, RECOVER_EVERY_MS);
   const purge = setInterval(() => {
     void getDurableJobStore()
@@ -934,7 +1026,10 @@ export function startFullEditRecoveryWorker(): void {
   purge.unref();
   recoveryTimers = [scan, purge];
   // One scan shortly after boot picks up whatever the previous process left behind.
-  setTimeout(() => void recoverFullEditJobs().catch(() => {}), 5_000).unref();
+  setTimeout(() => {
+    void recoverFullEditJobs().catch(() => {});
+    void recoverPendingCallbacks().catch(error => log.warn({error}, 'pending callback scan failed'));
+  }, 5_000).unref();
 }
 
 export function stopFullEditRecoveryWorker(): void {

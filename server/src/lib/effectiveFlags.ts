@@ -33,6 +33,16 @@ export type EffectiveFlags = {
   textualMg: boolean;
   motionTemplates: boolean;
   kineticLed: boolean;
+  /** the standalone kinetic engine writes `blueprint.kinetic` (flag-gated; template Kinetic-Led is the fallback) */
+  kineticEngine: boolean;
+  /** the engine may use 3D extruded presets (off until verified on the render farm) */
+  kineticEngineThreeD: boolean;
+  /** the engine's Phase 4 Director-solver integration (off = the Phase 3 behaviour) */
+  kineticEngineAdaptive: boolean;
+  kineticEngineMotion: boolean;
+  kineticEngineMatte: boolean;
+  /** Match Cut camera-shutter treatment + synchronized shutter sound (POLISH_KINETIC_MATCHCUT_SHUTTER). */
+  matchCutShutter: boolean;
   subjectStage: boolean;
   /** Skill A tools (classic talking-head polish). */
   voCutGrammar: boolean;
@@ -72,6 +82,12 @@ export type EffectiveFlagsEnv = {
   POLISH_TEXTUAL_MG: boolean;
   POLISH_MOTION_TEMPLATES: boolean;
   POLISH_KINETIC_LED: boolean;
+  POLISH_KINETIC_ENGINE: boolean;
+  POLISH_KINETIC_ENGINE_3D: boolean;
+  POLISH_KINETIC_ENGINE_ADAPTIVE: boolean;
+  POLISH_KINETIC_ENGINE_MOTION: boolean;
+  POLISH_KINETIC_ENGINE_MATTE: boolean;
+  POLISH_KINETIC_MATCHCUT_SHUTTER: boolean;
   POLISH_SUBJECT_STAGE: boolean;
   POLISH_VO_CUT_GRAMMAR: boolean;
   POLISH_BARE_CAPTIONS: boolean;
@@ -111,6 +127,12 @@ export function effectiveFlagsFromEnv(env: EffectiveFlagsEnv, profile: ProductEd
     textualMg: Boolean(env.POLISH_TEXTUAL_MG),
     motionTemplates: Boolean(env.POLISH_MOTION_TEMPLATES),
     kineticLed: Boolean(env.POLISH_KINETIC_LED),
+    kineticEngine: Boolean(env.POLISH_KINETIC_ENGINE),
+    kineticEngineThreeD: Boolean(env.POLISH_KINETIC_ENGINE_3D),
+    kineticEngineAdaptive: Boolean(env.POLISH_KINETIC_ENGINE_ADAPTIVE),
+    kineticEngineMotion: Boolean(env.POLISH_KINETIC_ENGINE_MOTION),
+    kineticEngineMatte: Boolean(env.POLISH_KINETIC_ENGINE_MATTE),
+    matchCutShutter: Boolean(env.POLISH_KINETIC_MATCHCUT_SHUTTER),
     subjectStage: Boolean(env.POLISH_SUBJECT_STAGE),
     voCutGrammar: Boolean(env.POLISH_VO_CUT_GRAMMAR),
     bareCaptions: Boolean(env.POLISH_BARE_CAPTIONS),

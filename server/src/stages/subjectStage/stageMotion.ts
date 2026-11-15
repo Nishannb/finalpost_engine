@@ -245,8 +245,11 @@ export function ghostFeatherMask(cxFrac: number = 0.5, halfWFrac: number = 0.22)
 export const warmWashGradient = (): string => `linear-gradient(to bottom, ${STAGE_TOKENS.warmWash} 0%, ${STAGE_TOKENS.warmWashEdge} 100%)`;
 
 // ------------------------------------------------------------------------------------------------ span model helpers (structural types: the blueprint types satisfy them)
-export type StageSpanLike = {start: number; end: number; stage: StageId};
-export type StageLike = {matteUrl: string; bg?: {blurPx?: number; dimPct?: number}; spans: readonly StageSpanLike[]};
+/** Phase 5.24: the parts of a designed treatment (stageDesign.ts) the compositing rules read. */
+export type StageDesignLike = {kind: 'set' | 'source_card' | 'restrained'; mode?: 'set' | 'graded'; room?: 'replaced' | 'graded'; layer?: 'behind' | 'front'; dependsOnMatte?: boolean};
+export type StageSpanLike = {start: number; end: number; stage: StageId; design?: StageDesignLike};
+export type StageCutawayLike = {start: number; end: number; assetUrl: string};
+export type StageLike = {matteUrl: string; bg?: {blurPx?: number; dimPct?: number}; spans: readonly StageSpanLike[]; matteMissing?: boolean; cutaways?: readonly StageCutawayLike[]; matteIntervals?: ReadonlyArray<{start: number; end: number}>};
 
 /** The span on screen at `t` (half-open [start, end)). */
 export function stageSpanAt<T extends StageSpanLike>(spans: readonly T[] | undefined, t: number): T | undefined {
@@ -257,7 +260,16 @@ export function stageSpanAt<T extends StageSpanLike>(spans: readonly T[] | undef
 export function stageBackdropFilterAt(stage: StageLike | undefined, t: number): string | undefined {
   if (!stage) return undefined;
   const span = stageSpanAt(stage.spans, t);
+  if (span?.design) return designRoomFilter(span.design, stage.bg);
   return span && STAGE_ROOM_BLUR[span.stage] ? backdropFilterCss(stage.bg) : undefined;
+}
+
+/** Phase 5.24: the room grade a DESIGNED span asks for (applied to the original footage under the person; never blur). A replaced room needs none (the set ground covers it). */
+export const GRADED_ROOM_FILTER = 'brightness(0.86) saturate(0.8)';
+export function designRoomFilter(design: StageDesignLike, bg?: {blurPx?: number; dimPct?: number}): string | undefined {
+  if (design.kind === 'set') return design.room === 'graded' ? GRADED_ROOM_FILTER : undefined;
+  if (design.kind === 'source_card') return design.layer === 'behind' ? backdropFilterCss(bg) : undefined;
+  return undefined;
 }
 
 /** The person foreground the stage needs: the RVM matte over the union of its spans (touching / overlapping spans merge). Undefined for an absent / matte-less stage. */
@@ -271,4 +283,168 @@ export function foregroundFromStage(stage: StageLike | undefined): {videoUrl: st
     else merged.push({...span});
   }
   return merged.length > 0 ? {videoUrl: stage.matteUrl.trim(), spans: merged} : undefined;
+}
+
+// ------------------------------------------------------------------------------------------------ compositing ownership (Phase 5.23)
+/**
+ * A person-foreground video the renderer may composite: a URL (http/https), or a bundled file (`staticFile:<name>`, `/prefetch/...`, a bare public path), no whitespace, to an
+ * ALPHA-capable container (.webm / .mov; an .mp4 has no
+ * alpha, so it would paint an opaque rectangle). Anything else is NOT a foreground: the stage then does not draw at all and the original footage stays as it is.
+ */
+export function usableMatteUrl(url: unknown): url is string {
+  if (typeof url !== 'string') return false;
+  const u = url.trim();
+  if (!u || /\s/.test(u) || u.startsWith('//')) return false;
+  const path = (u.split(/[?#]/)[0] ?? '').toLowerCase();
+  if (!/\.(webm|mov)$/.test(path)) return false;
+  return /^https?:\/\/[^/\s]+\/\S+$/i.test(u) || /^(staticFile:)?\/?[\w.-]+(\/[\w.-]+)*$/.test(u);
+}
+
+export type StageCompositing = {
+  /** the stage may draw: a usable matte and at least one valid span */
+  active: boolean;
+  /** the ONE person layer of the stage (the matte over the merged union of its valid spans); absent when inactive */
+  foreground?: {videoUrl: string; spans: Array<{start: number; end: number}>};
+  reason?: 'no_stage' | 'no_matte' | 'invalid_matte' | 'no_spans' | 'matte_missing' | 'no_matte_coverage';
+  /** Phase 5.24: the cutout was declared missing at render time: draw only matte-independent elements over the original footage */
+  degraded?: boolean;
+};
+
+/**
+ * Phase 5.23 compositing contract of a Subject Stage payload. The ORIGINAL FOOTAGE IS NEVER HIDDEN by the stage: it stays the bottom layer on every frame, and the stage's behind-layer, the
+ * person foreground and the front layer are drawn over it ONLY while the stage is active and its foreground covers the frame. A missing / invalid matte or spans = inactive = the original
+ * footage alone (the person can never disappear because a payload exists).
+ */
+export function stageCompositing(stage: StageLike | undefined): StageCompositing {
+  if (!stage) return {active: false, reason: 'no_stage'};
+  // Phase 5.24: the render prefetch could not fetch the cutout: DEGRADED (original footage + only the elements that do not need the person matte)
+  if (stage.matteMissing) return {active: false, degraded: true, reason: 'matte_missing'};
+  const raw = typeof stage.matteUrl === 'string' ? stage.matteUrl.trim() : '';
+  if (!raw) return {active: false, reason: 'no_matte'};
+  if (!usableMatteUrl(raw)) return {active: false, reason: 'invalid_matte'};
+  const valid = (Array.isArray(stage.spans) ? stage.spans : []).filter(s => Number.isFinite(s.start) && Number.isFinite(s.end) && s.end > s.start && s.start >= 0);
+  if (valid.length === 0) return {active: false, reason: 'no_spans'};
+  // Phase 5.26: only spans that NEED the person layer claim it. A designed span that draws nothing (restrained / an omission) or only a front card leaves the ORIGINAL footage untouched
+  // (no cutout composited over it, so no matte halo where nothing was designed). Phase 3 (undesigned) spans keep their behaviour: every valid span claims it.
+  const fg = foregroundFromStage({...stage, matteUrl: raw, spans: valid.filter(spanNeedsForeground)});
+  if (!fg) return {active: true};
+  // Phase 5.25: with measured matte intervals, the person layer (and everything that needs it) is drawn only where the matte is present and continuous
+  if (stage.matteIntervals) {
+    const cut: Array<{start: number; end: number}> = [];
+    for (const span of fg.spans) for (const iv of stage.matteIntervals) {
+      const a = Math.max(span.start, iv.start), b = Math.min(span.end, iv.end);
+      if (b - a > 1e-6) cut.push({start: a, end: b});
+    }
+    if (cut.length === 0) return {active: false, reason: 'no_matte_coverage'};
+    return {active: true, foreground: {videoUrl: fg.videoUrl, spans: cut.sort((x, y) => x.start - y.start)}};
+  }
+  return {active: true, foreground: fg};
+}
+
+/** Whether the stage's person foreground is drawn at `t` (a merged span covers it). The behind layer and the room dim may show only then. */
+export function stageForegroundAt(c: StageCompositing, t: number): boolean {
+  return Boolean(c.active && c.foreground?.spans.some(span => t >= span.start && t < span.end));
+}
+
+export type InterruptionLike = StageSpanLike & {enter?: string; motion?: {kind?: string}; asset?: {url?: string; text?: string; lines?: readonly string[]}};
+/**
+ * The ONLY layer allowed to cover the person: an S5 front takeover the plan explicitly authorised. Valid = an S5 span entered with `slide_up_front`, moving with `slide_up_front`, long
+ * enough to slide in and hold (s5LengthOk) and never longer than the cap, with something to show (an asset URL or text). Anything incomplete is NOT drawn (the person stays visible).
+ */
+export function validInterruption(span: InterruptionLike | undefined): boolean {
+  if (!span || span.stage !== 'S5') return false;
+  if (span.enter !== 'slide_up_front' || span.motion?.kind !== 'slide_up_front') return false;
+  if (!Number.isFinite(span.start) || !Number.isFinite(span.end)) return false;
+  const len = span.end - span.start;
+  if (!(len > 0) || len > S5_MAX_DURATION_SEC + 1e-6 || !s5LengthOk(len + 1e-6)) return false; // 1e-6: span times are rounded seconds (6.0 - 4.2 = 1.7999...)
+  const a = span.asset;
+  return Boolean(a && ((typeof a.url === 'string' && a.url.trim()) || (typeof a.text === 'string' && a.text.trim()) || (a.lines ?? []).some(l => typeof l === 'string' && l.trim())));
+}
+
+export type StageFrameState = {
+  /** the original footage is drawn (always: the stage never hides it) */
+  baseFootage: true;
+  /** SubjectStageTrack draws (S1 plate / S2 card / S3 ghost / S4 accents) */
+  behindLayer: boolean;
+  /** the stage's RVM person foreground is drawn over the behind layer */
+  personForeground: boolean;
+  /** the room under the person is dimmed (S2-S5) */
+  roomDim: boolean;
+  /** an authorised S5 takeover covers the frame (the only state in which the person may be hidden) */
+  interruption: boolean;
+};
+
+/**
+ * Phase 5.23: what the renderer draws for a Subject Stage at `t`, from the same primitives the components use (ShortVideo: stageCompositing / stageForegroundAt; SubjectStageTrack: the
+ * `foregroundOn` gate; SubjectStageFront: validInterruption). Invariant: the person is visible unless `interruption` — either the behind layer is off (the original footage shows her) or
+ * her foreground is drawn over it.
+ */
+export function stageFrameState(stage: (StageLike & {spans: readonly InterruptionLike[]}) | undefined, t: number): StageFrameState {
+  const c = stageCompositing(stage);
+  const on = stageForegroundAt(c, t);
+  const span = on ? stageSpanAt(stage?.spans, t) : undefined;
+  return {baseFootage: true, behindLayer: on, personForeground: on, roomDim: Boolean(on && span && STAGE_ROOM_BLUR[span.stage]), interruption: Boolean(c.active && validInterruption(stageSpanAt(stage?.spans, t)))};
+}
+
+// ------------------------------------------------------------------------------------------------ Phase 5.24: designed treatments, cutaways, degraded render
+/** Whether a span's treatment needs the person matte to render as designed. A designed span says so itself; Phase 3 spans: S1-S4 draw behind / grade the room (need it), S5 is an opaque front takeover (does not). */
+export function spanDependsOnMatte(span: StageSpanLike): boolean {
+  if (span.design) return span.design.kind === 'restrained' ? false : Boolean(span.design.dependsOnMatte);
+  return span.stage !== 'S5';
+}
+/** Whether a span needs the person foreground layer: Phase 3 spans always; a designed span only for a replaced / graded room or a card tucked behind her. */
+export function spanNeedsForeground(span: StageSpanLike): boolean {
+  const d = span.design;
+  if (!d) return true;
+  if (d.kind === 'set') return true;
+  if (d.kind === 'source_card') return d.layer === 'behind';
+  return false;
+}
+/** Whether a span draws anything UNDER the person (only allowed while her foreground is drawn over it). */
+export function spanDrawsBehind(span: StageSpanLike): boolean {
+  const d = span.design;
+  if (!d) return span.stage !== 'S5';
+  if (d.kind === 'set') return d.mode === 'set';
+  if (d.kind === 'source_card') return d.layer === 'behind';
+  return false;
+}
+/** Whether a span draws a FRONT designed element (a chapter tab, a front card). Front designs never cover the face (stageDesign.ts places them below the face keep-out). */
+export function spanDrawsFront(span: StageSpanLike): boolean {
+  const d = span.design;
+  return Boolean(d && ((d.kind === 'set' && d.mode === 'graded') || (d.kind === 'source_card' && d.layer === 'front')));
+}
+/** The cutaway on screen at `t` (the stage's own, explicitly planned full-screen B-roll), if any. */
+export function stageCutawayAt(stage: StageLike | undefined, t: number): StageCutawayLike | undefined {
+  return (stage?.cutaways ?? []).find(c => Number.isFinite(c.start) && Number.isFinite(c.end) && c.end > c.start && typeof c.assetUrl === 'string' && c.assetUrl.trim() !== '' && t >= c.start && t < c.end);
+}
+
+export type StageFrameLayers = StageFrameState & {
+  /** a front designed element is drawn */
+  frontDesign: boolean;
+  /** the stage's own full-screen cutaway covers the frame */
+  cutaway: boolean;
+  /** degraded render (cutout missing): only matte-independent elements */
+  degraded: boolean;
+};
+/**
+ * Phase 5.24: the full per-frame model the renderer follows. Invariant: the person is visible unless an authorised interruption or the stage's own cutaway is on screen
+ * (personForeground || !behindLayer, and front designs never cover the face). Degraded: nothing behind, no person layer, no grade; matte-independent front elements, S5 and cutaways stay.
+ */
+export function stageFrameLayers(stage: (StageLike & {spans: readonly (StageSpanLike & InterruptionLike)[]}) | undefined, t: number): StageFrameLayers {
+  const c = stageCompositing(stage);
+  const on = stageForegroundAt(c, t);
+  const span = stageSpanAt(stage?.spans, t);
+  const live = c.active || Boolean(c.degraded);
+  const behind = Boolean(on && span && spanDrawsBehind(span));
+  return {
+    baseFootage: true,
+    behindLayer: behind,
+    personForeground: on,
+    roomDim: Boolean(on && span && stageBackdropFilterAt(stage, t)),
+    interruption: Boolean(live && validInterruption(span)),
+    // a front design needs no person layer: drawn whenever its span is on screen (active), or in a degraded render when it does not depend on the matte
+    frontDesign: Boolean(span && spanDrawsFront(span) && (c.active || (Boolean(c.degraded) && !spanDependsOnMatte(span)))),
+    cutaway: Boolean(live && stageCutawayAt(stage, t)),
+    degraded: Boolean(c.degraded),
+  };
 }

@@ -202,8 +202,12 @@ def fill_small_interior_holes(
     alpha: np.ndarray,
     fgr: np.ndarray,
     max_area: int = MAX_INTERIOR_HOLE_PX,
+    alpha_only: bool = False,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Fill small enclosed transparent holes inside the silhouette (hair/body speckles)."""
+    """Fill small enclosed transparent holes inside the silhouette (hair/body speckles).
+
+    ``alpha_only`` (default False = unchanged): skip repainting the filled holes' colour; the returned alpha is identical (it never reads ``fgr``).
+    """
     opaque = (alpha > 0.45).astype(np.uint8)
     bg = (1 - opaque) * 255
     flooded = bg.copy()
@@ -221,6 +225,8 @@ def fill_small_interior_holes(
         return alpha, fgr
     out_a = alpha.copy()
     out_a[fill] = 1.0
+    if alpha_only:
+        return out_a, fgr
     # Paint filled holes from neighbouring opaque colour
     solid = (alpha > 0.7).astype(np.uint8)
     if solid.any():
@@ -282,8 +288,18 @@ def refine(
     alpha: np.ndarray,
     source_rgb: Optional[np.ndarray] = None,
     white_stroke_px: float = WHITE_STROKE_PX,
+    pocket_passes: Optional[int] = None,
+    alpha_only: bool = False,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Return (foreground uint8 HxWx3, alpha float32 HxW in [0, 1])."""
+    """Return (foreground uint8 HxWx3, alpha float32 HxW in [0, 1]).
+
+    ``pocket_passes`` (default None = POCKET_PASSES, unchanged): 0 skips the colour-palette pocket clearing, which is ~88% of the refine cost
+    (~1.4 s of ~1.6 s per 720x1280 frame on an M-series CPU). Opt-in for callers that measured the alpha difference (Kinetic V2 behind-text mattes).
+
+    ``alpha_only`` (default False = unchanged): skip the foreground COLOUR reconstruction (hole repaint, colour extension / decontamination, dark-fringe fill) for callers
+    that use only the alpha (Kinetic V2 composes the original video pixels with this alpha). The alpha path never reads the colour, so the returned alpha is identical;
+    the returned foreground is RVM's own ``fgr`` unrefined (the service writes black colour planes in that mode).
+    """
     if fgr.ndim != 3 or fgr.shape[2] != 3:
         raise ValueError(f"foreground must be HxWx3, got {fgr.shape}")
     if alpha.ndim != 2 or alpha.shape != fgr.shape[:2]:
@@ -297,30 +313,31 @@ def refine(
         f = np.clip(np.nan_to_num(fgr, nan=0.0), 0, 255).astype(np.uint8)
 
     if source_rgb is not None:
-        for _ in range(POCKET_PASSES):
+        for _ in range(POCKET_PASSES if pocket_passes is None else max(0, int(pocket_passes))):
             a = open_false_foreground(a, source_rgb)
 
     # Close hair/body speckles punched by RVM or pocket clear
-    a, f = fill_small_interior_holes(a, f)
+    a, f = fill_small_interior_holes(a, f, alpha_only=alpha_only)
 
-    solid = a >= SOLID_ALPHA
-    if solid.sum() > 64:
-        solid_eroded = cv2.erode(solid.astype(np.uint8), np.ones((3, 3), np.uint8)).astype(bool)
-        if solid_eroded.any():
-            solid = solid_eroded
-    out = f.astype(np.float32)
-    if solid.any():
-        col, den = _extend_colour(f, solid)
-        reach = den > EXTEND_MIN_WEIGHT
-        replace = (~solid) & reach & (a > 0.02)
-        out[replace] = col[replace]
-        mean_c = f[solid].mean(axis=0)
-        soft_dark = (a > 0.02) & (~solid) & (out.mean(axis=2) < SOFT_DARK_LUM)
-        out[soft_dark] = mean_c
-        out[(a <= ALPHA_FLOOR) & ~reach] = 0.0
-    else:
-        out[a <= ALPHA_FLOOR] = 0.0
-    f = np.clip(out + 0.5, 0, 255).astype(np.uint8)
+    if not alpha_only:  # Phase 5.3: this block only writes the foreground COLOUR (it reads ``a`` but never changes it)
+        solid = a >= SOLID_ALPHA
+        if solid.sum() > 64:
+            solid_eroded = cv2.erode(solid.astype(np.uint8), np.ones((3, 3), np.uint8)).astype(bool)
+            if solid_eroded.any():
+                solid = solid_eroded
+        out = f.astype(np.float32)
+        if solid.any():
+            col, den = _extend_colour(f, solid)
+            reach = den > EXTEND_MIN_WEIGHT
+            replace = (~solid) & reach & (a > 0.02)
+            out[replace] = col[replace]
+            mean_c = f[solid].mean(axis=0)
+            soft_dark = (a > 0.02) & (~solid) & (out.mean(axis=2) < SOFT_DARK_LUM)
+            out[soft_dark] = mean_c
+            out[(a <= ALPHA_FLOOR) & ~reach] = 0.0
+        else:
+            out[a <= ALPHA_FLOOR] = 0.0
+        f = np.clip(out + 0.5, 0, 255).astype(np.uint8)
 
     a = _smoothstep(a, ALPHA_FLOOR, ALPHA_CEIL).astype(np.float32)
     soft = (a > 0.0) & (a < 0.95)
@@ -368,3 +385,16 @@ def to_rgba_uint8(fgr_u8: np.ndarray, alpha01: np.ndarray) -> np.ndarray:
     rgba[:, :, :3] = fgr_u8
     rgba[:, :, 3] = np.rint(alpha01 * 255.0).astype(np.uint8)
     return rgba
+
+
+def pack_alpha_into(buf: np.ndarray, alpha01: np.ndarray) -> np.ndarray:
+    """Phase 5.6 (alpha-only runs): write the matte into the alpha channel of a caller-owned, zero-initialised HxWx4 uint8 buffer and return it.
+
+    The colour channels are never written, so they stay 0: byte-identical to ``to_rgba_uint8(zeros, alpha01)`` (same rint/uint8 expression for the alpha)
+    without a new 3.7 MB allocation and a colour copy per frame. Safe to reuse only because the encoder's ``write`` copies the bytes synchronously
+    (blocking pipe write) before it returns.
+    """
+    if buf.dtype != np.uint8 or buf.ndim != 3 or buf.shape[2] != 4 or buf.shape[:2] != alpha01.shape:
+        raise ValueError(f"buffer {buf.shape} {buf.dtype} does not fit alpha {alpha01.shape}")
+    buf[:, :, 3] = np.rint(alpha01 * 255.0).astype(np.uint8)
+    return buf

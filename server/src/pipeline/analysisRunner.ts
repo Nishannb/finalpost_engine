@@ -6,11 +6,12 @@
  * capped because ffmpeg is the one CPU-bound step and the API shares a small VPS.
  */
 
+import {footageFingerprintKey, type FootageKind} from '../lib/footageKind.ts';
 import {randomUUID} from 'node:crypto';
 
 import {env} from '../config/env.ts';
 import {polishRequestedEdits} from '../lib/editToolkits.ts';
-import {isEngineError, toEngineError} from '../lib/errors.ts';
+import {EngineError, isEngineError, toEngineError} from '../lib/errors.ts';
 import {createGeminiEditBudget, geminiBudgetFromLimit, geminiBudgetPlanFor, withGeminiBudget, withNoGemini, type GeminiEditBudget} from '../lib/geminiEditBudget.ts';
 import {analyzeOverridesFor, graphicsFingerprintKey, normalizeEditProfile, profileFingerprintKey, unrecognizedEditProfile, requestGraphicsStatus, type ProductEditProfile} from '../lib/productEditProfile.ts';
 import {stageLogger} from '../lib/logger.ts';
@@ -38,7 +39,7 @@ import {analyzeVideo} from './analyzeVideo.ts';
 import type {AnalyzeInput} from './analyzeVideo.ts';
 import type {EditStyleId} from '../lib/editStyles.ts';
 import {effectiveFlagsFromEnv, type EffectiveFlags} from '../lib/effectiveFlags.ts';
-import {resolveStyleRun, styleOutcome, type StyleRun} from '../lib/styleRun.ts';
+import {kineticFailClosed, resolveStyleRun, styleOutcome, type StyleRun} from '../lib/styleRun.ts';
 import {subjectMatteConfigured} from '../media/personMatte.ts';
 
 const log = stageLogger('analysis-runner');
@@ -96,6 +97,8 @@ export async function startAnalysis(input: {
    * Gemini cap and cache-key fragment (lib/styleRun.ts); off, the job runs exactly as in Phase 1. Absent: nothing below changes.
    */
   style?: EditStyleId;
+  /** What the caller says the video is (lib/footageKind.ts); absent = 'unknown'. Only 'camera' may enter Kinetic V2. */
+  footageKind?: FootageKind;
 }): Promise<AnalysisJob> {
   const basicCaptions = Boolean(input.basicCaptions);
   if (basicCaptions) {
@@ -120,7 +123,7 @@ export async function startAnalysis(input: {
   if (unknownProfile) log.warn({value: unknownProfile, resolved: envProfile}, 'PRODUCT_EDIT_PROFILE is not legacy, mvp, cuts or polish; using the default (cuts)');
   // Edit styles: a styled job's profile / flags / Gemini cap / key fragment, resolved once (null = unstyled: everything below is exactly the env path).
   const styleRun = input.style
-    ? resolveStyleRun({style: input.style, engineFlags: env.EDIT_STYLES_ENGINE_FLAGS, envProfile, env, envGeminiMaxRequests: env.GEMINI_EDIT_MAX_REQUESTS})
+    ? resolveStyleRun({style: input.style, engineFlags: env.EDIT_STYLES_ENGINE_FLAGS, envProfile, env, envGeminiMaxRequests: env.GEMINI_EDIT_MAX_REQUESTS, release: env.V1_KINETIC_RELEASE})
     : null;
   const editProfile = styleRun ? styleRun.profile : envProfile;
   // EffectiveFlags (lib/effectiveFlags.ts): every per-job switch, resolved ONCE here and passed down; the pipeline never reads them from env.
@@ -160,6 +163,8 @@ export async function startAnalysis(input: {
     editProfileKey: profileFingerprintKey(editProfile),
     graphicsKey: graphicsFingerprintKey(graphicsAtRequest),
     styleKey: styleRun?.styleKey,
+    // Final freeze: only when this job's kinetic engine flag is on (the one case the field can change the blueprint), so every other key is unchanged
+    footageKey: footageFingerprintKey({kineticEngine: effectiveFlags.kineticEngine, footageKind: input.footageKind}),
   });
 
   const hasUploadedBindings = labeledAssetBindings.some(
@@ -235,6 +240,7 @@ export async function startAnalysis(input: {
     effectiveFlags,
     basicCaptions,
     ...(styleRun ? {styleRun} : {}),
+    ...(input.footageKind ? {footageKind: input.footageKind} : {}),
   }));
   return job;
 }
@@ -276,6 +282,7 @@ async function runAnalysis(
     effectiveFlags?: EffectiveFlags;
     basicCaptions?: boolean;
     styleRun?: StyleRun;
+    footageKind?: FootageKind;
   },
 ): Promise<void> {
   // Basic captions run the legacy (no cuts / no director) profile whatever the server profile is.
@@ -321,6 +328,9 @@ async function runAnalysis(
         teleprompterClean: extras.teleprompterClean,
         scriptText: extras.scriptText,
         basicCaptions: extras.basicCaptions,
+        ...(extras.footageKind ? {footageKind: extras.footageKind} : {}),
+        // Phase 5.23: a styled job names its editing pipeline (lib/editingPipeline.ts); analyzeVideo enforces it. Unstyled: absent = the env path as before.
+        ...(extras.styleRun ? {editingPipeline: extras.styleRun.pipeline} : {}),
         // WP1: empty for the legacy profile; the explicit MVP options otherwise (see lib/productEditProfile.ts).
         ...analyzeOverridesFor(extras.editProfile ?? 'legacy'),
         editProfile: extras.editProfile ?? 'legacy',
@@ -341,6 +351,15 @@ async function runAnalysis(
 
     // Edit styles: what the pipeline really produced (degraded only on a real fallback). The cap refusals exist only in this run, so they are kept beside the blueprint for a later cache hit.
     const refusedLabels = extras.styleRun?.engineFlags ? Object.keys(geminiBudget?.report().refusedByLabel ?? {}) : [];
+    // V1 release mode, fail closed: a Kinetic Typography job that did not get its Kinetic V2 edit FAILS here, before anything is cached or counted against the creator's monthly usage.
+    // The end user sees the retryable message; the reason (the warning that explains it) stays in the log and on the job record's details.
+    const kineticFailure = extras.styleRun
+      ? kineticFailClosed({release: env.V1_KINETIC_RELEASE, run: extras.styleRun, warnings: blueprint.stats?.warnings ?? [], hasKineticSpec: Boolean((blueprint as {kinetic?: unknown}).kinetic)})
+      : null;
+    if (kineticFailure) {
+      log.warn({analysisJobId: job.analysisJobId, style: extras.styleRun?.style, code: kineticFailure.code, detail: kineticFailure.detail}, 'kinetic fail-closed');
+      throw new EngineError(kineticFailure.code, kineticFailure.message, {reason: kineticFailure.detail});
+    }
     const outcome = extras.styleRun ? styleOutcomeFor(extras.styleRun, blueprint, refusedLabels) : null;
     const capReasons = outcome ? outcome.degradedReasons.filter(reason => reason.startsWith('gemini_cap_reached:')) : [];
     await saveBlueprint(blueprint, fingerprint, {...(job.graphics ? {graphics: job.graphics} : {}), ...(extras.styleRun?.engineFlags ? {styleReasons: capReasons} : {})});

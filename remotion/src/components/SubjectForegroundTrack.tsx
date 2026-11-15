@@ -25,16 +25,24 @@ type Props = {
   layoutStyle: LayoutStyle;
   zoomTriggers: ZoomTrigger[];
   zoomEnabled: boolean;
+  /**
+   * The cover-fit object-position of the SPEAKER footage this matte was cut from (ShortVideo passes the same value it gives the speaker). The matte must be cropped exactly like
+   * the footage: with the VideoTrack default (50% 50%) instead of the speaker's 50% 42%, a source taller than 9:16 put the person ~19 px above the footage (behind-text alignment
+   * report). Absent = the VideoTrack default, as before.
+   */
+  objectPosition?: string;
+  /** The speaker's colour grade at this instant (grade beats only; never the Subject Stage room filter, which dims the backdrop the person stands in front of). Absent = none, as before. */
+  grade?: string;
 };
 
-export const SubjectForegroundTrack: React.FC<Props> = ({foreground, segments, layoutStyle, zoomTriggers, zoomEnabled}) => {
+export const SubjectForegroundTrack: React.FC<Props> = ({foreground, segments, layoutStyle, zoomTriggers, zoomEnabled, objectPosition, grade}) => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   if (!foreground || !activeForegroundSpanAt(foreground, frame / fps)) return null;
   return (
     <AbsoluteFill style={{pointerEvents: 'none'}}>
       <ZoomFrame triggers={zoomTriggers} enabled={zoomEnabled}>
-        <VideoTrack src={foreground.videoUrl} segments={segments} layoutStyle={layoutStyle} transparent muted />
+        <VideoTrack src={foreground.videoUrl} segments={segments} layoutStyle={layoutStyle} transparent muted {...(objectPosition ? {objectPosition} : {})} {...(grade ? {grade} : {})} />
       </ZoomFrame>
     </AbsoluteFill>
   );

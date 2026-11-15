@@ -22,6 +22,8 @@ import type {
   TimelineBlueprint,
 } from '../../types/blueprint.ts';
 
+import {assertBedLoudnessRenderable, withRenderableGeneratedSfx} from './renderSafety.ts';
+
 const log = stageLogger('stage-e-render');
 
 export function renderConfigured(): boolean {
@@ -37,6 +39,14 @@ export async function startLambdaRender(input: {
   style: RenderStyle;
   renderJobId: string;
 }): Promise<{bucketName: string; lambdaRenderId: string}> {
+  // Phase SFX-3H: the same rule as renderLocally, before the payload is sent to Lambda (stages/render/renderSafety.ts).
+  assertBedLoudnessRenderable(input.blueprint, 'startLambdaRender');
+  // Completion Sprint 1: Lambda cannot read local files; generated SFX must already be hosted (production/sfxAssetHost.ts). Unhosted ones are dropped.
+  const sfxCheck = withRenderableGeneratedSfx(input.blueprint, {kind: 'lambda'});
+  if (sfxCheck.removed.length > 0) {
+    log.warn({renderJobId: input.renderJobId, removed: sfxCheck.removed}, 'sfx.generated_not_hosted_for_lambda');
+    input = {...input, blueprint: sfxCheck.blueprint};
+  }
   if (!renderConfigured()) {
     throw new EngineError(
       'not_configured',

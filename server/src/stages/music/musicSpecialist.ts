@@ -21,6 +21,17 @@ import type {MusicBrief} from './musicBrief.ts';
 import type {BedPlacementMeta} from './placementMeta.ts';
 import {BRIEF_RULES} from './musicBrief.ts';
 import {findUploadedBed, pickNearestBpm, pickPoolBed, placementPoolFields, readBedMeta, readPool, uploadBed, uploadBedDetailed, type PoolBed} from './uploadBed.ts';
+import {
+  claimGeneration,
+  resolveGeneration,
+  resolveMusicLedgerStore,
+  viewLedger,
+  type LedgerView,
+  type MusicLedgerAsset,
+  type MusicLedgerRecord,
+  type MusicLedgerResolution,
+  type MusicLedgerStore,
+} from './generationLedger.ts';
 
 const log = stageLogger('music');
 
@@ -136,7 +147,8 @@ export function spawnMusic(
         reject(new Error(`music schema: ${redactSecrets(error instanceof Error ? error.message : String(error), secret)}`));
       }
     });
-    child.stdin.end(JSON.stringify({...payload, max_usd: resolveMaxUsd(env), timeout_sec: Math.max(1, hardKillMs / 1000 - 5)}));
+    // Phase 1.7.3: the server NEVER authorises the agent's paid QC retry. Written after the spread, so no job field can override it.
+    child.stdin.end(JSON.stringify({...payload, allow_qc_retry: false, max_usd: resolveMaxUsd(env), timeout_sec: Math.max(1, hardKillMs / 1000 - 5)}));
   });
 }
 
@@ -263,8 +275,78 @@ export async function failOpen(poolKey: string, reason: string, videoId: string,
   return null;
 }
 
-async function runMusicPlan(job: MusicJob): Promise<MusicPlan | null> {
-  const decision = resolveMusicMode();
+/**
+ * Everything runMusicPlan touches outside itself. Production uses DEFAULT_MUSIC_PLAN_DEPS (the module's own functions, unchanged); tests inject fakes.
+ * `spawnMode` is the mode the child actually runs in (buildSpawnSpec forces live -> dry under vitest); tests may set it to exercise the live branch.
+ */
+export type MusicPlanDeps = {
+  decide: typeof resolveMusicMode;
+  spawnModeFor: (mode: 'plan' | 'dry' | 'live') => 'plan' | 'dry' | 'live';
+  spawn: (requested: 'plan' | 'dry' | 'live', payload: MusicJob) => Promise<MusicResult>;
+  readPool: typeof readPool;
+  findUploadedBed: typeof findUploadedBed;
+  readBedMeta: typeof readBedMeta;
+  uploadBedDetailed: typeof uploadBedDetailed;
+  writeSpool: typeof writeSpool;
+  removeSpool: typeof removeSpool;
+  flushSpool: typeof flushSpool;
+  failOpen: typeof failOpen;
+  /** Phase 1.7.2: the per-video generation ledger. Null = no verified store: live generation fails closed. */
+  ledger: () => MusicLedgerStore | null;
+  now: () => string;
+};
+
+export const DEFAULT_MUSIC_PLAN_DEPS: MusicPlanDeps = {
+  decide: resolveMusicMode,
+  spawnModeFor: mode => buildSpawnSpec(mode).mode,
+  spawn: (requested, payload) => spawnMusic(requested, payload),
+  readPool,
+  findUploadedBed,
+  readBedMeta,
+  uploadBedDetailed,
+  writeSpool,
+  removeSpool,
+  flushSpool,
+  failOpen,
+  ledger: resolveMusicLedgerStore,
+  now: () => new Date().toISOString(),
+};
+
+const qcOf = (result: MusicResult): MusicLedgerResolution['qc'] => ({
+  passed: typeof result.qc_passed === 'boolean' ? result.qc_passed : null,
+  retried: typeof result.qc_retried === 'boolean' ? result.qc_retried : null,
+  vocalScore: typeof result.qc_vocal_score === 'number' ? result.qc_vocal_score : null,
+  silenceSec: typeof result.qc_silence_sec === 'number' ? result.qc_silence_sec : null,
+  truePeakDbfs: typeof result.qc_true_peak_dbfs === 'number' ? result.qc_true_peak_dbfs : null,
+  bpmErrorRatio: typeof result.qc_bpm_error_ratio === 'number' ? result.qc_bpm_error_ratio : null,
+  seamDb: typeof result.qc_seam_db === 'number' ? result.qc_seam_db : null,
+});
+
+/** A video's finished generated bed, from its ledger record: reused at $0 for re-runs (whatever the new prompt's cache key). */
+async function reuseFromLedger(asset: MusicLedgerAsset, mood: string, d: MusicPlanDeps): Promise<MusicPlan> {
+  const meta = await d.readBedMeta(asset.cacheKey, false).catch(() => ({} as Record<string, unknown>));
+  const num = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : undefined);
+  const plan = poolPlan(
+    {
+      cache_key: asset.cacheKey,
+      url: asset.url,
+      ...(asset.fullUrl ? {full_url: asset.fullUrl} : {}),
+      ...(asset.loopUrl ? {loop_url: asset.loopUrl} : {}),
+      ...(asset.carvedUrl ? {carved_url: asset.carvedUrl} : {}),
+      ...(asset.durationSec !== undefined ? {duration_sec: asset.durationSec} : {}),
+      ...(num(meta.seed) !== undefined ? {seed: num(meta.seed)} : {}),
+      ...(num(meta.bpm) !== undefined ? {bpm: num(meta.bpm)} : {}),
+      ...(typeof meta.key === 'string' ? {key: meta.key} : {}),
+      ...placementPoolFields(meta),
+    },
+    mood,
+  );
+  const {fromPool: _fromPool, ...rest} = plan;
+  return rest;
+}
+
+async function runMusicPlan(job: MusicJob, d: MusicPlanDeps = DEFAULT_MUSIC_PLAN_DEPS): Promise<MusicPlan | null> {
+  const decision = d.decide();
   if (decision.downgraded) log.warn({from: decision.requested || 'live', to: decision.mode}, 'music.mode_downgraded');
   if (decision.mode === 'off') return null;
   const bedSource = resolveBedSource();
@@ -275,12 +357,12 @@ async function runMusicPlan(job: MusicJob): Promise<MusicPlan | null> {
   // Personalised: pools are keyed by the brief's STYLE. Without a brief it is the family mood, as before.
   const brief = job.brief;
   const mood = brief?.style ?? resolveMoodPool(job.emotional_tone || 'neutral');
-  const spawnMode = buildSpawnSpec(decision.mode).mode;
+  const spawnMode = d.spawnModeFor(decision.mode);
   const dry = spawnMode !== 'live';
   const fresh = bedFresh();
   try {
     try {
-      const flushed = await flushSpool({
+      const flushed = await d.flushSpool({
         dir: spoolDir(),
         upload: entry => uploadBed({filePath: entry.filePath, cacheKey: entry.cacheKey, mood: entry.mood, dry: entry.dry, meta: entry.meta}),
       });
@@ -290,7 +372,7 @@ async function runMusicPlan(job: MusicJob): Promise<MusicPlan | null> {
     }
     // Pool first: a mood with a bed never spawns Python. Dry reads the real pool too; dry writes go to a separate prefix.
     if (!fresh) {
-      const beds = await readPool(mood);
+      const beds = await d.readPool(mood);
       const picked = brief ? pickNearestBpm(videoId, beds, brief.bpm) : pickPoolBed(videoId, beds);
       if (picked) {
         log.info({mood, cache_key: picked.cache_key, host: urlHost(picked.url), cost_usd: 0, video_id: videoId, ...(brief ? {bedBpm: picked.bpm, wantedBpm: brief.bpm} : {})}, 'music.pool_hit');
@@ -299,19 +381,82 @@ async function runMusicPlan(job: MusicJob): Promise<MusicPlan | null> {
     }
     if (fresh) log.info({mood}, 'music.pool_skipped_fresh');
     const jobWithSfx = {...job, include_sfx: job.include_sfx ?? sfxEnabled()};
-    const plan = await spawnMusic('plan', jobWithSfx);
+    const plan = await d.spawn('plan', jobWithSfx);
     const estimate = plan.estimated_cost_usd ?? 0.0075;
-    if (estimate > resolveMaxUsd()) return failOpen(mood, 'cost_cap', videoId, brief);
-    const cached = await findUploadedBed(plan.cache_key, dry);
+    if (estimate > resolveMaxUsd()) return d.failOpen(mood, 'cost_cap', videoId, brief);
+    const cached = await d.findUploadedBed(plan.cache_key, dry);
     if (cached) {
       log.info({cache_key: plan.cache_key, cost_usd: 0}, 'music.cache_hit');
       // Re-rendering the same video costs $0 and still gets the full bed, the loop, the carved twin and the measured placement from the stored meta.json.
-      const meta = await readBedMeta(plan.cache_key, dry).catch(() => ({} as Record<string, unknown>));
+      const meta = await d.readBedMeta(plan.cache_key, dry).catch(() => ({} as Record<string, unknown>));
       const fromMeta = poolPlan({cache_key: plan.cache_key, url: cached, ...(typeof meta.full_url === 'string' ? {full_url: meta.full_url} : {}), ...(typeof meta.loop_url === 'string' ? {loop_url: meta.loop_url} : {}), ...(typeof meta.carved_url === 'string' ? {carved_url: meta.carved_url} : {}), ...(typeof meta.duration_sec === 'number' ? {duration_sec: meta.duration_sec} : {}), ...placementPoolFields(meta)}, mood);
       return {...toPlan(plan, cached), ...(fromMeta.fullUrl ? {fullUrl: fromMeta.fullUrl} : {}), ...(fromMeta.loopUrl ? {loopUrl: fromMeta.loopUrl, ...(fromMeta.fullDurationSec ? {fullDurationSec: fromMeta.fullDurationSec} : {})} : {}), ...(fromMeta.carvedUrl ? {carvedUrl: fromMeta.carvedUrl} : {}), ...(fromMeta.placement ? {placement: fromMeta.placement} : {})};
     }
-    const generated = await spawnMusic(decision.mode, {...jobWithSfx, seed: plan.seed});
-    if (!generated.bed_path) return failOpen(mood, 'no_bed', videoId, brief);
+
+    // Phase 1.7.2: a PAID generation needs the per-video ledger, claimed atomically before the child that calls the provider is spawned.
+    // Dry and plan modes never pay and are unchanged.
+    let claimed: MusicLedgerRecord | null = null;
+    let store: MusicLedgerStore | null = null;
+    if (spawnMode === 'live') {
+      store = d.ledger();
+      if (!store) {
+        log.warn({video_id: videoId}, 'music.ledger_unavailable');
+        return d.failOpen(mood, 'ledger_unavailable', videoId, brief);
+      }
+      if (!/^[A-Za-z0-9_-]{1,128}$/.test(videoId)) {
+        log.warn({video_id_length: videoId.length}, 'music.ledger_invalid_video_id');
+        return d.failOpen(mood, 'ledger_invalid_video_id', videoId, brief);
+      }
+      let claim: Awaited<ReturnType<typeof claimGeneration>>;
+      try {
+        claim = await claimGeneration(store, {videoId, cacheKey: plan.cache_key, seed: plan.seed, promptVersion: plan.prompt_version ?? null, estimatedCostUsd: plan.estimated_cost_usd ?? null, now: d.now()});
+      } catch (error) {
+        // Ambiguous: the create may or may not have landed. Never generate on an unknown claim.
+        log.warn({video_id: videoId, reason: error instanceof Error ? error.name : 'error'}, 'music.ledger_claim_error');
+        return d.failOpen(mood, 'ledger_claim_error', videoId, brief);
+      }
+      if (claim.outcome === 'lost') {
+        const view = await viewLedger(store, videoId).catch(() => ({state: 'unreadable'} as LedgerView));
+        if (view.state === 'resolved' && view.record.resolution?.outcome === 'generated' && view.record.resolution.asset) {
+          log.info({video_id: videoId, cache_key: view.record.resolution.asset.cacheKey, cost_usd: 0}, 'music.ledger_reuse');
+          return reuseFromLedger(view.record.resolution.asset, mood, d);
+        }
+        log.info({video_id: videoId, ledger: view.state, outcome: view.state === 'resolved' ? view.record.resolution?.outcome ?? null : null}, 'music.ledger_consumed');
+        return d.failOpen(mood, 'already_generated', videoId, brief);
+      }
+      claimed = claim.record;
+    }
+    const resolveClaim = async (resolution: Omit<MusicLedgerResolution, 'resolvedAt'>) => {
+      if (!store || !claimed) return;
+      try {
+        await resolveGeneration(store, claimed, {...resolution, resolvedAt: d.now()});
+      } catch (error) {
+        // The record stays `claimed`: still consumed. Nothing is retried.
+        log.warn({video_id: videoId, reason: error instanceof Error ? error.name : 'error'}, 'music.ledger_resolve_failed');
+      }
+    };
+
+    let generated: MusicResult;
+    try {
+      generated = await d.spawn(decision.mode, {...jobWithSfx, seed: plan.seed});
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const reason = /timeout|SIGKILL|exited null/i.test(message) ? 'timeout' : 'spawn';
+      await resolveClaim({outcome: 'failed', reason, costUsd: null, qc: null, asset: null});
+      return d.failOpen(mood, reason, videoId, brief);
+    }
+    if (claimed && generated.qc_retried === true) log.warn({video_id: videoId, cache_key: generated.cache_key}, 'music.qc_retry_detected');
+    // Phase 1.7.2: a bed that failed QC in a paid run is never used, uploaded, spooled or pooled, and nothing is regenerated.
+    if (claimed && generated.qc_passed === false) {
+      const qc = qcOf(generated);
+      log.warn({video_id: videoId, cache_key: generated.cache_key, cost_usd: generated.cost_usd ?? null, qc}, 'music.qc_failed');
+      await resolveClaim({outcome: 'qc_failed', reason: 'qc_failed', costUsd: generated.cost_usd ?? null, qc, asset: null});
+      return d.failOpen(mood, 'qc_failed', videoId, brief);
+    }
+    if (!generated.bed_path) {
+      await resolveClaim({outcome: 'failed', reason: 'no_bed', costUsd: generated.cost_usd ?? null, qc: qcOf(generated), asset: null});
+      return d.failOpen(mood, 'no_bed', videoId, brief);
+    }
     let uploaded: Awaited<ReturnType<typeof uploadBedDetailed>>;
     const uploadMeta = {
       prompt: generated.caption,
@@ -351,13 +496,13 @@ async function runMusicPlan(job: MusicJob): Promise<MusicPlan | null> {
     };
     const spoolRoot = spoolDir();
     try {
-      await writeSpool({dir: spoolRoot, cacheKey: generated.cache_key, filePath: generated.bed_path, meta: {mood: generated.mood ?? mood, dry, meta: uploadMeta}});
+      await d.writeSpool({dir: spoolRoot, cacheKey: generated.cache_key, filePath: generated.bed_path, meta: {mood: generated.mood ?? mood, dry, meta: uploadMeta}});
     } catch (error) {
       log.warn({reason: error instanceof Error ? error.message : String(error)}, 'music.spool_write_failed');
     }
     try {
       const loopOk = Boolean(generated.bed_loop_path) && generated.loop_fallback === false;
-      uploaded = await uploadBedDetailed({
+      uploaded = await d.uploadBedDetailed({
         filePath: generated.bed_path,
         cacheKey: generated.cache_key,
         mood: generated.mood ?? mood,
@@ -367,13 +512,28 @@ async function runMusicPlan(job: MusicJob): Promise<MusicPlan | null> {
         ...(generated.bed_full_path ? {fullFilePath: generated.bed_full_path} : {}),
         ...(generated.bed_carved_path ? {carvedFilePath: generated.bed_carved_path} : {}),
       });
-      await removeSpool(spoolRoot, generated.cache_key).catch(() => undefined);
+      await d.removeSpool(spoolRoot, generated.cache_key).catch(() => undefined);
     } catch (error) {
       const reason = error instanceof Error && error.message === 'r2_unconfigured' ? 'r2_unconfigured' : 'upload';
-      return failOpen(mood, reason, videoId, brief);
+      await resolveClaim({outcome: 'upload_failed', reason, costUsd: generated.cost_usd ?? null, qc: qcOf(generated), asset: null});
+      return d.failOpen(mood, reason, videoId, brief);
     }
     log.info({cost_usd: generated.cost_usd ?? 0, cache_key: generated.cache_key, bpm: generated.bpm, seed: generated.seed}, 'music.generated');
     const plan2 = toPlan(generated, uploaded.url);
+    await resolveClaim({
+      outcome: 'generated',
+      reason: null,
+      costUsd: generated.cost_usd ?? null,
+      qc: qcOf(generated),
+      asset: {
+        cacheKey: generated.cache_key,
+        url: uploaded.url,
+        ...(uploaded.fullUrl ? {fullUrl: uploaded.fullUrl} : {}),
+        ...(uploaded.loopUrl ? {loopUrl: uploaded.loopUrl} : {}),
+        ...(uploaded.carvedUrl ? {carvedUrl: uploaded.carvedUrl} : {}),
+        ...(generated.duration_sec !== undefined ? {durationSec: generated.duration_sec} : {}),
+      },
+    });
     return {
       ...plan2,
       ...(uploaded.fullUrl ? {fullUrl: uploaded.fullUrl} : {}),
@@ -383,8 +543,16 @@ async function runMusicPlan(job: MusicJob): Promise<MusicPlan | null> {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const reason = /timeout|SIGKILL|exited null/i.test(message) ? 'timeout' : 'spawn';
-    return failOpen(mood, reason, videoId, brief);
+    return d.failOpen(mood, reason, videoId, brief);
   }
+}
+
+/** Test entry: runMusicPlan with injected dependencies (never rejects, like startMusicPlan). */
+export function runMusicPlanWith(job: MusicJob, deps: Partial<MusicPlanDeps>): Promise<MusicPlan | null> {
+  return runMusicPlan(job, {...DEFAULT_MUSIC_PLAN_DEPS, ...deps}).catch(error => {
+    log.warn({reason: error instanceof Error ? error.message : String(error)}, 'music.fallback');
+    return null;
+  });
 }
 
 /** Starts immediately and never rejects. Resolves null when the specialist is off or generation fails open. */

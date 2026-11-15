@@ -13,6 +13,7 @@ import path from 'node:path';
 
 import {EngineError} from '../../lib/errors.ts';
 import {stageLogger} from '../../lib/logger.ts';
+import {withoutBehindEvents} from '../kinetic/matteMap.ts';
 import {
   copyLocalFile,
   downloadToFile,
@@ -70,6 +71,9 @@ export function collectBlueprintMediaUrls(blueprint: TimelineBlueprint): string[
   }
   add(blueprint.speakerCutout?.videoUrl);
   add(blueprint.subjectForeground?.videoUrl); // WP55 phase 2: the range-limited person foreground travels like the keyed cutout
+  // Phase 5.24: the Subject Stage person cutout and the stage's own cutaways (a cutout that cannot be fetched degrades the stage instead of failing the render: rewriteBlueprintMediaUrls)
+  if (blueprint.subjectStage?.matteUrl && !blueprint.subjectStage.matteUrl.trim().startsWith('staticFile:')) add(blueprint.subjectStage.matteUrl);
+  for (const cutaway of blueprint.subjectStage?.cutaways ?? []) if (!cutaway.assetUrl.trim().startsWith('staticFile:')) add(cutaway.assetUrl);
   for (const clip of blueprint.brollClips ?? []) {
     add(clip.assetUrl);
   }
@@ -118,12 +122,16 @@ export function rewriteBlueprintMediaUrls(
   const foregroundUrl = blueprint.subjectForeground ? swap(blueprint.subjectForeground.videoUrl) : '';
   const foregroundLost = Boolean(blueprint.subjectForeground) && !foregroundUrl;
   const hostComposited = (graphic: {props?: unknown}) => (graphic.props as {content?: {hostComposited?: unknown}} | undefined)?.content?.hostComposited === true;
+  const stage = subjectStageAfterPrefetch(blueprint.subjectStage, swap);
 
   return {
     ...blueprint,
     videoUrl: swap(blueprint.videoUrl),
     ...(blueprint.subjectForeground && !foregroundLost ? {subjectForeground: {...blueprint.subjectForeground, videoUrl: foregroundUrl}} : {}),
     ...(foregroundLost ? {subjectForeground: undefined} : {}),
+    // Phase 5: a Kinetic V2 spec whose foreground was lost loses its behind events too (never type over the face); no foreground lost = unchanged
+    ...(foregroundLost && blueprint.kinetic ? {kinetic: withoutBehindEvents(blueprint.kinetic).spec} : {}),
+    ...(stage ? {subjectStage: stage.subjectStage} : {}),
     speakerCutout: blueprint.speakerCutout
       ? {
           ...blueprint.speakerCutout,
@@ -170,6 +178,7 @@ export function rewriteBlueprintMediaUrls(
       .filter(graphic => !(foregroundLost && hostComposited(graphic))),
     stats: {
       ...blueprint.stats,
+      ...(stage && stage.warnings.length > 0 ? {warnings: [...(blueprint.stats?.warnings ?? []), ...stage.warnings]} : {}),
       brollClipCount: (blueprint.brollClips ?? []).filter(clip =>
         Boolean(swap(clip.assetUrl)),
       ).length,
@@ -308,4 +317,54 @@ function extensionFor(url: string): string {
     return ext;
   }
   return '.bin';
+}
+
+/**
+ * Phase 5.24: the Subject Stage after prefetch. A person cutout that could not be fetched does NOT fail the render: the stage is marked `matteMissing` (its matte URL blanked, so no video
+ * element is ever mounted for it) and the renderer degrades to the original footage + matte-independent elements, with the diagnostic `subject_stage:render_degraded:matte_missing`.
+ * Cutaways that could not be fetched are dropped (`subject_stage:render_degraded:cutaway_missing:<n>`). Undefined for a blueprint without a stage (unchanged).
+ */
+export function subjectStageAfterPrefetch(
+  stage: TimelineBlueprint['subjectStage'],
+  swap: (value?: string) => string,
+): {subjectStage: NonNullable<TimelineBlueprint['subjectStage']>; warnings: string[]} | undefined {
+  if (!stage) return undefined;
+  const warnings: string[] = [];
+  const wasSet = Boolean(stage.matteUrl?.trim());
+  const matteUrl = wasSet ? swap(stage.matteUrl) : '';
+  const matteMissing = wasSet && !matteUrl;
+  if (matteMissing) {
+    warnings.push('subject_stage:render_degraded:matte_missing');
+    // Phase 5.25: name every treatment the degraded render suppresses (it needs the cutout) or keeps (it renders without it), so nothing claims a composition that did not render
+    warnings.push(...degradedTreatmentDiagnostics(stage));
+    log.warn({matte: stage.matteUrl.slice(0, 140)}, 'subject stage cutout missing: rendering the original footage with matte-independent elements only');
+  }
+  const cutaways = (stage.cutaways ?? []).map(c => ({...c, assetUrl: swap(c.assetUrl)})).filter(c => Boolean(c.assetUrl));
+  const lost = (stage.cutaways ?? []).length - cutaways.length;
+  if (lost > 0) warnings.push(`subject_stage:render_degraded:cutaway_missing:${lost}`);
+  return {
+    subjectStage: {...stage, matteUrl, ...(matteMissing ? {matteMissing: true} : {}), ...(stage.cutaways ? {cutaways} : {})},
+    warnings,
+  };
+}
+
+/**
+ * Phase 5.25: one diagnostic per span of a degraded (cutout-missing) stage:
+ *   subject_stage:render_degraded:suppressed:<i>:<stage>:<treatment>:<why>   the treatment needs the person cutout (behind the person, room replacement / grade, the person layer)
+ *   subject_stage:render_degraded:kept:<i>:<stage>:<treatment>:matte_independent   it renders without the cutout (a front card / tab in free space, an opaque S5 takeover)
+ * Restrained spans draw nothing either way and are not listed. Cutaways are full-frame footage replacements and are kept (`kept:cutaways:<n>`).
+ */
+export function degradedTreatmentDiagnostics(stage: NonNullable<TimelineBlueprint['subjectStage']>): string[] {
+  const out: string[] = [];
+  stage.spans.forEach((span, i) => {
+    const d = span.design;
+    if (d?.kind === 'restrained') return;
+    const treatment = d ? (d.kind === 'set' ? `set_${d.mode}` : `source_card_${d.layer}`) : `legacy_${span.stage.toLowerCase()}`;
+    const why = d ? (d.kind === 'set' && d.mode === 'set' ? 'room_replaced_and_headline_behind_person' : d.kind === 'source_card' && d.layer === 'behind' ? 'card_tucked_behind_person' : 'needs_person_cutout') : span.stage === 'S5' ? '' : 'legacy_behind_layer_needs_person_cutout';
+    const kept = d ? !d.dependsOnMatte : span.stage === 'S5';
+    out.push(kept ? `subject_stage:render_degraded:kept:${i}:${span.stage}:${treatment}:matte_independent` : `subject_stage:render_degraded:suppressed:${i}:${span.stage}:${treatment}:${why}`);
+    if (kept && d?.kind === 'set') out.push(`subject_stage:render_degraded:suppressed:${i}:${span.stage}:room_grade:needs_person_cutout`);
+  });
+  if ((stage.cutaways ?? []).length > 0) out.push(`subject_stage:render_degraded:kept:cutaways:${stage.cutaways!.length}`);
+  return out;
 }

@@ -10,8 +10,13 @@ export type ShotScene = {
   shotId: string;
   /** no usable matte: every text event renders in front */
   noMatte: boolean;
-  /** the box is a default / vision estimate, not measured on a matte */
+  /**
+   * The box is a default guess, not a measurement. False for a matte box AND for a measured speaker box without a matte (`boxSource: 'measured'`):
+   * beside / above / flank placement needs only a measured box. Behind-the-head, stack-over-cutout and occlusion still need the matte (`noMatte`).
+   */
   estimated: boolean;
+  /** where `subjectBox` comes from: matte analysis, a measured speaker box (vision, no matte) or the default guess. Absent on hand-built scenes (read as: matte unless `estimated`). */
+  boxSource?: 'matte' | 'measured' | 'estimate';
   subjectBox: Box;
   boxTrack?: Array<{frame: number; box: Box}>;
   /** fraction of the frame covered by the subject alpha (0..1) */
@@ -27,6 +32,8 @@ export type ShotScene = {
   luminance: number;
   /** mean plate colour (#rrggbb) when sampled: the director / solver pick an accent that suits it */
   plateColor?: string;
+  /** Phase 4.8: SOFT crown allowance above the hard face rectangle (fraction of the composition height, before zoom): the upper zone prefers to stay this much further above the head when a readable placement allows */
+  crownSoft?: number;
 };
 
 export const FACE_FRACTION = 0.42;
@@ -56,6 +63,8 @@ export function modelAreaFrac(b: Box): number {
 export function buildScene(input: {
   shotId: string;
   subjectBox?: Box | null;
+  /** G1: a measured person box (composition fractions, already validated by speakerBox.ts) when there is NO matte. Ignored when `subjectBox` (a matte box) is given. */
+  speakerBox?: Box | null;
   boxTrack?: ShotScene['boxTrack'];
   alphaAreaFrac?: number;
   grid?: AlphaGrid;
@@ -63,15 +72,19 @@ export function buildScene(input: {
   blurHint?: number;
   luminance?: number;
   plateColor?: string;
+  crownSoft?: number;
   width?: number;
   height?: number;
 }): ShotScene {
+  const measured = !input.subjectBox && Boolean(input.speakerBox);
   const noMatte = Boolean(input.noMatte) || !input.subjectBox;
-  const box = input.subjectBox ?? DEFAULT_SUBJECT_BOX;
+  const box = input.subjectBox ?? input.speakerBox ?? DEFAULT_SUBJECT_BOX;
+  const boxSource: NonNullable<ShotScene['boxSource']> = measured ? 'measured' : noMatte ? 'estimate' : 'matte';
   return {
     shotId: input.shotId,
     noMatte,
-    estimated: noMatte,
+    estimated: measured ? false : noMatte,
+    boxSource,
     subjectBox: box,
     ...(input.boxTrack ? {boxTrack: input.boxTrack} : {}),
     alphaAreaFrac: input.alphaAreaFrac ?? modelAreaFrac(box),
@@ -80,6 +93,7 @@ export function buildScene(input: {
     freeSpace: freeSpaceOf(box, input.width, input.height),
     blurHint: input.blurHint ?? 0,
     luminance: input.luminance ?? 0.45,
+    ...(input.crownSoft ? {crownSoft: input.crownSoft} : {}),
     ...(input.plateColor ? {plateColor: input.plateColor} : {}),
   };
 }
@@ -88,9 +102,19 @@ export function buildScene(input: {
 export function boxAt(scene: ShotScene, frame: number): Box {
   const t = scene.boxTrack;
   if (!t || t.length === 0) return scene.subjectBox;
-  let best = t[0]!;
-  for (const s of t) if (Math.abs(s.frame - frame) < Math.abs(best.frame - frame)) best = s;
-  return best.box;
+  if (!isSorted(t)) { let best = t[0]!; for (const s of t) if (Math.abs(s.frame - frame) < Math.abs(best.frame - frame)) best = s; return best.box; }
+  // nearest sample by binary search (the zoom track is one sample per frame, so this is also the exact frame)
+  let lo = 0, hi = t.length - 1;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (t[mid]!.frame < frame) lo = mid + 1; else hi = mid; }
+  const a = t[Math.max(0, lo - 1)]!, b = t[lo]!;
+  return (Math.abs(a.frame - frame) <= Math.abs(b.frame - frame) ? a : b).box;
+}
+const sortedTracks = new WeakSet<object>();
+function isSorted(t: Array<{frame: number}>): boolean {
+  if (sortedTracks.has(t)) return true;
+  for (let i = 1; i < t.length; i += 1) if (t[i - 1]!.frame > t[i]!.frame) return false;
+  sortedTracks.add(t);
+  return true;
 }
 
 /** Union of the subject boxes over a frame window (the person moves: an event must clear every pose it lives through). Falls back to boxAt. */

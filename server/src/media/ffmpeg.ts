@@ -67,6 +67,77 @@ function run(
   });
 }
 
+/** Like run(), but stdout is kept as raw bytes (PCM). */
+function runBuffer(bin: string, args: string[], timeoutMs: number): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(bin, args, {stdio: ['ignore', 'pipe', 'pipe']});
+    const chunks: Buffer[] = [];
+    let stderr = '';
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      reject(new EngineError('upstream_timeout', `${bin} timed out`));
+    }, timeoutMs);
+    child.stdout.on('data', (chunk: Buffer) => chunks.push(chunk));
+    child.stderr.on('data', chunk => {
+      stderr += String(chunk);
+    });
+    child.on('error', error => {
+      clearTimeout(timer);
+      reject(new EngineError('not_configured', `${bin} is not available on this host (${(error as Error).message})`));
+    });
+    child.on('close', code => {
+      clearTimeout(timer);
+      if (code === 0) resolve(Buffer.concat(chunks));
+      else reject(new EngineError('internal', `${bin} exited with code ${code}`, {stderr: stderr.slice(-500)}));
+    });
+  });
+}
+
+/** Sample rate of the first audio stream, or null. */
+export async function audioSampleRate(filePath: string): Promise<number | null> {
+  const {stdout} = await run(env.FFPROBE_PATH, ['-v', 'error', '-select_streams', 'a:0', '-show_entries', 'stream=sample_rate', '-of', 'csv=p=0', filePath], 30_000);
+  const rate = Number.parseInt(stdout.trim(), 10);
+  return Number.isFinite(rate) && rate > 0 ? rate : null;
+}
+
+const filterLatencyCache = new Map<string, number>();
+/** Largest latency (seconds) the calibration accepts as real; anything above is treated as a failed measurement (0). */
+const MAX_FILTER_LATENCY_SEC = 0.2;
+
+/**
+ * Post-integration fix: the latency (in samples) an audio filter chain adds, measured with the SAME ffmpeg build at the SAME sample rate. A single-sample impulse at 0.25 s is
+ * passed through `filter`; the output peak's position minus the input position is the delay. Measured once per (filter, rate) and cached. The FFT denoiser (afftdn) delays its
+ * output (25.0 ms at 48 kHz with this build), which put the edit's speech behind the picture; denoiseTalkingHeadAudio trims exactly this much.
+ * Returns 0 when the measurement is not trustworthy (no peak, negative, implausibly large), so a failed calibration never shifts audio by a wrong amount.
+ */
+export async function measureAudioFilterLatencySamples(filter: string, sampleRate: number): Promise<number> {
+  const key = `${sampleRate}|${filter}`;
+  const cached = filterLatencyCache.get(key);
+  if (cached !== undefined) return cached;
+  const at = Math.round(sampleRate * 0.25);
+  const pcm = await runBuffer(
+    env.FFMPEG_PATH,
+    ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', `aevalsrc='if(eq(n,${at}),0.9,0)':s=${sampleRate}:d=1.5`, '-af', filter, '-ac', '1', '-f', 'f32le', '-'],
+    30_000,
+  );
+  const samples = new Float32Array(pcm.buffer, pcm.byteOffset, Math.floor(pcm.byteLength / 4));
+  let peak = -1;
+  let peakAbs = 0;
+  for (let i = 0; i < samples.length; i += 1) {
+    const v = Math.abs(samples[i]!);
+    if (v > peakAbs) {
+      peakAbs = v;
+      peak = i;
+    }
+  }
+  const latency = peak - at;
+  const ok = peakAbs > 0.01 && latency >= 0 && latency <= sampleRate * MAX_FILTER_LATENCY_SEC;
+  const value = ok ? latency : 0;
+  if (!ok) log.warn({filter, sampleRate, peak, peakAbs}, 'audio filter latency calibration not trustworthy; no compensation applied');
+  filterLatencyCache.set(key, value);
+  return value;
+}
+
 export async function probeMedia(filePath: string): Promise<ProbeResult> {
   const {stdout} = await run(
     env.FFPROBE_PATH,
@@ -182,7 +253,45 @@ export async function detectSceneCuts(
  *
  * 16 kHz is Whisper's native sample rate, so resampling here costs nothing in
  * accuracy while shrinking the payload by ~30x versus the source MP4.
+ *
+ * Bitexact: the same source must give the same bytes, because the transcription cache (stages/transcribe/groqTranscribe.ts) is keyed by
+ * the sha256 of THIS file. Without it ffmpeg's Ogg muxer picks a random stream serial number per run (and writes its version tag), so
+ * the cache never hit across jobs and every edit of the same video paid for a new Groq call. Container-level only: the audio Groq receives
+ * is the same.
  */
+/** The speech-track encode profile (16 kHz mono Opus, voip, bitexact). Shared by extractSpeechAudio and encodeSpeechPcm so the Groq upload is always the same format. */
+const SPEECH_OPUS_ARGS = [
+  '-ac',
+  '1',
+  '-ar',
+  '16000',
+  '-c:a',
+  'libopus',
+  '-b:a',
+  '24k',
+  '-application',
+  'voip',
+  '-fflags',
+  '+bitexact',
+  '-flags:a',
+  '+bitexact',
+];
+
+/**
+ * Encode a raw mono float32 PCM file (little-endian, `sampleRate` Hz) with the speech-track profile. Used by the Groq pre-compaction (stages/transcribe/precompact.ts) so the
+ * compacted upload has exactly the format of speech.ogg.
+ */
+export async function encodeSpeechPcm(input: {rawPath: string; sampleRate: number; outputPath: string}): Promise<{path: string; bytes: number}> {
+  await run(
+    env.FFMPEG_PATH,
+    ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'f32le', '-ar', String(input.sampleRate), '-ac', '1', '-i', input.rawPath, ...SPEECH_OPUS_ARGS, input.outputPath],
+    180_000,
+  );
+  const stat = await fs.stat(input.outputPath).catch(() => null);
+  if (!stat || stat.size < 1) throw new EngineError('internal', 'Compacted speech audio could not be encoded');
+  return {path: input.outputPath, bytes: stat.size};
+}
+
 export async function extractSpeechAudio(
   inputPath: string,
   outputPath: string,
@@ -198,16 +307,7 @@ export async function extractSpeechAudio(
       '-i',
       inputPath,
       '-vn',
-      '-ac',
-      '1',
-      '-ar',
-      '16000',
-      '-c:a',
-      'libopus',
-      '-b:a',
-      '24k',
-      '-application',
-      'voip',
+      ...SPEECH_OPUS_ARGS,
       outputPath,
     ],
     180_000,
@@ -483,18 +583,24 @@ export async function applyCubeLut(input: {
  * WP7A: copy the clip with its audio replaced by a denoised version (`filter` from stages/audio/noiseFilter.ts). The video stream is copied untouched (no re-encode, same duration and
  * timing, so every word time and cut stays valid); the audio is re-encoded to AAC. Throws on any failure: the caller warns and keeps the original audio.
  */
-export async function denoiseTalkingHeadAudio(input: {inputPath: string; outputPath: string; filter: string}): Promise<void> {
+export async function denoiseTalkingHeadAudio(input: {inputPath: string; outputPath: string; filter: string}): Promise<{latencySamples: number}> {
   const started = Date.now();
+  // Post-integration fix: the denoiser delays its output (afftdn: 25.0 ms at 48 kHz), so the speech landed behind the picture. Measure the chain's latency at the source rate and
+  // trim exactly that much from the start; pad the same amount at the end so the audio keeps its duration. The video is still copied untouched.
+  const rate = (await audioSampleRate(input.inputPath).catch(() => null)) ?? 48000;
+  const latencySamples = await measureAudioFilterLatencySamples(input.filter, rate).catch(() => 0);
+  const filter = latencySamples > 0 ? `${input.filter},atrim=start_sample=${latencySamples},asetpts=PTS-STARTPTS,apad=pad_len=${latencySamples}` : input.filter;
   await run(
     env.FFMPEG_PATH,
-    ['-hide_banner', '-loglevel', 'error', '-y', '-i', input.inputPath, '-map', '0:v:0', '-map', '0:a:0', '-c:v', 'copy', '-af', input.filter, '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', input.outputPath],
+    ['-hide_banner', '-loglevel', 'error', '-y', '-i', input.inputPath, '-map', '0:v:0', '-map', '0:a:0', '-c:v', 'copy', '-af', filter, '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', input.outputPath],
     10 * 60_000,
   );
   const stat = await fs.stat(input.outputPath).catch(() => null);
   if (!stat || stat.size < 1) {
     throw new EngineError('render_failed', 'Audio denoise produced an empty file');
   }
-  log.info({ms: Date.now() - started, bytes: stat.size, filter: input.filter}, 'denoised talking-head audio');
+  log.info({ms: Date.now() - started, bytes: stat.size, filter: input.filter, latencySamples, sampleRate: rate}, 'denoised talking-head audio');
+  return {latencySamples};
 }
 
 /**

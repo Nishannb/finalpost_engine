@@ -60,6 +60,8 @@ export function fingerprintSource(input: {
   graphicsKey?: string;
   /** Edit styles (lib/styleRun.ts): non-empty only for a styled job with the engine flags on, so every unstyled key is unchanged. */
   styleKey?: string;
+  /** Final freeze (lib/footageKind.ts): non-empty only when the job's kinetic engine flag is on, so every key made with the engine off is unchanged. */
+  footageKey?: string;
 }): string {
   return createHash('sha256')
     .update(
@@ -96,6 +98,7 @@ export function fingerprintSource(input: {
         ...(input.editProfileKey ? [input.editProfileKey] : []),
         ...(input.graphicsKey ? [input.graphicsKey] : []),
         ...(input.styleKey ? [input.styleKey] : []),
+        ...(input.footageKey ? [input.footageKey] : []),
       ].join('|'),
     )
     .digest('hex')
@@ -368,6 +371,11 @@ function monthKey(date = new Date()): string {
 }
 
 const MONTH_TTL_SEC = 60 * 60 * 24 * 40;
+
+/** True for exactly one caller per key (an atomic counter claim, 90 days). */
+export async function claimOnce(key: string): Promise<boolean> {
+  return (await (await getKv()).increment(key, 1, 90 * 24 * 60 * 60)) === 1;
+}
 
 export async function incrementMonthlyUsage(
   userId: string,

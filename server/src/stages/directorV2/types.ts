@@ -113,6 +113,8 @@ export type StoryBeat = {
 };
 
 export type StoryAnalysis = {
+  /** Phase 5.29C: the Director's `subject_stage` answer exactly as returned (null = not given); present only when it was asked for (storyAnalyst analyzeStory opts.subjectStage). */
+  subjectStageRaw?: unknown;
   contentType: ContentType;
   audience: string;
   promise: string;

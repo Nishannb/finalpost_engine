@@ -72,10 +72,12 @@ class RvmSession:
         self.frames_since_reset = 0
 
     # --- inference -------------------------------------------------------------------------------------
-    def infer_frame(self, rgb_uint8_hwc: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def infer_frame(self, rgb_uint8_hwc: np.ndarray, *, skip_fgr_download: bool = False) -> Tuple[Optional[np.ndarray], np.ndarray]:
         """Matte one frame. Returns (foreground uint8 HxWx3, alpha float32 HxW in 0..1).
 
         Foreground is RVM's own decontaminated ``fgr``; alpha is its ``pha``. Both are at the input size.
+        ``skip_fgr_download`` (default False = unchanged; Phase 5.6, for alpha-only callers): the model runs exactly as before (same forward, same
+        recurrent state), but ``fgr`` is not converted or copied off the device and ``None`` is returned in its place.
         """
         frame = rgb_uint8_hwc
         if not isinstance(frame, np.ndarray) or frame.dtype != np.uint8 or frame.ndim != 3 or frame.shape[2] != 3:
@@ -96,7 +98,7 @@ class RvmSession:
             fgr, pha, *rec = self._model(src, *self._rec, self._ratio)
             self._rec = list(rec)
             self.last_output_device = pha.device
-            fgr_u8 = (fgr[0, 0].clamp(0.0, 1.0) * 255.0).round().to(torch.uint8).permute(1, 2, 0).contiguous().cpu().numpy()
+            fgr_u8 = None if skip_fgr_download else (fgr[0, 0].clamp(0.0, 1.0) * 255.0).round().to(torch.uint8).permute(1, 2, 0).contiguous().cpu().numpy()
             alpha = pha[0, 0, 0].to(torch.float32).cpu().numpy()  # .cpu() synchronises the device before timing stops
         self.last_frame_ms = (time.perf_counter() - started) * 1000.0
         self.frames_since_reset += 1

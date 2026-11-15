@@ -353,3 +353,145 @@ export function applyKeywordCase(keyword: string, mode: MatchRow['kwCase']): str
   if (mode === 'title') return keyword.replace(/\p{L}[\p{L}'’]*/gu, w => w[0]!.toUpperCase() + w.slice(1).toLowerCase());
   return keyword;
 }
+
+// ---------------------------------------------------------------------------------------------------------------- V1 camera-shutter treatment (props.shutter)
+// Pure. The original grammar above is untouched: nothing below runs unless the event carries `shutter: true`.
+//
+// remotion/public/sfx/matchcut.mp3 is 11 shutter clicks 100 ms apart (measured on the decoded file; server/src/stages/kinetic/matchCutShutter.ts holds the same numbers and a test keeps the two in step).
+// One scene per click: cut k lands on frame k * SHUTTER_SCENE_SEC * fps, so the cut and the click that belongs to it never drift apart. The last scene is the landing: it holds still and crisp.
+
+export const SHUTTER_CLICK_COUNT = 11;
+export const SHUTTER_SCENE_SEC = 0.1;
+/** How long the moving text takes to settle after each cut. Much faster than ordinary kinetic type (which eases over 0.3-0.6 s). */
+export const SHUTTER_ENTRY_SEC = 0.05;
+/** Horizontal travel of a row at the moment of the cut, as a fraction of the frame width. */
+export const SHUTTER_TRAVEL = 0.16;
+/** The shutter is open for this fraction of the frame interval: blur length = distance travelled in a frame * this (a 180-degree shutter). */
+export const SHUTTER_OPEN = 0.5;
+/** Hard ceiling on motion-blur sigma, as a fraction of the frame width: readability beats the effect. */
+export const SHUTTER_MAX_SIGMA = 0.012;
+
+/**
+ * Event-local frame of cut `k`. Computed from the ABSOLUTE time k * 100 ms (never by adding a rounded scene length), so the error of every cut is at most half a frame and cannot accumulate:
+ * at 24 fps (100 ms = 2.4 frames) the cuts fall on 0, 2, 5, 7, 10, 12, 14, 17, 19, 22, 24; at 30 fps every 3 frames; at 60 fps every 6.
+ */
+export const shutterCutFrame = (k: number, fps: number): number => Math.round(k * SHUTTER_SCENE_SEC * fps);
+export const shutterEntryFrames = (fps: number): number => Math.max(2, Math.round(SHUTTER_ENTRY_SEC * fps));
+
+/** One scene per shutter click; the layout cycle never repeats in adjacent scenes. */
+/**
+ * The shutter card's colour: a restrained, TINTED paper per look (never neutral grey, never black-and-white). Applies to the Match Cut CARD only; the footage is never recoloured.
+ * Ink stays near-black on every tint (contrast >= 12:1) so the type is always readable. Opt-in with `shutter`: a blueprint without it keeps the variant's own colours, byte for byte.
+ *   editorial   warm ivory (the default look)       newsprint   blush / sand (its own scene tints, unchanged)       memo   pale blue-grey (data / research content)
+ */
+export const SHUTTER_PAPER: Partial<Record<MatchCutVariant, {scenes: readonly string[]; ink: string}>> = {
+  editorial: {scenes: ['#F0E7D6', '#EADFCB', '#F4EDE0'], ink: '#17140F'},
+  memo: {scenes: ['#DDE6EE', '#D4DEE8', '#E5ECF2'], ink: '#14181D'},
+};
+/** The visual weight of a layout = its largest non-keyword type size (big headline vs small mono text). */
+const layoutWeight = (layout: MatchLayout | undefined): number => Math.max(0, ...((layout?.rows ?? []).filter(r => r.kind !== 'kw').map(r => r.size)));
+/**
+ * The shutter's layout order: the variant's own layouts, interleaved so ADJACENT scenes alternate large and small typography (heaviest, lightest, second heaviest, second lightest ...).
+ * The variant's natural cycle puts similar layouts next to each other (two small mono scenes in a row), which makes a cut barely visible; at 10 cuts a second every cut has to read as a change.
+ */
+export function shutterLayoutOrder(variant: MatchCutVariant): string[] {
+  const spec = MATCH_CUT_SPECS[variant];
+  const ids = [...spec.cycle];
+  const w = (id: string) => Math.max(0.2, layoutWeight(spec.layouts[id]));
+  const contrast = (a: string, b: string) => Math.max(w(a), w(b)) / Math.min(w(a), w(b));
+  // at most 6 layouts per variant: try every order, keep the one whose WEAKEST adjacent contrast (wrap-around included) is the largest, then the largest total contrast; ties keep the variant's own order
+  let best = ids;
+  let bestScore: [number, number] = [-1, -1];
+  const permute = (rest: string[], cur: string[]) => {
+    if (rest.length === 0) {
+      const pairs = cur.map((id, i) => contrast(id, cur[(i + 1) % cur.length]!));
+      const score: [number, number] = [Math.min(...pairs), pairs.reduce((x, y) => x + y, 0)];
+      if (score[0] > bestScore[0] + 1e-9 || (Math.abs(score[0] - bestScore[0]) <= 1e-9 && score[1] > bestScore[1] + 1e-9)) { best = cur; bestScore = score; }
+      return;
+    }
+    rest.forEach((id, i) => permute([...rest.slice(0, i), ...rest.slice(i + 1)], [...cur, id]));
+  };
+  permute(ids, []);
+  return [...best];
+}
+
+export function planShutterScenes(input: {variant: MatchCutVariant; keyword: string; swap?: string}): MatchScene[] {
+  const spec = MATCH_CUT_SPECS[input.variant];
+  const order = shutterLayoutOrder(input.variant);
+  const n = SHUTTER_CLICK_COUNT;
+  const swapAt = input.swap ? Math.ceil(n / 2) : n;
+  const scenes: MatchScene[] = [];
+  let cycleIdx = 0;
+  for (let i = 0; i < n; i++) {
+    if (i > 0 && i !== swapAt) cycleIdx += 1;
+    const layoutId = order[cycleIdx % order.length]!;
+    const late = spec.lateAnchorY && i >= n - spec.lateAnchorY.length ? spec.lateAnchorY[i - (n - spec.lateAnchorY.length)]! : undefined;
+    scenes.push({
+      index: i,
+      startSec: i * SHUTTER_SCENE_SEC,
+      endSec: (i + 1) * SHUTTER_SCENE_SEC,
+      layoutId,
+      keyword: i >= swapAt && input.swap ? input.swap : input.keyword,
+      anchor: {x: spec.anchor.x, y: late ?? spec.anchor.y},
+      bg: SHUTTER_PAPER[input.variant] ? SHUTTER_PAPER[input.variant]!.scenes[i % SHUTTER_PAPER[input.variant]!.scenes.length]! : spec.sceneBackgrounds ? spec.sceneBackgrounds[i % spec.sceneBackgrounds.length]! : (spec.layouts[layoutId]?.bg ?? spec.background.color),
+    });
+  }
+  return scenes;
+}
+
+/** Scene at event-local `frame`: one scene per click, the last scene holds for the rest of the window. `local` is frames since that scene's cut. */
+export function shutterSceneAt(scenes: readonly MatchScene[], fps: number, frame: number): {scene: MatchScene; local: number} {
+  const f = Math.max(0, frame);
+  let i = 0;
+  while (i + 1 < scenes.length && shutterCutFrame(i + 1, fps) <= f) i += 1;
+  return {scene: scenes[i]!, local: f - shutterCutFrame(i, fps)};
+}
+
+const easeOutCubic = (t: number) => 1 - (1 - t) ** 3;
+/** Remaining displacement (1 at the cut frame, 0 once settled) `local` frames after a cut. Fast ease-out: most of the travel happens in the first frame. */
+export const shutterRemaining = (local: number, fps: number): number => {
+  const n = shutterEntryFrames(fps);
+  return local >= n ? 0 : 1 - easeOutCubic(Math.max(0, local) / n);
+};
+
+/** Continuous drift of the moving text between cuts, as a fraction of the frame width PER SECOND (time based, so it looks the same at 24, 30 and 60 fps). */
+export const SHUTTER_DRIFT_PER_SEC = 0.26;
+/** Each row drifts at its own speed so the layers move against each other, not as one sheet. */
+export const SHUTTER_ROW_FACTORS = [0.7, 1, 1.4] as const;
+export const shutterRowFactorIndex = (rowIndex: number, sceneIndex: number): 0 | 1 | 2 => ((rowIndex + sceneIndex) % 3) as 0 | 1 | 2;
+/** The speed (px per frame) every row has on the LAST frame of the landing: visibly moving (never a frozen frame) yet below the visible-blur threshold (crisp). Each row's deceleration is solved to end exactly here. */
+export const SHUTTER_LANDING_END_SPEED_PX = 2.5;
+/** Below this blur sigma (px) no filter is drawn: a sub-0.6 px horizontal blur is invisible, and the text is crisp. */
+export const SHUTTER_MIN_VISIBLE_SIGMA = 0.6;
+
+/**
+ * Motion of one moving row `local` frames after its cut. Two parts, both continuous:
+ *   entry   the fast slide-in at the cut (see shutterRemaining): 16 % of the width, settled in under 50 ms;
+ *   drift   a steady horizontal drift for the rest of the scene (SHUTTER_DRIFT_PER_SEC x the row's factor), so no frame between two cuts is a repeat of the previous one.
+ * `landingFrames` > 0 marks the LAST scene: its drift decelerates (v = v0 (1 - f/T)^2, T solved per row) so the sequence comes to rest crisp, while the last frame still moves at SHUTTER_LANDING_END_SPEED_PX.
+ * sigma = the directional (horizontal-only) blur the CURRENT speed implies: entry speed plus drift speed, capped; 0 when it is below a visible 0.25 px, and then no filter is drawn at all.
+ * `dir` is +1 / -1: rows alternate so the layout does not drift one way.
+ */
+export function shutterRowMotion(local: number, fps: number, width: number, dir: 1 | -1, factor = 1, landingFrames = 0): {dx: number; sigma: number} {
+  const entryNow = shutterRemaining(local, fps) * SHUTTER_TRAVEL * width;
+  const entryNext = shutterRemaining(local + 1, fps) * SHUTTER_TRAVEL * width;
+  const v0 = (SHUTTER_DRIFT_PER_SEC * width * factor) / fps; // px per frame
+  let drift: number;
+  let speed: number;
+  if (landingFrames > 0) {
+    // v(f) = v0 (1 - f / T)^2, solved so the speed on the last landing frame (f = landingFrames - 1) is exactly SHUTTER_LANDING_END_SPEED_PX whatever the row's speed
+    const ratio = Math.min(0.95, Math.sqrt(SHUTTER_LANDING_END_SPEED_PX / v0));
+    const T = Math.max(1, landingFrames - 1) / (1 - ratio);
+    const at = (f: number) => (v0 * T / 3) * (1 - (1 - Math.min(1, f / T)) ** 3);
+    drift = at(local);
+    speed = Math.abs(at(local + 1) - at(local));
+  } else {
+    drift = v0 * local;
+    speed = v0;
+  }
+  // the row starts displaced AGAINST its direction of travel and slides forward fast; the drift continues forward: the two speeds ADD, so no frame can stall (opposite signs would cancel at some frame)
+  const dx = dir * (drift - entryNow);
+  const travelPerFrame = Math.abs(entryNow - entryNext) + speed;
+  const sigma = Math.min(SHUTTER_MAX_SIGMA * width, travelPerFrame * SHUTTER_OPEN * 0.35);
+  return {dx: dx === 0 ? 0 : dx, sigma: sigma < SHUTTER_MIN_VISIBLE_SIGMA ? 0 : sigma};
+}

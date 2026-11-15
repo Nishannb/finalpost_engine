@@ -27,6 +27,7 @@ import {
   saveRenderJob,
 } from '../store/engineStore.ts';
 import {localRenderAvailable, renderLocally} from '../stages/render/localRender.ts';
+import {assertBedLoudnessRenderable} from '../stages/render/renderSafety.ts';
 import {
   pollLambdaRender,
   renderConfigured as lambdaConfigured,
@@ -36,6 +37,7 @@ import {
   assertRenderAllowed,
   estimateRenderCostUsd,
   recordRender,
+  refundFailedRender,
 } from '../stages/render/renderBudget.ts';
 import type {RenderJob, RenderStyle} from '../types/blueprint.ts';
 
@@ -77,6 +79,8 @@ export async function startRender(input: {
   if (!blueprint) {
     throw new EngineError('not_found', 'Blueprint not found or expired');
   }
+  // Phase SFX-3H: refuse an unverified generated-bed loudness before any job or quota is recorded (the render functions enforce it again).
+  assertBedLoudnessRenderable(blueprint, 'startRender');
 
   const outputDurationSec = input.style.trimEnabled
     ? blueprint.outputDurationSec
@@ -112,6 +116,7 @@ async function runRender(job: RenderJob): Promise<void> {
     job.errorMessage = 'Blueprint expired before render started';
     job.updatedAt = new Date().toISOString();
     await saveRenderJob(job);
+    await refundFailedRender(job.userId, job.renderJobId, job.outputDurationSec);
     return;
   }
 
@@ -164,6 +169,7 @@ async function runRender(job: RenderJob): Promise<void> {
       : 'Render failed. Please try again.';
     job.updatedAt = new Date().toISOString();
     await saveRenderJob(job);
+    await refundFailedRender(job.userId, job.renderJobId, job.outputDurationSec);
   }
 }
 
@@ -244,6 +250,9 @@ export async function refreshRenderJob(job: RenderJob): Promise<RenderJob> {
     }
   }
   await saveRenderJob(job);
+  if (job.status === 'failed') {
+    await refundFailedRender(job.userId, job.renderJobId, job.outputDurationSec);
+  }
   return job;
 }
 

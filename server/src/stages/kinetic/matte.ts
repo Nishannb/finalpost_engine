@@ -116,8 +116,58 @@ export function gridOf(a: MatteAnalysis, startFrame: number, endFrame: number): 
   return s.length ? {cols: a.cols, rows: a.rows, samples: s.map(x => ({frame: x.frame, bits: x.bits}))} : undefined;
 }
 
+/** The colour signalling of a video stream (ffprobe names; '' = not tagged). */
+export type VideoColour = {space: string; primaries: string; transfer: string; range: string};
+
+export async function probeVideoColour(video: string): Promise<VideoColour> {
+  const {stdout} = await run(process.env.FFPROBE_PATH || 'ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=color_space,color_primaries,color_transfer,color_range,pix_fmt', '-of', 'json', video], {maxBuffer: 1 << 20});
+  const st = (JSON.parse(stdout) as {streams?: Array<Record<string, string | undefined>>}).streams?.[0] ?? {};
+  const known = (v: string | undefined) => (v && v !== 'unknown' && v !== 'unspecified' ? v : '');
+  // a yuvj* stream is full range even when the range field is not set
+  return {space: known(st.color_space), primaries: known(st.color_primaries), transfer: known(st.color_transfer), range: known(st.color_range) || (String(st.pix_fmt ?? '').startsWith('yuvj') ? 'pc' : '')};
+}
+
+/**
+ * Phase 5 options (absent = the original command, byte for byte). Measured in docs/kinetic-runs/phase-5 (colour + timing):
+ *  - `fps`: sample the ORIGINAL video on a constant-rate grid (`setpts=PTS-STARTPTS,fps=N:round=up`: the frame the renderer shows at t is the last one with pts <= t), the same selection the matte's working copy used, so foreground frame k == matte frame k == the
+ *    picture the renderer shows for source frame k at the composition fps (exact for variable-frame-rate sources too);
+ *  - `endSec`: stop reading after the last needed source second;
+ *  - `fitWithin`: the render-time normalisation of the main video (media/ffmpeg.ts normalizeVideoForRemotion: fit inside 1080x1920, even sides) so the foreground has the same picture geometry;
+ *  - `colour`: the source's colour tags copied onto the foreground (an untagged foreground was decoded with another matrix: -4.4 blue in the renderer); full range is converted to limited range
+ *    (the renderer ignored a full-range VP9 flag: |d| 9.9); untagged stays untagged (decoded the same way as the untagged source);
+ *  - `crf` (default 30): 18 measured 2.9 / 255 core difference in the renderer vs 4.1 at 30 (RVM's own fgr: 4.6, with a 32.5 edge band from the white stroke).
+ *  - `frames`: the matte's frame count (authoritative: the fps filter's last frame at end-of-file can differ by one between two runs; frames before it are the same selection).
+ */
+export type ForegroundComposeOptions = {fps?: number; endSec?: number; frames?: number; fitWithin?: {w: number; h: number; srcW: number; srcH: number}; colour?: VideoColour; crf?: number};
+
+const SCALE_MATRIX: Record<string, string> = {bt709: 'bt709', smpte170m: 'bt601', bt470bg: 'bt601', bt2020nc: 'bt2020', bt2020c: 'bt2020', smpte240m: 'smpte240m', fcc: 'fcc'};
+
+export function composeForegroundArgs(video: string, matte: string, out: string, opts?: ForegroundComposeOptions): string[] {
+  if (!opts) return ['-y', '-v', 'error', '-i', video, '-c:v', 'libvpx-vp9', '-i', matte, '-filter_complex', '[1:v]alphaextract[a0];[a0][0:v]scale2ref=flags=bicubic[a][v0];[v0][a]alphamerge,format=yuva420p', '-an', '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuva420p', '-crf', '30', '-b:v', '0', '-deadline', 'realtime', '-cpu-used', '8', '-auto-alt-ref', '0', out];
+  const c = opts.colour;
+  const pre: string[] = [];
+  if (opts.fps) pre.push('setpts=PTS-STARTPTS', `fps=${opts.fps}:round=up`); // round=up = the renderer's pick (the last frame with pts <= t), measured 117/117 on a VFR source
+  const fit = opts.fitWithin && (opts.fitWithin.srcW > opts.fitWithin.w || opts.fitWithin.srcH > opts.fitWithin.h);
+  // the scaler keeps the source matrix (no hue change); a matrix the scaler cannot name is left to its default, as before
+  const m = SCALE_MATRIX[c?.space ?? ''];
+  const matrix = m ? `:in_color_matrix=${m}:out_color_matrix=${m}` : '';
+  if (fit || c?.range === 'pc') {
+    const range = c?.range === 'pc' ? ':in_range=pc:out_range=tv' : '';
+    pre.push(fit ? `scale=${opts.fitWithin!.w}:${opts.fitWithin!.h}:force_original_aspect_ratio=decrease${range}${matrix},scale=trunc(iw/2)*2:trunc(ih/2)*2` : `scale=iw:ih${range}${matrix}`);
+  }
+  const src = pre.length ? `[0:v]${pre.join(',')}[s0];` : '';
+  const ref = pre.length ? '[s0]' : '[0:v]';
+  // Phase 5.2: with `fps`, the matte was made from the constant-rate working copy at the same fps, so matte frame N belongs to output frame N. WebM stores millisecond
+  // timestamps (33, 67 ms ...) and the source side runs at exact N/fps, so PTS-based pairing took the PREVIOUS matte frame whenever the rounded time was later
+  // (every frame N = 2 mod 3 at 30 fps; measured 55 of 168 and 476 of 1,456 real frames). Re-basing the matte to its frame index in a 1/fps time base pairs frame N with frame N exactly.
+  const matteTime = opts.fps ? `settb=1/${opts.fps},setpts=N` : 'setpts=PTS-STARTPTS';
+  const graph = `${src}[1:v]${matteTime},alphaextract[a0];[a0]${ref}scale2ref=flags=bicubic[a][v0];[v0][a]alphamerge,format=yuva420p`;
+  const tags = [...(c?.space ? ['-colorspace', c.space] : []), ...(c?.primaries ? ['-color_primaries', c.primaries] : []), ...(c?.transfer ? ['-color_trc', c.transfer] : []), ...(c?.range ? ['-color_range', 'tv'] : [])];
+  return ['-y', '-v', 'error', ...(opts.endSec ? ['-t', String(opts.endSec)] : []), '-i', video, '-c:v', 'libvpx-vp9', '-i', matte, '-filter_complex', graph, '-an', '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuva420p', '-crf', String(opts.crf ?? 30), '-b:v', '0', '-deadline', 'realtime', '-cpu-used', '8', '-auto-alt-ref', '0', '-row-mt', '1', ...(opts.frames ? ['-frames:v', String(Math.floor(opts.frames))] : []), ...tags, out];
+}
+
 /** Foreground = original RGB + matte alpha (alphamerge) as a VP9-alpha WebM: never RVM's own fgr. */
-export async function composeForeground(video: string, matte: string, out: string): Promise<void> {
+export async function composeForeground(video: string, matte: string, out: string, opts?: ForegroundComposeOptions): Promise<void> {
   await mkdir(path.dirname(out), {recursive: true});
-  await run(FFMPEG(), ['-y', '-v', 'error', '-i', video, '-c:v', 'libvpx-vp9', '-i', matte, '-filter_complex', '[1:v]alphaextract[a0];[a0][0:v]scale2ref=flags=bicubic[a][v0];[v0][a]alphamerge,format=yuva420p', '-an', '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuva420p', '-crf', '30', '-b:v', '0', '-deadline', 'realtime', '-cpu-used', '8', '-auto-alt-ref', '0', out], {maxBuffer: 1 << 22});
+  await run(FFMPEG(), composeForegroundArgs(video, matte, out, opts), {maxBuffer: 1 << 22});
 }

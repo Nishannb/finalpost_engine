@@ -13,6 +13,7 @@ import {mattingRoutes} from './http/routes/mattingRoutes.ts';
 import {renderRoutes} from './http/routes/renderRoutes.ts';
 import {storageRoutes} from './http/routes/storageRoutes.ts';
 import {templateRoutes} from './http/routes/templateRoutes.ts';
+import {devStorageRoutes, localStorageActive} from './storage/localStorage.ts';
 
 export function createApp() {
   const app = express();
@@ -39,6 +40,10 @@ export function createApp() {
   });
 
   app.use(healthRoutes);
+  // DEVELOPMENT ONLY (STORAGE_BACKEND=local; throws at startup in production): the local stand-in for R2 objects and the presigned source PUT.
+  if (localStorageActive()) {
+    app.use(devStorageRoutes());
+  }
   // Unauthenticated MP4 download for LAN fallback after a successful local burn.
   app.use('/v1', localRenderRoutes);
   app.use('/v1', requireAuth, storageRoutes);

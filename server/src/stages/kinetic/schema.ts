@@ -102,6 +102,8 @@ export const matchCutPropsSchema = z.strictObject({
   before: z.string().optional(),
   after: z.string().optional(),
   variant: matchCutVariantSchema,
+  /** V1: camera-shutter treatment (scene cuts on the shutter click grid, directional motion blur on the moving text only). Absent = the original Match Cut, byte for byte. */
+  shutter: z.boolean().optional(),
 });
 export type MatchCutProps = z.infer<typeof matchCutPropsSchema>;
 

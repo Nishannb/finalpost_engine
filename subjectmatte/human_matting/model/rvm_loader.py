@@ -26,7 +26,9 @@ VALID_DEVICES = ("auto", "cuda", "mps", "cpu")
 
 _SUBJECTMATTE_ROOT = Path(__file__).resolve().parents[2]
 VENDOR_PACKAGE_DIR = _SUBJECTMATTE_ROOT / "vendor" / "RobustVideoMatting" / "model"
-DEFAULT_WEIGHTS_PATH = _SUBJECTMATTE_ROOT / "weights" / "rvm_mobilenetv3.pth"
+# RVM_WEIGHTS_PATH (optional) points at an existing copy of the official checkpoint (e.g. an isolated research install), so the 15 MB file is not
+# downloaded twice. Unset = the gitignored in-repo location, exactly as before.
+DEFAULT_WEIGHTS_PATH = Path(os.environ["RVM_WEIGHTS_PATH"]).expanduser() if os.environ.get("RVM_WEIGHTS_PATH", "").strip() else _SUBJECTMATTE_ROOT / "weights" / "rvm_mobilenetv3.pth"
 
 _VENDOR_MODULE_NAME = "_rvm_official_model"
 

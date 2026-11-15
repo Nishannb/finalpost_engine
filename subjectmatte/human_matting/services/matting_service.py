@@ -17,7 +17,7 @@ import numpy as np
 
 from ..model.rvm_inference import RvmSession
 from ..model.rvm_loader import DEFAULT_WEIGHTS_PATH, get_model, resolve_device
-from ..processing.alpha_refinement import refine, temporal_blend, to_rgba_uint8
+from ..processing.alpha_refinement import pack_alpha_into, refine, temporal_blend, to_rgba_uint8
 from ..processing.frame_processor import limit_max_side, to_rgb_input
 from ..processing.video_decoder import VideoDecoder
 from ..processing.video_encoder import (
@@ -123,6 +123,11 @@ def process_video(
     on_progress: Optional[Callable[[int, Optional[int]], None]] = None,
     ranges: Optional[Sequence[Range]] = None,
     max_side: Optional[int] = None,
+    stroke_px: Optional[float] = None,
+    pocket_passes: Optional[int] = None,
+    alpha_only: bool = False,
+    skip_fgr_download: bool = False,
+    reuse_pack_buffer: bool = False,
 ) -> Dict[str, Any]:
     """Matte ``input_video`` (first ``max_frames`` frames, or all) into a transparent VP9 WebM and return run facts.
 
@@ -135,6 +140,12 @@ def process_video(
     frame count, order, fps and duration, but RVM runs only on frames with ``a - 0.05 <= t <= b + 0.05``; every other frame is written
     fully transparent. The recurrent state is reset at the start of each range. ``ranges=None`` is the original full-video behavior.
     ``max_side`` caps the longest side of the processed / encoded frames (aspect kept); ``None`` keeps the source size.
+    ``alpha_only`` (default False = unchanged): for callers that use ONLY the alpha (Kinetic V2 composes the original video with it). Skips the foreground colour
+    reconstruction in ``refine`` and the colour half of ``temporal_blend``; the alpha is identical. The WebM's colour planes are written BLACK (nobody reads them;
+    RVM's raw ``fgr`` is noisy outside the person and measured ~2x the encoder CPU, which ate most of the saving).
+    Phase 5.6, both default False = unchanged, both valid only with ``alpha_only`` (the output is byte-identical either way):
+    ``skip_fgr_download``: RVM's ``fgr`` is not copied off the device (it would only be replaced by black); ``reuse_pack_buffer``: the alpha is written
+    into one reused zeroed RGBA buffer instead of a new array per frame (safe because ``TransparentWebmEncoder.write`` copies synchronously).
     """
     if output_format not in SUPPORTED_OUTPUT_FORMATS:
         raise ValueError(f"unsupported output_format {output_format!r}; only {SUPPORTED_OUTPUT_FORMATS} is supported")
@@ -148,6 +159,8 @@ def process_video(
             raise ValueError("ranges must be a non-empty list of (start, end) with 0 <= start < end")
     if max_side is not None and (not isinstance(max_side, int) or max_side < 64):
         raise ValueError("max_side must be an int >= 64 or None")
+    if (skip_fgr_download or reuse_pack_buffer) and not alpha_only:
+        raise ValueError("skip_fgr_download / reuse_pack_buffer are only valid with alpha_only=True")
 
     src = Path(input_video)
     if output_path is None:
@@ -173,6 +186,8 @@ def process_video(
     in_range_prev = False
     prev_alpha: Optional[np.ndarray] = None  # temporal EMA — kills border / pocket flicker
     prev_fgr: Optional[np.ndarray] = None
+    black_rgb: Optional[np.ndarray] = None  # alpha_only: one all-zero colour frame, reused
+    pack_buf: Optional[np.ndarray] = None  # reuse_pack_buffer: one zeroed RGBA frame, its alpha channel rewritten per frame
     with VideoDecoder(src) as decoder:
         info = decoder.info
         assert info is not None
@@ -192,7 +207,7 @@ def process_video(
                         metadata={
                             "finalpost_audio_policy": "none; audio stays on the source asset",
                             "finalpost_source": src.name,
-                            "finalpost_matte": "rvm_mobilenetv3 fgr+pha (straight alpha)",
+                            "finalpost_matte": "rvm_mobilenetv3 pha only (alpha-only run: colour planes black)" if alpha_only else "rvm_mobilenetv3 fgr+pha (straight alpha)",
                         },
                     )
                     encoder.__enter__()
@@ -203,14 +218,28 @@ def process_video(
                         prev_alpha = None
                         prev_fgr = None
                     t0 = time.perf_counter()
-                    fgr, pha = session.infer_frame(rgb)
+                    fgr, pha = session.infer_frame(rgb, **({"skip_fgr_download": True} if skip_fgr_download else {}))
                     infer_s += time.perf_counter() - t0
-                    fgr, alpha = refine(fgr, pha, source_rgb=rgb)
-                    alpha, fgr = temporal_blend(alpha, fgr, prev_alpha, prev_fgr)
+                    if fgr is None:  # skip_fgr_download: refine(alpha_only) never reads the colour (only its shape); it is replaced by black below anyway
+                        if black_rgb is None:
+                            black_rgb = np.zeros((pha.shape[0], pha.shape[1], 3), dtype=np.uint8)
+                        fgr = black_rgb
+                    refine_opts = {**({"white_stroke_px": stroke_px} if stroke_px is not None else {}), **({"pocket_passes": pocket_passes} if pocket_passes is not None else {})}
+                    fgr, alpha = refine(fgr, pha, source_rgb=rgb, **refine_opts, **({"alpha_only": True} if alpha_only else {}))
+                    alpha, fgr = temporal_blend(alpha, fgr, prev_alpha, None if alpha_only else prev_fgr)
                     prev_alpha = alpha.copy()
-                    prev_fgr = fgr.copy()
+                    prev_fgr = None if alpha_only else fgr.copy()
                     stats.add(alpha)
-                    encoder.write(to_rgba_uint8(fgr, alpha))
+                    if alpha_only:
+                        if black_rgb is None:
+                            black_rgb = np.zeros_like(fgr)
+                        fgr = black_rgb
+                    if reuse_pack_buffer:
+                        if pack_buf is None or pack_buf.shape[:2] != alpha.shape:
+                            pack_buf = np.zeros((alpha.shape[0], alpha.shape[1], 4), dtype=np.uint8)
+                        encoder.write(pack_alpha_into(pack_buf, alpha))
+                    else:
+                        encoder.write(to_rgba_uint8(fgr, alpha))
                 else:
                     prev_alpha = None
                     prev_fgr = None
@@ -262,4 +291,7 @@ def process_video(
         "weights_path": str(Path(weights).resolve()),
         "weights_sha256": weights_sha256(weights),
         "quality": quality,
+        **({"alpha_only": True} if alpha_only else {}),
+        **({"skip_fgr_download": True} if skip_fgr_download else {}),
+        **({"reuse_pack_buffer": True} if reuse_pack_buffer else {}),
     }

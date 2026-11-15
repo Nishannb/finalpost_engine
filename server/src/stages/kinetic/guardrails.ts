@@ -6,11 +6,12 @@ import {contrastRatio, hexLuminance} from '../../lib/contrast.ts';
 import {shortsSafeRect} from '../broll/heroSweep.ts';
 import {cameraJitter, type CameraTrack} from './camera.ts';
 import {HERO_HOLD_FRAMES, MIN_GAP_FRAMES, rangeFrames, transcriptFidelity} from './fallback.ts';
-import {eventBlockAabbAt, interpolateKeyframes, marginInside, overlapFraction, projectLineAabb, restingMargin, type Rect} from './geometry.ts';
+import {eventBlockAabbAt, interpolateKeyframes, marginInside, overlapFraction, projectLineAabb, restingMargin, restingRange, wordAabbAt, type Rect} from './geometry.ts';
 import type {DepthProvider} from './depth.ts';
 import type {Box, ShotScene} from './scene.ts';
 import {boxAt} from './scene.ts';
-import {MATCH_CUT_GAP_SEC} from './matchCut.ts';
+import {MATCH_CUT_GAP_SEC, matchCutBudget} from './matchCut.ts';
+import {interpolateWordKeys} from './motion.ts';
 import type {KineticPlan, KineticShot, KineticWord, RenderEvent, RenderSpec} from './schema.ts';
 
 /** Behind the speaker: a little occlusion (the letters live in the scene) but the first and last letters must stay readable. */
@@ -28,6 +29,17 @@ export const STACK_BEHIND_OCC_MAX = 0.5;
 export const lineLayerOf = (ev: Pick<RenderEvent, 'layering'>, line: {layer?: 'front' | 'behind' | undefined}): 'front' | 'behind' => line.layer ?? ev.layering;
 export const FORCE_FRONT_ALPHA_AREA = 0.55;
 export const FORCE_FRONT_BOX_OVERLAP = 0.7;
+/**
+ * Phase 5.12 (G1-a): the CATEGORICAL behind-the-person eligibility of a shot, i.e. the scene-level part of the solver's own tests (playbook `behindFree` / `stackFree`: `!noMatte &&
+ * alphaAreaFrac <= FORCE_FRONT_ALPHA_AREA`; the legacy path in layout.ts; the verifier's `force-front-area`). The per-placement rules (occlusion, edges, face keep-out, 8 s cap, search)
+ * are NOT here: an eligible shot can still refuse a given event. Read-only: it tells the Director and the fallback planner what the solver will categorically refuse; the solver itself
+ * keeps its own inline tests unchanged.
+ */
+export function sceneBehindEligibility(scene: Pick<ShotScene, 'noMatte' | 'alphaAreaFrac'>): {eligible: true} | {eligible: false; reason: 'no_matte' | 'alpha_area'} {
+  if (scene.noMatte) return {eligible: false, reason: 'no_matte'};
+  if (scene.alphaAreaFrac > FORCE_FRONT_ALPHA_AREA) return {eligible: false, reason: 'alpha_area'};
+  return {eligible: true};
+}
 export const MAX_SHRINK = 0.15;
 export const CONTRAST_MIN = 3;
 /** px / frame^2 of the anchored motion above which the anchor is downgraded */
@@ -43,6 +55,23 @@ export const parentId = (id: string): string => id.replace(/\.[ab]$/, '');
 export const isCaptionLike = (role: string): boolean => role === 'caption' || role === 'running';
 
 export type Violation = {eventId: string; rule: string; detail: string};
+
+/**
+ * The verifier's face keep-out test for ONE line of a playbook event, shared with the solver (Phase 4.2: the solver used to run an older, weaker copy that skipped words without a rest pose and used the union
+ * box): each word's own projected box over the frames it is at rest (every 2nd frame); a word whose exit starts before its entry settles has no rest pose and is judged on the frames where it is (nearly) fully
+ * visible. `keepAt(frame)` is the per-frame keep-out rect. Returns the first frame that overlaps by more than 2%, or null.
+ */
+export function lineFaceHitFrame(ev: RenderEvent, l: RenderEvent['lines'][number], keepAt: (frame: number) => Rect): number | null {
+  const [r0, r1] = restingRange(ev, l);
+  const settled = r0 <= r1;
+  const wordOpacity = (fr: number) => (l.wordKeyframes.length ? interpolateWordKeys(l.wordKeyframes, fr).opacity : 1) * interpolateKeyframes(ev.keyframes, fr).opacity;
+  const [f0, f1] = settled ? [r0, r1] : [ev.inFrame + l.enterFrame, ev.outFrame];
+  for (let fr = f0; fr <= f1; fr += 2) {
+    if (!settled && wordOpacity(fr) < 0.9) continue;
+    if (overlapFraction(wordAabbAt(ev, l, fr), keepAt(fr)) > 0.02) return fr;
+  }
+  return null;
+}
 
 /** Contrast background colour for a plate luminance (linear 0..1 -> #rrggbb grey). */
 export function lumToHex(lum: number): string {
@@ -65,6 +94,33 @@ export function holdFrames(ev: Pick<RenderEvent, 'keyframes'>, limit = 6): numbe
   const f = settled.length >= 2 ? settled : ev.keyframes.filter(k => k.opacity >= 0.9).map(k => k.frame);
   if (f.length <= limit) return f.length ? f : [ev.keyframes[0]!.frame];
   return Array.from({length: limit}, (_, i) => f[Math.round((i * (f.length - 1)) / (limit - 1))]!);
+}
+
+/** Visible enough to be read as type: event opacity x word opacity. */
+const FACE_TRANSIT_OPACITY = 0.5;
+
+/**
+ * Words that pass THROUGH the face keep-out while entering or exiting (not at rest), measured per frame with the word's own opacity. This is a measurement, not a verifier rule: the original
+ * verifier only ever checked the settled hold, the solver does not steer transits, and a hard rule would reject today's plans. Reported by the benchmark; see docs.
+ */
+export function faceTransitWords(spec: RenderSpec, scenes: Record<string, ShotScene>): Array<{eventId: string; text: string; frame: number; phase: 'entering' | 'exiting'}> {
+  const out: Array<{eventId: string; text: string; frame: number; phase: 'entering' | 'exiting'}> = [];
+  for (const ev of spec.events) {
+    const scene = scenes[ev.shotId];
+    if (!scene || ev.zone === null) continue;
+    for (const l of ev.lines.filter(x => lineLayerOf(ev, x) === 'front')) {
+      const [r0, r1] = restingRange(ev, l);
+      for (let fr = ev.inFrame; fr <= ev.outFrame; fr += 1) {
+        if (fr >= r0 && fr <= r1) continue;
+        const wk = l.wordKeyframes.length ? interpolateWordKeys(l.wordKeyframes, fr) : null;
+        if ((wk?.opacity ?? 1) * interpolateKeyframes(ev.keyframes, fr).opacity < FACE_TRANSIT_OPACITY) continue;
+        const face = boxAt(scene, fr);
+        const keep: Rect = {left: face.x * spec.width, right: (face.x + face.w) * spec.width, top: face.y * spec.height, bottom: (face.y + face.h * 0.42) * spec.height};
+        if (overlapFraction(wordAabbAt(ev, l, fr), keep) > 0.02) { out.push({eventId: ev.id, text: l.text, frame: fr, phase: fr < r0 ? 'entering' : 'exiting'}); break; }
+      }
+    }
+  }
+  return out;
 }
 
 /** Per-line {mean,max} fraction of the line box covered by the subject (only meaningful for `behind`). */
@@ -144,12 +200,24 @@ export function verifyRenderSpec(spec: RenderSpec, ctx: VerifyContext): Violatio
     // --- face keep-out: anything in front must stay off the upper subject box
     if (scene && (ev.layering === 'front' || ev.lines.some(l => l.layer === 'front'))) {
       const frontLines = ev.lines.filter(l => lineLayerOf(ev, l) === 'front');
-      for (const fr of holdFrames(ev)) {
+      const keepAt = (fr: number): Rect => {
         const face = boxAt(scene, fr);
-        const keep: Rect = {left: face.x * spec.width, right: (face.x + face.w) * spec.width, top: face.y * spec.height, bottom: (face.y + face.h * 0.42) * spec.height};
-        const kf = interpolateKeyframes(ev.keyframes, fr);
-        const hit = frontLines.find(l => overlapFraction(projectLineAabb(l, ev.block, kf, ev.perspectivePx), keep) > 0.02);
-        if (hit) { out.push({eventId: ev.id, rule: 'face-keepout', detail: `front line "${hit.text}" covers the face keep-out at frame ${fr}`}); break; }
+        return {left: face.x * spec.width, right: (face.x + face.w) * spec.width, top: face.y * spec.height, bottom: (face.y + face.h * 0.42) * spec.height};
+      };
+      if (ev.zone !== null) {
+        // playbook (type.words) events: the same measure the solver and the safe-rect rule above use: each WORD's own projected box (its keyframes, depth and the block pose) over the frames in
+        // which it is at rest. The block-level line box ignores words that have not entered yet and over-covers tilted type, which flagged type that was visibly clear of the face.
+        for (const l of frontLines) {
+          const hitFrame = lineFaceHitFrame(ev, l, (fr: number) => keepAt(fr));
+          if (hitFrame !== null) { out.push({eventId: ev.id, rule: 'face-keepout', detail: `front line "${l.text}" covers the face keep-out at frame ${hitFrame}`}); break; }
+        }
+      } else {
+        for (const fr of holdFrames(ev)) {
+          const keep = keepAt(fr);
+          const kf = interpolateKeyframes(ev.keyframes, fr);
+          const hit = frontLines.find(l => overlapFraction(projectLineAabb(l, ev.block, kf, ev.perspectivePx), keep) > 0.02);
+          if (hit) { out.push({eventId: ev.id, rule: 'face-keepout', detail: `front line "${hit.text}" covers the face keep-out at frame ${fr}`}); break; }
+        }
       }
     }
     // --- contrast
@@ -169,6 +237,8 @@ export function verifyRenderSpec(spec: RenderSpec, ctx: VerifyContext): Violatio
   const evs = spec.events;
   // --- match cuts: <= 1 per 20 s, and no other type on screen with one
   const cuts = evs.filter(e => e.presetResolved === 'type.matchCut');
+  const cutBudget = matchCutBudget(spec.durationInFrames / spec.fps);
+  if (cuts.length > cutBudget) for (const c of cuts.slice(cutBudget)) out.push({eventId: c.id, rule: 'matchcut-cap', detail: `more than ${cutBudget} match cut(s) for a ${Math.round(spec.durationInFrames / spec.fps)} s video`});
   for (let i = 0; i < cuts.length; i += 1) {
     for (let j = i + 1; j < cuts.length; j += 1) if (Math.abs(cuts[i]!.inFrame - cuts[j]!.inFrame) < MATCH_CUT_GAP_SEC * spec.fps) out.push({eventId: cuts[j]!.id, rule: 'matchcut-cap', detail: `${cuts[i]!.id} and ${cuts[j]!.id} are < ${MATCH_CUT_GAP_SEC} s apart`});
   }

@@ -157,6 +157,15 @@ export function buildRvmArgs(input: {
   maxFrames?: number;
   ranges?: ReadonlyArray<readonly [number, number]>;
   maxSide?: number;
+  /** Phase 5 (Kinetic V2 behind-text mattes): white sticker stroke width; absent = the tool default (4 px, unchanged). 0 = none. */
+  strokePx?: number;
+  /** Phase 5: colour-palette pocket clearing passes; absent = the tool default (1, unchanged). 0 = skip (the refine cost drops ~10x). */
+  pocketPasses?: number;
+  /** Phase 5.3: skip foreground colour reconstruction (the alpha is identical); only for callers that use the alpha alone. Absent = the tool default (full colour). */
+  alphaOnly?: boolean;
+  /** Phase 5.6 (with alphaOnly; opt-in, output byte-identical): don't copy RVM's colour off the device / reuse one RGBA pack buffer. */
+  skipFgrDownload?: boolean;
+  reusePackBuffer?: boolean;
 }): string[] {
   return [
     '-m',
@@ -169,6 +178,11 @@ export function buildRvmArgs(input: {
     ...(input.ranges && input.ranges.length > 0 ? ['--ranges', input.ranges.map(([a, b]) => `${a}-${b}`).join(',')] : []),
     ...(input.maxSide ? ['--max-side', String(Math.floor(input.maxSide))] : []),
     ...(input.maxFrames ? ['--max-frames', String(input.maxFrames)] : []),
+    ...(input.strokePx !== undefined ? ['--stroke-px', String(input.strokePx)] : []),
+    ...(input.pocketPasses !== undefined ? ['--pocket-passes', String(Math.max(0, Math.floor(input.pocketPasses)))] : []),
+    ...(input.alphaOnly ? ['--alpha-only'] : []),
+    ...(input.alphaOnly && input.skipFgrDownload ? ['--skip-fgr-download'] : []),
+    ...(input.alphaOnly && input.reusePackBuffer ? ['--reuse-pack-buffer'] : []),
   ];
 }
 
@@ -192,6 +206,7 @@ export function rvmChildEnv(device: string): NodeJS.ProcessEnv {
     PYTHONUNBUFFERED: '1',
   };
   if (process.env.TMPDIR) out.TMPDIR = process.env.TMPDIR;
+  if (env.RVM_WEIGHTS_PATH.trim()) out.RVM_WEIGHTS_PATH = env.RVM_WEIGHTS_PATH.trim(); // a path, not a secret
   return out;
 }
 

@@ -27,6 +27,13 @@ export const rangeFrames = (words: KineticWord[], [a, b]: [number, number]): {in
 export type FallbackResult = {plan: KineticPlan; reason?: string};
 /** What the fallback knows about the plate (mean luminance 0..1 and mean colour): the font pairing is chosen from it, per video. */
 export type PlateInfo = {luminance?: number; color?: string};
+/** What the scene can actually satisfy. Omitted = the historical behaviour (everything may be requested; the solver refuses what it cannot grant). */
+export type FallbackCapabilities = {
+  /** a real person matte exists: behind-the-head and stack-over-cutout may be requested */
+  matte?: boolean;
+  /** 3D extruded presets may be requested */
+  threeD?: boolean;
+};
 
 /** Font pairing for a plate: a bright, soft plate -> editorial; a vivid magenta / purple plate -> neon; everything else (dark / saturated / loud) -> street. */
 export function fontPairForPlate(plate?: PlateInfo): FontPair {
@@ -42,9 +49,11 @@ const FALLBACK_ENTERS: EnterName[] = ['IN-2', 'IN-4', 'IN-6', 'IN-9', 'IN-7'];
 const FALLBACK_EXITS: ExitName[] = ['OUT-1', 'OUT-2', 'OUT-4'];
 const FALLBACK_LEADS: EnterName[] = ['IN-1', 'IN-3'];
 
-export function buildFallbackPlan(input: {words: KineticWord[]; shots: KineticShot[]; reason?: string; fps?: number; plate?: PlateInfo}): FallbackResult {
+export function buildFallbackPlan(input: {words: KineticWord[]; shots: KineticShot[]; reason?: string; fps?: number; plate?: PlateInfo; capabilities?: FallbackCapabilities}): FallbackResult {
   const {words, shots} = input;
   const fps = input.fps ?? 30;
+  const canMatte = input.capabilities?.matte !== false;
+  const canThreeD = input.capabilities?.threeD !== false;
   const events: TextEvent[] = [];
   if (words.length === 0 || shots.length === 0) return {plan: {version: '1', style: 'cinematicClean', events}, reason: input.reason ?? 'no_words'};
 
@@ -180,7 +189,7 @@ export function buildFallbackPlan(input: {words: KineticWord[]; shots: KineticSh
     let regionHint: TextEvent['regionHint'] = 'auto';
     let title: boolean | undefined;
     if (solo && w.emphasisScore >= 0.85 && w.startFrame - lastTitle >= TITLE_GAP_FRAMES) { title = true; lastTitle = w.startFrame; }
-    else if (w.emphasisScore >= 0.9 && w.startFrame - lastBehind >= BEHIND_GAP_FRAMES) { regionHint = 'behindSignature'; lastBehind = w.startFrame; }
+    else if (canMatte && w.emphasisScore >= 0.9 && w.startFrame - lastBehind >= BEHIND_GAP_FRAMES) { regionHint = 'behindSignature'; lastBehind = w.startFrame; }
     for (let i = a; i <= b; i += 1) covered.add(i);
     events.push({id: `hero-${w.idx}`, shotId: shot.id, wordRange: [a, b], lines, preset: 'type.words', layering: 'auto', anchor: 'screen', regionHint, enter: FALLBACK_ENTERS[heroRot % FALLBACK_ENTERS.length], exit: FALLBACK_EXITS[heroRot % FALLBACK_EXITS.length], ...(title ? {title} : {})});
     heroRot += 1;
@@ -190,13 +199,13 @@ export function buildFallbackPlan(input: {words: KineticWord[]; shots: KineticSh
   const soloHeroes = events.filter(e => e.preset === 'type.words' && e.lines.length === 1 && e.lines[0]!.role === 'hero' && e.wordRange[0] === e.wordRange[1] && !e.title);
   const lettersOf = (e: TextEvent) => normToken(e.lines[0]!.text).length;
   const pool3d = soloHeroes.filter(e => lettersOf(e) >= 5 && lettersOf(e) <= 10).sort((x, y) => (words[y.wordRange[0]]!.emphasisScore - words[x.wordRange[0]]!.emphasisScore) || x.wordRange[0] - y.wordRange[0]);
-  const three = pool3d[0];
+  const three = canThreeD ? pool3d[0] : undefined;
   if (three) { three.preset = 'hero.extrudedStack.front'; three.regionHint = 'auto'; delete (three as {enter?: unknown}).enter; delete (three as {exit?: unknown}).exit; }
   const rest = events.filter(e => e !== three && e.preset === 'type.words' && e.lines.some(l => l.role === 'hero') && e.regionHint === 'auto' && !e.title);
   const behindPick = rest.filter(e => e.lines.length === 1).sort((x, y) => (words[y.wordRange[0]]!.emphasisScore - words[x.wordRange[0]]!.emphasisScore) || x.wordRange[0] - y.wordRange[0])[0];
-  if (behindPick && !events.some(e => e.regionHint === 'behindSignature')) behindPick.regionHint = 'behindSignature';
+  if (canMatte && behindPick && !events.some(e => e.regionHint === 'behindSignature')) behindPick.regionHint = 'behindSignature';
   const stackPick = rest.filter(e => e !== behindPick && e.lines.length >= 2 && e.lines[0]!.role === 'connector' && e.lines.some(l => l.role === 'hero')).sort((x, y) => (words[y.wordRange[0]]!.emphasisScore - words[x.wordRange[0]]!.emphasisScore) || x.wordRange[0] - y.wordRange[0])[0];
-  if (stackPick && !events.some(e => e.regionHint === 'stackOverCutout')) stackPick.regionHint = 'stackOverCutout';
+  if (canMatte && stackPick && !events.some(e => e.regionHint === 'stackOverCutout')) stackPick.regionHint = 'stackOverCutout';
 
   // 3) every other word is a normal GAP CAPTION (gapCaptions.ts), shown only while no lockup is on screen: no running events any more
   events.push(...matchCuts);

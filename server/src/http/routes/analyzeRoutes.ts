@@ -89,6 +89,7 @@ analyzeRoutes.post('/analyze', requireFullEdit, async (req, res) => {
       pipelineMode: env.PIPELINE_MODE,
     }),
     captionTemplate: parsed.data.captionTemplate,
+    ...(parsed.data.footageKind ? {footageKind: parsed.data.footageKind} : {}),
   });
 
   res.status(202).json({ok: true, job});

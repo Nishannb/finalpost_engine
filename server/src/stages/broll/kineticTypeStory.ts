@@ -171,7 +171,9 @@ export function matchCutVariantOf(phrase: string, seed = 0): MatchCutVariantId {
   if (/\b(news|headline|reported|reports?|story|stories|press|media|journal|article|breaking|announced?)\b/i.test(phrase)) return 'newsprint';
   if (/\b(brand|design|style|fashion|creative|art|beautiful|bold|aesthetic|magazine|editorial|trend)\b/i.test(phrase)) return 'editorial';
   if (/\b(data|research|study|document|record|evidence|history|science|system|process|technology|machine|intelligence)\b/i.test(phrase)) return 'memo';
-  return MATCH_VARIANTS[Math.abs(Math.floor(seed)) % MATCH_VARIANTS.length]!;
+  // the DEFAULT look is the tinted editorial one (V1 refinement): the memo look is neutral grey and is kept for data / research content only; `seed` no longer rotates content into it
+  void seed;
+  return 'editorial';
 }
 
 export const matchKeywordOk = (word: string) => MATCH_WORD.test(word) && chars(word) >= MATCH_CUT_KEYWORD_MIN && chars(word) <= MATCH_CUT_KEYWORD_MAX && isContent(word);

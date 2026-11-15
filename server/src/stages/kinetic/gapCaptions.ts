@@ -18,7 +18,7 @@ export const CAPTION_PX_MIN = 0.07;
 export const CAPTION_PX_MAX = 0.14;
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-export function buildGapCaptions(a: {words: KineticWord[]; events: RenderEvent[]; shots: KineticShot[]; scenes: Record<string, ShotScene>; width: number; height: number; fps: number}): GapCaption[] {
+export function buildGapCaptions(a: {words: KineticWord[]; events: RenderEvent[]; shots: KineticShot[]; scenes: Record<string, ShotScene>; width: number; height: number; fps: number; /** also draw 1-2 letter words */ shortWords?: boolean}): GapCaption[] {
   const {words, events, width, height, fps} = a;
   const safe = shortsSafeRect(width, height);
   const owned = new Set<number>();
@@ -30,7 +30,7 @@ export function buildGapCaptions(a: {words: KineticWord[]; events: RenderEvent[]
     if (owned.has(w.idx)) continue;
     const text = w.text.replace(/[.,;:!?]+$/, '').trim();
     if (!text) continue;
-    if (normToken(text).length <= 2) continue;
+    if (!a.shortWords && normToken(text).length <= 2) continue;
     const start = w.startFrame;
     // never while a kinetic lockup is on screen
     if (events.some(e => start >= e.inFrame && start < e.outFrame)) continue;

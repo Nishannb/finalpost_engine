@@ -200,6 +200,14 @@ export async function extractSubjectMatte(input: {
   maxSide?: number;
   quality?: RvmQuality;
   cacheMaxBytes?: number;
+  /** Phase 5 (Kinetic V2): tool options; absent = the tool defaults exactly as before (and the cache key is unchanged). */
+  strokePx?: number;
+  pocketPasses?: number;
+  /** Phase 5.3: the caller uses only the alpha (the WebM's colour is RVM's raw fgr); a separate cache variant. Absent = full colour, cache key unchanged. */
+  alphaOnly?: boolean;
+  /** Phase 5.6 (with alphaOnly; opt-in, off by default; byte-identical output, kept in their own cache variant so measurements never hit an older entry). */
+  skipFgrDownload?: boolean;
+  reusePackBuffer?: boolean;
 }): Promise<SubjectMatteResult | null> {
   const skip = (reason: string) => {
     log.info({reason}, 'person matte skipped');
@@ -213,7 +221,8 @@ export async function extractSubjectMatte(input: {
   const maxSide = input.maxSide ?? (env.PERSON_MATTE_MAX_SIDE > 0 ? Math.floor(env.PERSON_MATTE_MAX_SIDE) : undefined);
   const quality: RvmQuality = input.quality ?? (env.PERSON_MATTE_QUALITY === 'high' ? 'high' : 'fast');
   try {
-    const key = cacheKey(await fingerprint(input.inputPath), input.ranges, `side=${maxSide ?? 0};q=${quality}`);
+    const toolOpts = `${input.strokePx !== undefined ? `;stroke=${input.strokePx}` : ''}${input.pocketPasses !== undefined ? `;pocket=${input.pocketPasses}` : ''}${input.alphaOnly ? ';alpha' : ''}${input.alphaOnly && input.skipFgrDownload ? ';nofgr' : ''}${input.alphaOnly && input.reusePackBuffer ? ';packbuf' : ''}`;
+    const key = cacheKey(await fingerprint(input.inputPath), input.ranges, `side=${maxSide ?? 0};q=${quality}${toolOpts}`);
     const dir = input.cacheDir ?? cacheRoot();
     await fs.mkdir(dir, {recursive: true});
     const cachedWebm = path.join(dir, `${key}.webm`);
@@ -237,7 +246,7 @@ export async function extractSubjectMatte(input: {
       try {
         run = await (input.runner ?? spawnRvm)(
           python ?? 'python',
-          buildRvmArgs({input: input.inputPath, outputWebm: cachedWebm, resultJson: cachedReport, quality, ranges: input.ranges, ...(maxSide ? {maxSide} : {})}),
+          buildRvmArgs({input: input.inputPath, outputWebm: cachedWebm, resultJson: cachedReport, quality, ranges: input.ranges, ...(maxSide ? {maxSide} : {}), ...(input.strokePx !== undefined ? {strokePx: input.strokePx} : {}), ...(input.pocketPasses !== undefined ? {pocketPasses: input.pocketPasses} : {}), ...(input.alphaOnly ? {alphaOnly: true} : {}), ...(input.skipFgrDownload ? {skipFgrDownload: true} : {}), ...(input.reusePackBuffer ? {reusePackBuffer: true} : {})}),
           {cwd: RVM_ROOT, env: rvmChildEnv(env.RVM_DEVICE), timeoutMs: Math.max(30, env.MATTING_TIMEOUT_SEC) * 1000},
         );
       } finally {

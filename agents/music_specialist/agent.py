@@ -29,6 +29,12 @@ def _run_qc(metrics: Dict[str, Any], requested_bpm: float) -> Dict[str, Any]:
                 "vocal_score": None, "passed": False}
 
 
+def qc_retry_allowed(payload: Any) -> bool:
+    """Phase 1.7.3: a failed QC may trigger a second paid BGM generation ONLY when the job explicitly opts in with the JSON boolean
+    `allow_qc_retry: true`. Missing, false, null, 1, "true" or any other value means no retry. The production server never opts in."""
+    return isinstance(payload, dict) and payload.get("allow_qc_retry") is True
+
+
 class AIMusicSpecialistAgent:
     def __init__(self, transport: Optional[Any] = None) -> None:
         self.transport = transport if transport is not None else DryRunTransport()
@@ -52,6 +58,7 @@ class AIMusicSpecialistAgent:
             raise RuntimeError(f"unknown music mode: {mode}")
         include_sfx = True if not isinstance(payload, dict) else bool(raw.get("include_sfx", True))
         max_usd = float(raw.get("max_usd", 0.02)) if isinstance(payload, dict) else 0.02
+        allow_qc_retry = qc_retry_allowed(payload)
         # Personalised: the server sends a brief (style, tempo, key, arc) built from this video. Without one, or with an unknown style, the family mood is used as before.
         brief = raw.get("brief") if isinstance(payload, dict) and isinstance(raw.get("brief"), dict) else None
         spec = spec_for_brief(brief) if brief else None
@@ -67,7 +74,11 @@ class AIMusicSpecialistAgent:
             raise RuntimeError("live mode needs a stable video_id (seed is derived from it)")
         caption = caption_for(spec)
         key = cache_key(spec, seed, arc)
-        cuts = self.select_cuts(plan.visual_cuts) if include_sfx else []
+        requested_cuts = self.select_cuts(plan.visual_cuts) if include_sfx else []
+        # SFX-1: live SFX generation is refused. The server never uses this agent's SFX (only its bed), and the SFX models/prices are not
+        # verified, so a live run must not pay for them. Plan and dry runs keep their placeholder SFX (no network, no cost).
+        sfx_refused = len(requested_cuts) if mode == "live" else 0
+        cuts = [] if mode == "live" else requested_cuts
         estimate = round(bgm_cap_cost() + len(cuts) * SFX_COST_USD, 6)
         base = {
             "cache_key": key,
@@ -106,8 +117,8 @@ class AIMusicSpecialistAgent:
         metrics = postprocess_bed(raw_path, bed_path)
         qc = _run_qc(metrics, spec.bpm)
         qc_retried = False
-        if live and not qc["passed"]:
-            # One retry, same seed, bed only, and only if a second bed fits the existing cap.
+        if live and not qc["passed"] and allow_qc_retry:
+            # Explicitly authorised legacy retry only (Phase 1.7.3): same seed, bed only, and only if a second bed fits the existing cap.
             first_cost = float(getattr(self.transport, "last_cost", None) or bgm_cap_cost())
             if first_cost + bgm_cap_cost() <= max_usd:
                 qc_retried = True
@@ -117,6 +128,8 @@ class AIMusicSpecialistAgent:
                 self.transport.download(url, raw_path)
                 metrics = postprocess_bed(raw_path, bed_path)
                 qc = _run_qc(metrics, spec.bpm)
+        if sfx_refused:
+            _log.warning("music.sfx_live_refused %d", sfx_refused)
         _log.info("music.qc_vocal_score %s", qc["vocal_score"])
         _log.info("music.qc_speech_band %s", metrics.get("qc_speech_band"))
 
@@ -148,7 +161,9 @@ class AIMusicSpecialistAgent:
             "qc_silence_sec": qc["silence_sec"], "qc_true_peak_dbfs": qc["true_peak_dbfs"],
             "qc_bpm_error_ratio": qc["bpm_error_ratio"], "qc_seam_db": qc["seam_db"],
             "qc_vocal_score": qc["vocal_score"], "qc_passed": qc["passed"],
-            "qc_retried": qc_retried, "qc": qc,
+            "qc_retried": qc_retried, "qc_retry_allowed": allow_qc_retry, "qc": qc,
+            "sfx_generation": "refused_live_disabled" if sfx_refused else ("not_requested" if not requested_cuts else "dry_placeholders"),
+            "sfx_refused": sfx_refused,
         })
         schema["mode"] = mode
         schema["cost_usd"] = measured

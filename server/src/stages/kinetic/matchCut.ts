@@ -1,13 +1,17 @@
 /**
  * MATCH CUT as a kinetic treatment (`type.matchCut`). The look is NOT redefined here: the compositor mounts the existing TypeTextMatchCut (remotion/src/motion/compositions/templates/TextMatchCut.tsx) with the grammar of
- * remotion/src/lib/textMatchCut.ts. The SUITABILITY rules are the ones already written in stages/broll/kineticTypeStory.ts (`buildMatchCut`, `matchCutVariantOf`, naming regex, from-X-to-Y swap): imported, not copied
- * (kineticTypeStory only pulls the pure sceneSpec helper, so the kinetic tests stay light).
+ * remotion/src/lib/textMatchCut.ts. This file decides WHEN a match cut is deserved, and that is a narrative judgment, not a keyword match.
  *
- *   when      ONLY in one of four moments (see MatchCutMoment): the opening hook, a shocking statistic / claim, a major narrative pivot, the first utterance of the video's single core keyword.
- *             Naming a concept ("what is X", "called", "means") is NOT a trigger any more; at most ONE match cut per plan.
- *   keyword   ONE spoken word, 4-12 letters, a content word (never a function word); the surrounding phrase has >= 5 spoken words and is the only other glyph on screen
- *   cap       one per plan; it owns the frame ~1.8 s; no type.words block overlaps it
- *   never     invent a keyword: everything shown is a contiguous slice of the transcript
+ * WHEN (V1 visual-quality correction): ONLY at one of four high-leverage narrative moments (see MatchCutMoment). None of these is enough on its own: a first mention of a keyword, a statistic, a strong
+ * word, "the planner wants variety" or "a timestamp is free". If no moment genuinely applies there is NO match cut.
+ *   openingHook         the video's central TOPIC is being INTRODUCED: 2.5-10 s in, in one of the first two sentences, by an explicit introducing construct ("this video is about", "today we're talking about", "here's how", "the problem with", a question)
+ *                       whose object is the keyword, and the keyword is the video's recurring topic. A topic merely MENTIONED inside a sentence is not introduced.
+ *   chapterTransition   a previous thought has concluded (a pause of >= 0.35 s after a >= 5-word sentence) and a section marker ("now", "next", "let's talk about", "step two") introduces a genuinely NEW topic: a keyword not said before
+ *   evidenceMontage     one sentence carries BOTH a consensus / scale term ("everyone", "millions", "went viral") AND an impact term ("talking", "spike", "massive"), in >= 8 spoken words: grounded in the speaker's own words
+ *   beforeReveal        a setup sentence ("here's the thing", "the secret is", "turns out") with a reveal sentence after it: the cut ends before the reveal starts, so the reveal lands on a quiet frame
+ *
+ * HOW MANY: short form (<= 90 s): at most ONE per video. Long form: at most one per 75 s, never closer than 60 s. Enforced here (planner AND the validation of a Director's events) and in the solver guardrails.
+ * KEYWORD: ONE spoken word, 4-12 letters, a content word; the surrounding phrase has >= 5 spoken words. Everything shown is a contiguous slice of the transcript: nothing is invented.
  */
 import {
   MATCH_CONTEXT_AFTER, MATCH_CONTEXT_BEFORE, MATCH_CUT_KEYWORD_MAX, MATCH_CUT_KEYWORD_MIN, buildMatchCut, matchCutVariantOf, matchKeywordOk,
@@ -18,11 +22,14 @@ import {normToken} from './transcript.ts';
 import {FUNCTION_WORDS} from './words.ts';
 
 export {MATCH_CUT_KEYWORD_MAX, MATCH_CUT_KEYWORD_MIN};
-/** one match cut per this many seconds (the solver re-checks it against the real fps) */
-export const MATCH_CUT_GAP_SEC = 20;
-/** the match cut owns the frame this long (the catalog says 1.6 s; the allowed band is 1.6-2.0 s) */
-export const MATCH_CUT_SEC = 1.8;
-export const MATCH_CUT_MIN_SEC = 1.6;
+/** never closer than this (the solver re-checks it against the real fps) */
+export const MATCH_CUT_GAP_SEC = 60;
+/** short form is at most this long; it gets ONE match cut at most. Longer: one per MATCH_CUT_LONG_FORM_SPACING_SEC at most. */
+export const MATCH_CUT_SHORT_FORM_MAX_SEC = 90;
+export const MATCH_CUT_LONG_FORM_SPACING_SEC = 75;
+/** the match cut owns the frame this long: 1-2.5 s is the target; 1.3 s = the 1.0 s shutter burst (cuts at 0..1.0 s) plus a 0.3 s decelerating crisp landing, then it ends decisively */
+export const MATCH_CUT_SEC = 1.3;
+export const MATCH_CUT_MIN_SEC = 1.2;
 export const MATCH_CUT_MIN_PHRASE_WORDS = 5;
 /** frames before the keyword is spoken at which the cut lands */
 const LEAD_FRAMES = 2;
@@ -46,15 +53,34 @@ export const isLegalMatchKeyword = (word: string): boolean => matchKeywordOk(bar
  *   coreKeyword  the FIRST utterance of the single core keyword of the whole video (one content word, 4-12 letters, said >= 3 times, the clear top)
  * At most one match cut per plan. "that was an example of a hook" is none of these.
  */
-export type MatchCutMoment = 'openingHook' | 'statistic' | 'pivot' | 'coreKeyword';
+export type MatchCutMoment = 'openingHook' | 'chapterTransition' | 'evidenceMontage' | 'beforeReveal';
+/** short-form cap, kept as an export for callers that only know the short-form rule */
 export const MATCH_CUT_MAX_PER_PLAN = 1;
-const NUMBER_WORDS = new Set(['two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'twenty', 'thirty', 'forty', 'fifty', 'hundred', 'thousand', 'million', 'billion', 'percent', 'dozens']);
-const CLAIM_WORDS = new Set(['secret', 'secrets', 'database', 'databases', 'proof', 'proven', 'statistic', 'statistics']);
-const PIVOT_RE = /(\bbut here'?s\b|\bhere'?s the (?:thing|catch|truth|problem|secret)\b|\bthe problem(?: is)?\b|\bthe solution\b|^(?:so |but |and )?now[,\s])/i;
-const CORE_MIN_COUNT = 3;
+/** How many match cuts a video of `durationSec` may carry. Never a target: zero is the right answer when no moment applies. */
+export const matchCutBudget = (durationSec: number): number => (durationSec <= MATCH_CUT_SHORT_FORM_MAX_SEC ? 1 : Math.max(1, Math.floor(durationSec / MATCH_CUT_LONG_FORM_SPACING_SEC)));
+const durationOfWords = (words: readonly KineticWord[], fps: number): number => (words.length ? words[words.length - 1]!.endFrame / fps : 0);
 
+const OPEN_MIN_SEC = 2.5;
+const OPEN_MAX_SEC = 10;
+const CHAPTER_PAUSE_SEC = 0.35;
+const CHAPTER_MIN_PREV_WORDS = 5;
+const EVIDENCE_MIN_WORDS = 8;
+const SECTION_RE = /^(?:(?:ok(?:ay)?|alright|so|and|but)[,\s]+)*(?:(?:now[,\s]+)?(?:let'?s (?:talk about|look at|move on to|dive into|get into|break down)|the next (?:step|thing|part|section|big \w+)|step (?:one|two|three|four|five|\d+)|part (?:one|two|three|\d+)|number (?:one|two|three|four|five|\d+))|now|next|moving on|chapter)\b/i;
+const CONSENSUS_RE = /\b(everyone|everybody|millions?|thousands?|hundreds of|so many (?:people|creators|viewers|users)|all over|the whole (?:internet|world)|went viral|blew up|exploded)\b/i;
+const IMPACT_RE = /\b(talking|talked|posting|posted|sharing|shared|searching|searched|spike|spiked|surge|surged|massive|huge|doubled|tripled|skyrocket\w*|jumped|growth|trending)\b/i;
+/** An explicit INTRODUCING construct: the speaker announces the topic, a how-to, a problem or a mystery. Merely mentioning a word in passing ("...by using a school alone") is none of these. */
+const INTRO_FRAME_RE = /\b(?:this (?:video|episode|lesson|channel) is (?:all )?about|(?:today|in this video)[,\s]+(?:we|i)(?:'re| are| am|'m)?\s*(?:going to )?(?:talk(?:ing)?|show(?:ing)?|look(?:ing)?|diving|cover(?:ing)?|break(?:ing)?)|i(?:'m| am) going to (?:show|teach|explain|tell|walk)|let me (?:show|tell|explain|walk)|let'?s (?:talk about|look at|dive into|break down)|here'?s (?:how|why|what)|how to|why (?:most|you|every|people|this|your|nobody)|what (?:if|happens|nobody|most)|the (?:truth|secret|problem|mystery|biggest mistake|real reason)(?: about| with| of| behind)|stop (?:doing|using|making)|you(?:'re| are) (?:probably |actually )?(?:doing|making))\b/i;
+const REVEAL_SETUP_RE = /(\bhere'?s (?:the|what)\b|\bthe (?:secret|truth|answer|catch|twist|real reason)(?: is| was)?\b|\bturns out\b|\bguess what\b|\bbut (?:then|here'?s)\b)/i;
+
+/** Words that recur in any talk without being its subject. A topic is a subject, not a verb form, an adverb, a quantity or a filler. */
+const GENERIC_TOPIC = new Set(['more', 'most', 'many', 'much', 'some', 'even', 'also', 'very', 'still', 'just', 'really', 'thing', 'things', 'stuff', 'going', 'make', 'made', 'making', 'using', 'getting', 'doing', 'having', 'being', 'looking', 'trying', 'coming', 'taking', 'giving', 'saying', 'thinking', 'wanting', 'needing', 'following', 'working', 'doing', 'want', 'wanted', 'need', 'needs', 'like', 'know', 'think', 'take', 'takes', 'come', 'comes', 'give', 'gives', 'look', 'looks', 'good', 'great', 'best', 'better', 'first', 'second', 'third', 'next', 'last', 'every', 'always', 'never', 'today', 'people', 'time', 'times', 'long', 'little', 'back', 'right', 'something', 'anything', 'everything', 'nothing', 'about', 'after', 'again', 'because', 'before', 'while', 'where', 'which', 'would', 'could', 'should', 'other', 'another', 'whole', 'same', 'such', 'only', 'ever', 'once']);
+export const isTopicWord = (word: string): boolean => {
+  const t = normToken(word);
+  return isLegalMatchKeyword(word) && !GENERIC_TOPIC.has(t) && !/ly$/.test(t);
+};
 const isNumeric = (t: string): boolean => /\d/.test(t) || /%$/.test(t.trim());
 const tokenOf = (w: KineticWord): string => normToken(w.text);
+void isNumeric;
 
 /** The one core keyword of the whole video and where it is first said (null when no content word clearly dominates). */
 export function coreKeywordOf(words: readonly KineticWord[]): {token: string; firstIdx: number; count: number} | null {
@@ -67,60 +93,86 @@ export function coreKeywordOf(words: readonly KineticWord[]): {token: string; fi
   }
   const ranked = [...counts.entries()].sort((x, y) => y[1].n - x[1].n || x[1].first - y[1].first);
   const top = ranked[0];
-  if (!top || top[1].n < CORE_MIN_COUNT) return null;
+  if (!top || top[1].n < 3) return null;
   if (ranked[1] && ranked[1][1].n === top[1].n) return null;
   return {token: top[0], firstIdx: top[1].first, count: top[1].n};
 }
 
-/** Index range of the first sentence of the transcript. */
-function firstSentenceEnd(words: readonly KineticWord[], fps: number): number {
-  const sents = sentencesOf(words, fps);
-  return sents.length ? sents[0]![sents[0]!.length - 1]!.idx : -1;
-}
-
 export type MomentVerdict = {ok: true; moment: MatchCutMoment; reason: string} | {ok: false; reason: string};
 
-/** Which of the four moments (if any) makes the keyword at `kwIdx` a legal match cut. `words` is the WHOLE transcript. */
+const sentenceCache = new WeakMap<readonly KineticWord[], KineticWord[][]>();
+const sentencesCached = (words: readonly KineticWord[], fps: number): KineticWord[][] => {
+  let v = sentenceCache.get(words);
+  if (!v) { v = sentencesOf(words, fps); sentenceCache.set(words, v); }
+  return v;
+};
+const textOf = (ws: readonly KineticWord[]): string => ws.map(w => w.text).join(' ');
+
+/**
+ * Which narrative moment (if any) makes the keyword at `kwIdx` a deserved match cut. `words` is the WHOLE transcript (context is the point: the sentences around it, the pauses, what comes next).
+ * `range` is the event's word range; the keyword must be inside it. Pure.
+ */
 export function matchCutMomentOf(kwIdx: number, range: [number, number], words: readonly KineticWord[], fps: number): MomentVerdict {
   const kw = words[kwIdx];
   if (!kw || !isLegalMatchKeyword(kw.text)) return {ok: false, reason: 'keyword is not a 4-12 letter content word'};
-  const [a, b] = range;
-  const slice = words.slice(a, b + 1);
-  const text = slice.map(w => w.text).join(' ');
+  if (kwIdx < range[0] || kwIdx > range[1]) return {ok: false, reason: 'keyword outside the event range'};
+  const sents = sentencesCached(words, fps);
+  const si = sents.findIndex(sent => sent.some(w => w.idx === kwIdx));
+  if (si < 0) return {ok: false, reason: 'keyword not inside a sentence'};
+  const sent = sents[si]!;
+  const prev = sents[si - 1];
+  const next = sents[si + 1];
+  const t = kw.startFrame / fps;
+  const sentText = textOf(sent);
+  const gapBefore = prev ? (sent[0]!.startFrame - prev[prev.length - 1]!.endFrame) / fps : 99;
 
-  // 2. shocking statistic / fact: the keyword is the number / claim word itself or the content word within three words after a number ("90% of creators")
-  for (let i = a; i <= b; i += 1) {
-    const w = words[i]!;
-    const t = tokenOf(w);
-    const statWord = isNumeric(w.text) || NUMBER_WORDS.has(t) || CLAIM_WORDS.has(t);
-    const counted = isNumeric(w.text) || NUMBER_WORDS.has(t);
-    if (statWord && (kwIdx === i || (counted && kwIdx > i && kwIdx <= i + 3))) return {ok: true, moment: 'statistic', reason: `statistic / claim "${w.text}"`};
+  // D. before a major reveal: a setup sentence, with the reveal still to come (a reveal sentence follows)
+  if (next && next.length >= 4 && REVEAL_SETUP_RE.test(sentText)) return {ok: true, moment: 'beforeReveal', reason: `setup "${REVEAL_SETUP_RE.exec(sentText)![0].trim()}" with a reveal to follow`};
+
+  // B. chapter / topic transition: a concluded thought, a pause, a section marker, and the keyword is the next section's first content word
+  if (prev && prev.length >= CHAPTER_MIN_PREV_WORDS && gapBefore >= CHAPTER_PAUSE_SEC && t > OPEN_MAX_SEC) {
+    const head = textOf(sent.slice(0, 9));
+    const m = SECTION_RE.exec(head);
+    if (m) {
+      const markerWords = m[0].trim().split(/\s+/).length;
+      const firstContent = sent.slice(markerWords, markerWords + 6).find(w => isLegalMatchKeyword(w.text));
+      const isNewTopic = words.findIndex(w => tokenOf(w) === tokenOf(kw)) === kwIdx; // a genuinely new topic: the keyword has not been said before
+      if (firstContent && firstContent.idx === kwIdx && isNewTopic) return {ok: true, moment: 'chapterTransition', reason: `new section "${m[0].trim()}" after a ${gapBefore.toFixed(2)} s pause`};
+    }
   }
-  // 3. major narrative pivot: the keyword sits right after an explicit turn
-  const m = PIVOT_RE.exec(text);
-  if (m) {
-    let offset = 0;
-    let kwStart = -1;
-    slice.forEach((w, i) => { const at = text.indexOf(w.text, offset); offset = at >= 0 ? at + w.text.length : offset; if (a + i === kwIdx) kwStart = at; });
-    if (kwStart >= m.index && kwStart <= m.index + m[0].length + 36) return {ok: true, moment: 'pivot', reason: `pivot "${m[0].trim()}"`};
+
+  // C. evidence montage: consensus / scale AND impact in one sentence of enough spoken words (the speaker's own words are the evidence shown)
+  if (sent.length >= EVIDENCE_MIN_WORDS && CONSENSUS_RE.test(sentText) && IMPACT_RE.test(sentText)) {
+    const cue = IMPACT_RE.exec(sentText)![0].toLowerCase();
+    const cueWord = sent.find(z => normToken(z.text) === cue) ?? sent[0]!;
+    // the keyword of the montage is the content word closest to the impact term
+    const near = sent.filter(w => isLegalMatchKeyword(w.text)).sort((x, y) => Math.abs(x.idx - cueWord.idx) - Math.abs(y.idx - cueWord.idx))[0];
+    if (near && near.idx === kwIdx) return {ok: true, moment: 'evidenceMontage', reason: `consensus + impact: "${CONSENSUS_RE.exec(sentText)![0]}" / "${cue}"`};
   }
-  // 1. opening hook: the lockup covers the first ~1 s and the pinned word is the topic (strongest content word) of the first sentence
-  const firstEnd = firstSentenceEnd(words, fps);
-  if (words[0] && words[0].startFrame <= Math.round(0.5 * fps) && kw.startFrame - LEAD_FRAMES <= Math.round(1.0 * fps) && kwIdx <= firstEnd) {
-    const cands = words.slice(0, firstEnd + 1).filter(w => isLegalMatchKeyword(w.text));
-    const top = Math.max(...cands.map(w => w.emphasisScore));
-    if (kw.emphasisScore >= top - 1e-9) return {ok: true, moment: 'openingHook', reason: 'opening hook'};
+
+  // A. opening hook: the video's recurring topic is INTRODUCED (an explicit introducing construct or a question whose object is the keyword), 2.5-10 s in, inside the first two sentences
+  if (si <= 1 && t >= OPEN_MIN_SEC && t <= OPEN_MAX_SEC) {
+    const recurs = words.filter(w => tokenOf(w) === tokenOf(kw)).length >= 2;
+    const first = words.findIndex(w => tokenOf(w) === tokenOf(kw)) === kwIdx;
+    const pos = sent.findIndex(w => w.idx === kwIdx);
+    const m = INTRO_FRAME_RE.exec(sentText);
+    const isQuestion = /\?$/.test(sentText.trim());
+    let introduced = isQuestion;
+    if (m) {
+      const startTok = sentText.slice(0, m.index).trim().split(/\s+/).filter(Boolean).length;
+      const endTok = startTok + m[0].trim().split(/\s+/).length;
+      introduced = pos >= startTok && pos < endTok + 6; // the keyword is the object of the introducing construct
+    }
+    // the topic is what the video keeps coming back to (recurrence), not what scores highest inside one sentence (sentence-final words always do)
+    if (introduced && recurs && first && isTopicWord(kw.text)) return {ok: true, moment: 'openingHook', reason: `the video's topic "${kw.text}" is introduced at ${t.toFixed(1)} s (${m ? `"${m[0].trim()}"` : 'a question'}) and said again later`};
   }
-  // 4. first utterance of the single core keyword
-  const core = coreKeywordOf(words);
-  if (core && tokenOf(kw) === core.token && kwIdx === core.firstIdx) return {ok: true, moment: 'coreKeyword', reason: `first utterance of the core keyword "${core.token}"`};
-  return {ok: false, reason: 'not an opening hook, a statistic / claim, a narrative pivot or the first utterance of the core keyword'};
+  return {ok: false, reason: 'no opening hook, chapter transition, evidence montage or pre-reveal build-up here: no match cut'};
 }
 
 // ---------------------------------------------------------------------------------------------------------------- plan side
 
 type Found = {eventWords: [number, number]; keywordIdx: number; swapIdx?: number; props: MatchCutProps; score: number; reason: string; moment: MatchCutMoment};
-const MOMENT_SCORE: Record<MatchCutMoment, number> = {statistic: 0.92, pivot: 0.9, openingHook: 0.88, coreKeyword: 0.86};
+const MOMENT_SCORE: Record<MatchCutMoment, number> = {openingHook: 0.92, chapterTransition: 0.9, beforeReveal: 0.88, evidenceMontage: 0.86};
 
 /** Sentences of a transcript: ends at . ! ? , a pause, or MAX_SENTENCE_WORDS. */
 function sentencesOf(words: readonly KineticWord[], fps: number): KineticWord[][] {
@@ -149,17 +201,14 @@ export function matchCutCandidates(words: readonly KineticWord[], fps: number): 
       const hi = Math.min(sent.length - 1, si + MATCH_CONTEXT_AFTER), lo = Math.max(0, si - MATCH_CONTEXT_BEFORE);
       const v = matchCutMomentOf(w.idx, [sent[lo]!.idx, sent[hi]!.idx], words, fps);
       if (!v.ok) return;
-      const score = MOMENT_SCORE[v.moment] + w.emphasisScore * 0.01;
+      // an opening-hook topic that recurs more often is the better topic; ties go to the earlier mention (recurrence, then position, then emphasis)
+      const recur = v.moment === 'openingHook' ? Math.min(6, words.filter(x => tokenOf(x) === tokenOf(w)).length) * 0.02 - (w.startFrame / fps) * 0.0005 : 0;
+      const score = MOMENT_SCORE[v.moment] + recur + w.emphasisScore * (v.moment === 'openingHook' ? 0.0001 : 0.01);
       if (!best || score > best.score) best = {si, moment: v.moment, reason: v.reason, score};
     });
     if (!best) continue;
     const pick = best as {si: number; moment: MatchCutMoment; reason: string; score: number};
-    // "the problem -> the solution": a swap pair inside one pivot sentence
-    let swap: number | undefined;
-    if (pick.moment === 'pivot' && normToken(sent[pick.si]!.text) === 'problem') {
-      const sol = sent.findIndex((w, i) => i > pick.si && normToken(w.text) === 'solution');
-      if (sol >= 0 && isLegalMatchKeyword(sent[sol]!.text)) swap = sol;
-    }
+    const swap: number | undefined = undefined;
     const cand = buildMatchCut(mw, pick.si, swap, pick.reason, pick.score, seed);
     if (!cand) continue;
     const hiK = Math.max(pick.si, swap ?? pick.si);
@@ -179,18 +228,27 @@ export function matchCutCandidates(words: readonly KineticWord[], fps: number): 
   return found;
 }
 
-/** The match-cut events of a deterministic plan: AT MOST ONE, only when one of the four legal moments is in the transcript (best first), inside one shot with >= 1.6 s of room. */
+/**
+ * The match-cut events of a deterministic plan: only deserved moments (see MatchCutMoment), best first, within the frequency budget (short form: one; long form: one per 75 s, never closer than 60 s),
+ * each inside one shot with room for the window. Zero is a normal answer.
+ */
 export function planMatchCuts(words: readonly KineticWord[], shots: readonly KineticShot[], fps = 30): TextEvent[] {
+  const budget = matchCutBudget(durationOfWords(words, fps));
   const ranked = matchCutCandidates(words, fps).sort((a, b) => b.score - a.score || a.keywordIdx - b.keywordIdx);
+  const out: TextEvent[] = [];
+  const starts: number[] = [];
   for (const c of ranked) {
+    if (out.length >= budget) break;
     const kw = words[c.keywordIdx]!;
     const at = Math.max(0, kw.startFrame - LEAD_FRAMES);
+    if (starts.some(o => Math.abs(o - at) < MATCH_CUT_GAP_SEC * fps)) continue;
     const shot = shotOf(shots, kw.startFrame);
     if (!shot || shot.endFrame - at < Math.round(MATCH_CUT_MIN_SEC * fps)) continue;
     const intent: NonNullable<TextEvent['matchCut']> = {keyword: c.props.keyword, ...(c.props.swapKeyword ? {swapKeyword: c.props.swapKeyword} : {}), variant: c.props.variant};
-    return [{id: `mc-${c.keywordIdx}`, shotId: shot.id, wordRange: c.eventWords, lines: [{text: c.props.keyword, role: 'hero'}], preset: 'type.matchCut', layering: 'front', anchor: 'screen', regionHint: 'auto', matchCut: intent}];
+    out.push({id: `mc-${c.keywordIdx}`, shotId: shot.id, wordRange: c.eventWords, lines: [{text: c.props.keyword, role: 'hero'}], preset: 'type.matchCut', layering: 'front', anchor: 'screen', regionHint: 'auto', matchCut: intent});
+    starts.push(at);
   }
-  return [];
+  return out;
 }
 
 /** Frame window a match cut owns: lands 2 frames before the keyword is spoken, 1.8 s long, clipped to its shot. */
@@ -200,6 +258,14 @@ export function matchCutWindow(ev: TextEvent, words: readonly KineticWord[], sho
   const inFrame = Math.max(shot && !ev.persistAcrossCut ? shot.startFrame : 0, kw.word.startFrame - LEAD_FRAMES);
   let outFrame = inFrame + Math.round(MATCH_CUT_SEC * fps);
   if (shot && !ev.persistAcrossCut) outFrame = Math.min(outFrame, shot.endFrame);
+  // before a reveal the card must end BEFORE the reveal starts, so the reveal lands on a quiet frame (never over it)
+  const verdict = matchCutMomentOf(kw.idx, ev.wordRange, words, fps);
+  if (verdict.ok && verdict.moment === 'beforeReveal') {
+    const sents = sentencesCached(words, fps);
+    const si = sents.findIndex(sn => sn.some(w => w.idx === kw.idx));
+    const reveal = sents[si + 1];
+    if (reveal) outFrame = Math.min(outFrame, Math.max(inFrame + 1, reveal[0]!.startFrame));
+  }
   return {inFrame, outFrame};
 }
 
@@ -242,7 +308,8 @@ export function matchCutViolations(plan: KineticPlan, words: readonly KineticWor
       else { const v = momentOfEvent(ev, words, fps); if (!v.ok) out.push(`${ev.id}: ${v.reason}`); }
     } else if (ev.matchCut) out.push(`${ev.id}: matchCut field on a ${ev.preset} event`);
   }
-  if (plan.events.filter(e => e.preset === 'type.matchCut').length > MATCH_CUT_MAX_PER_PLAN) out.push(`more than ${MATCH_CUT_MAX_PER_PLAN} match cut in the plan`);
+  const budget = matchCutBudget(durationOfWords(words, fps));
+  if (plan.events.filter(e => e.preset === 'type.matchCut').length > budget) out.push(`more than ${budget} match cut(s) for a ${Math.round(durationOfWords(words, fps))} s video`);
   return out;
 }
 
@@ -257,11 +324,16 @@ export function momentOfEvent(ev: TextEvent, words: readonly KineticWord[], fps:
 export function sanitizeMatchCuts(plan: KineticPlan, words: readonly KineticWord[], fps: number): {plan: KineticPlan; dropped: Array<{eventId: string; reason: string}>} {
   const dropped: Array<{eventId: string; reason: string}> = [];
   let kept = 0;
+  const budget = matchCutBudget(durationOfWords(words, fps));
+  const keptStarts: number[] = [];
   const events = plan.events.filter(ev => {
     if (ev.preset !== 'type.matchCut') return true;
     const v = ev.matchCut && ev.wordRange[1] < words.length && deriveMatchCutProps(ev, words, fps) ? momentOfEvent(ev, words, fps) : ({ok: false, reason: 'not a legal match cut'} as MomentVerdict);
     if (!v.ok) { dropped.push({eventId: ev.id, reason: `match cut dropped: ${v.reason}`}); return false; }
-    if (kept >= MATCH_CUT_MAX_PER_PLAN) { dropped.push({eventId: ev.id, reason: 'match cut dropped: at most one per plan'}); return false; }
+    if (kept >= budget) { dropped.push({eventId: ev.id, reason: `match cut dropped: at most ${budget} for this video length`}); return false; }
+    const at = words[ev.wordRange[0]]!.startFrame;
+    if (keptStarts.some(o => Math.abs(o - at) < MATCH_CUT_GAP_SEC * fps)) { dropped.push({eventId: ev.id, reason: `match cut dropped: closer than ${MATCH_CUT_GAP_SEC} s to another`}); return false; }
+    keptStarts.push(at);
     kept += 1;
     return true;
   });
@@ -323,9 +395,9 @@ export function acceptMatchCuts(events: readonly TextEvent[], words: readonly Ki
     if (!deriveMatchCutProps(ev, words, fps)) { dropped.push({eventId: ev.id, reason: 'match cut: not legal (keyword / >= 5 spoken words)'}); continue; }
     const verdict = momentOfEvent(ev, words, fps);
     if (!verdict.ok) { dropped.push({eventId: ev.id, reason: `match cut: ${verdict.reason}`}); continue; }
-    if (accepted.length >= MATCH_CUT_MAX_PER_PLAN) { dropped.push({eventId: ev.id, reason: `match cut: more than ${MATCH_CUT_MAX_PER_PLAN} per plan`}); continue; }
+    if (accepted.length >= matchCutBudget(Math.max(durationOfWords(words, fps), ...shots.map(sh => sh.endFrame / fps)))) { dropped.push({eventId: ev.id, reason: 'match cut: over the frequency budget for this video length'}); continue; }
     if (window.outFrame - window.inFrame < Math.round(MATCH_CUT_MIN_SEC * fps)) { dropped.push({eventId: ev.id, reason: 'match cut: less than 1.6 s left in the shot'}); continue; }
-    if (accepted.some(o => Math.abs(o.window.inFrame - window.inFrame) < MATCH_CUT_GAP_SEC * fps)) { dropped.push({eventId: ev.id, reason: `match cut: more than one per ${MATCH_CUT_GAP_SEC} s`}); continue; }
+    if (accepted.some(o => Math.abs(o.window.inFrame - window.inFrame) < MATCH_CUT_GAP_SEC * fps)) { dropped.push({eventId: ev.id, reason: `match cut: closer than ${MATCH_CUT_GAP_SEC} s to another`}); continue; }
     accepted.push({ev, window, shot});
   }
   return {accepted, dropped};

@@ -19,15 +19,27 @@ import {
   SAFE_TOLERANCE_PX, SUPPORT_OCC_MAX, contrastStrokeColor, heroReadable, lineEdgeOcclusions, lineOcclusions, lumToHex, parentId, verifyRenderSpec, worstContrast, type Violation,
 } from './guardrails.ts';
 import {PRESETS, closestPreset, type LineStyle} from './presets.ts';
-import {newPlaybookState, pairFonts, pickLegacyMotion, playbookWindow, solvePlaybookEvent} from './playbook.ts';
+import {LEGACY_ENTERS, LEGACY_EXITS, newPlaybookState, pairFonts, pickLegacyMotion, playbookWindow, solvePlaybookEvent} from './playbook.ts';
 import {entryPose} from './motionLibrary.ts';
 import {buildGapCaptions} from './gapCaptions.ts';
+import {chooseFitFace} from './fitFace.ts';
 import {nudgeForContrast, plateAccents, resolveAccent} from './accent.ts';
-import {HERO_FLOOR_FRAC, entryFrames, exitFrames, expoIn} from './motion.ts';
+import {HERO_FLOOR_FRAC, SUPPORT_FLOOR_FRAC, entryFrames, exitFrames, expoIn} from './motion.ts';
 import {isCaptionLike} from './guardrails.ts';
+
+/**
+ * Post-integration fix (source frame rate is now preserved, docs/integration-audit/KINETIC_V2_POST_INTEGRATION_QUALITY_REPORT.md): the shortest window a `type.words` event needs to be read,
+ * calibrated as 8 frames at 30 fps (0.267 s). Kept in TIME, rounded UP so it is never shorter than the calibrated value at any rate: 30 fps = 8 (unchanged), 24 fps = 7 (0.292 s), 60 fps = 16.
+ * As a bare frame count it became stricter at 24 fps (8 frames = 0.333 s) and dropped words the 30 fps solve drew.
+ */
+export const MIN_READ_FRAMES_30 = 8;
+export const minReadFrames = (fps: number): number => Math.max(1, Math.ceil((MIN_READ_FRAMES_30 * fps) / 30 - 1e-9));
+import type {SolverDecision} from './diagnostics.ts';
 import type {Box, ShotScene} from './scene.ts';
 import {boxAt} from './scene.ts';
+import {dropFillCollisions} from './eventCollision.ts';
 import {planStyle} from './schema.ts';
+import type {KineticIdentity} from './presetIdentity.ts';
 import type {AnimName, BrandConfig, ExitName, FontKey, FontPair, Keyframe, KineticPlan, KineticShot, KineticWord, LineRole, PresetName, RegionHint, RenderEvent, RenderLine, RenderSpec, TextEvent} from './schema.ts';
 
 /** defaults for the playbook-only RenderLine fields on legacy lines */
@@ -61,6 +73,8 @@ export type SolveInput = {
   cameras?: Record<string, CameraTrack>;
   depth: DepthProvider;
   brand: BrandConfig;
+  /** V1: the user's caption identity (fonts / colours / case / outline / shadow); absent = Kinetic's own look */
+  identity?: KineticIdentity | undefined;
   width: number;
   height: number;
   fps: number;
@@ -68,9 +82,24 @@ export type SolveInput = {
   planSource: string;
   /** event id -> preset chosen by the worker gate (custom treatment fell back to this) */
   presetOverrides?: Record<string, PresetName>;
+  /** gap captions also draw 1-2 letter words (default off: the standalone engine skips them). The production stage turns it on so that no spoken word is left undrawn. */
+  captionShortWords?: boolean;
+  /** Phase 4 bounded adaptation (playbook.ts ADAPT_FLOOR); default off */
+  adapt?: boolean;
+  /** Phase 4.2: judge the face keep-out per frame like the verifier does (playbook.ts); default off = the solver exactly as before (the template Kinetic-Led path and the sheets never set it) */
+  faceFrames?: boolean;
+  /** Phase 4.8 (M4): a hero / punch word too wide for the safe width at its readability floor is set in the engine's condensed display face (playbook.ts); default off (the production stage turns it on) */
+  fitHeroFace?: boolean;
+  /** Phase 4.8 (M4): before a block is accepted below the readability floor, the other zones the engine offers are tried at the floor (playbook.ts); default off (the production stage turns it on) */
+  relocateBeforeFloor?: boolean;
+  /** Phase 5.15 (G3, default OFF): context-driven motion choices in the playbook solver (playbook.ts `motionVariety`) */
+  motionVariety?: boolean;
+  /** Phase 4.9: legacy block presets meet the same readability floors (layout.ts buildBlock `floors`); default off (the production stage turns it on; sheets / CLI unchanged) */
+  readableLegacy?: boolean;
 };
 export type SolveAction = {eventId: string; action: string; detail?: string};
-export type SolveReport = {actions: SolveAction[]; dropped: Array<{eventId: string; reason: string}>; violations: Violation[]; anchorDowngrades: SolveAction[]};
+/** `decisions` (G2 / G6): every modification, demotion, replacement, refusal or drop of a Director request, with requested / produced / reason / hard-or-discretionary. Always set by solveLayout; optional only so older report literals still type-check. */
+export type SolveReport = {actions: SolveAction[]; dropped: Array<{eventId: string; reason: string}>; violations: Violation[]; anchorDowngrades: SolveAction[]; decisions?: SolverDecision[]};
 
 const ENTRANCE_FRAMES = 10;
 const EXIT_FRAMES = 4;
@@ -152,6 +181,10 @@ function buildBlock(args: {
   accent?: string | null;
   /** the plan's font pairing (replaces the brand fonts) */
   fontPair?: FontPair | undefined;
+  /** Phase 4.9 (set by the production stage): every line meets its readability floor (support / caption lines raised to it when the width allows; an over-wide hero gets a compatible fit face) */
+  floors?: boolean;
+  /** V1 precedence: the user's preset identity wins over the Director's per-event font / gradient overrides (the Director still chooses roles, words, preset and motion) */
+  lockIdentity?: boolean;
 }): Built {
   const {preset, ev, brand, width, height, words, inFrame} = args;
   const def = PRESETS[preset];
@@ -160,7 +193,7 @@ function buildBlock(args: {
   const styleOf = (role: LineRole): LineStyle => def.styles[role] ?? def.styles.hero ?? def.styles.support ?? def.styles.caption!;
   let items = args.lines.map(l => {
     const style = styleOf(l.role);
-    const font = resolveFont(style, brand, l.role === 'hero' ? ev.styleOverrides?.font : undefined, args.fontPair, l.text, l.role);
+    const font = resolveFont(style, brand, l.role === 'hero' && !args.lockIdentity ? ev.styleOverrides?.font : undefined, args.fontPair, l.text, l.role);
     const swapWords = (l.swapSlot?.wordIdxSequence ?? []).map(k => words[k]?.text.replace(/[.,;:!?]+$/, '') ?? '');
     return {l, style, font, swapWords};
   });
@@ -177,6 +210,13 @@ function buildBlock(args: {
     const oneLine = Math.min(capPx(it.l.role, it.font), ((args.maxW ?? safe.w) * 0.96) / (maxScale * wide0(it)));
     if (oneLine >= floorPx * 1.04) return [it];
     return toks.map(t => ({...it, l: {...it.l, text: t}}));
+  });
+  // Phase 4.9: a hero / punch line that is wider than the usable width at its floor in its face takes a compatible face of the same design language (fitFace.ts), same size; an editorial serif keeps its face (the stage's
+  // readability check then hands the event to the readable running line if it still cannot hold the floor)
+  if (args.floors) items = items.map(it => {
+    if (!heroish(it.l.role) || it.swapWords.length) return it;
+    const pick = chooseFitFace(it.l.text, {font: it.font, weight: it.style.weight ?? 700, upper: Boolean(it.style.uppercase), italic: Boolean(it.style.italic), ls: it.style.letterSpacingEm ?? 0}, HERO_FLOOR_FRAC * height, ((args.maxW ?? safe.w) * 0.96) / maxScale);
+    return pick.face ? {...it, font: pick.face.font, style: {...it.style, weight: pick.face.weight, italic: false, letterSpacingEm: pick.face.ls}} : it;
   });
   const wide = (it: (typeof items)[number]) => {
     // the slot word is measured at the widest candidate
@@ -203,6 +243,12 @@ function buildBlock(args: {
     if (hero.length && !heroish(it.l.role)) {
       px = Math.min(px, capPx(it.l.role, it.font));
       if (it.l.role !== 'caption') px = Math.min(px, widthU(it) * it.style.sizeRatio);
+    }
+    // Phase 4.9: a supporting / caption line sized from a small preset ratio (e.g. hero.thinSerif.front support 0.18 x the hero) is raised to its readability floor, never past the width it may use
+    if (args.floors && !heroish(it.l.role)) {
+      const floor = SUPPORT_FLOOR_FRAC * height;
+      const widthCap = it.l.role === 'caption' ? Infinity : ((args.maxW ?? safe.w) * 0.96) / (maxScale * Math.max(1e-6, wide(it)));
+      if (px < floor) px = Math.min(floor, Math.max(px, widthCap));
     }
     return Math.max(10, round2(px));
   };
@@ -254,7 +300,7 @@ function buildBlock(args: {
         dy: round2(y),
         w,
         h,
-        fill: fillFor(it.style, brand, ev.styleOverrides?.gradient, args.accent),
+        fill: fillFor(it.style, brand, args.lockIdentity ? undefined : ev.styleOverrides?.gradient, args.accent),
         revealFrames: reveal,
         swapWords: ti === 0 ? it.swapWords : [],
         swapFrames,
@@ -387,13 +433,17 @@ export function solveLayout(input: SolveInput): {spec: RenderSpec; report: Solve
   const {plan, words, shots, scenes, depth, brand, width, height, fps, seed} = input;
   const safe = shortsSafeRect(width, height);
   const safeR: Rect = {left: safe.left, right: safe.right, top: safe.top, bottom: safe.bottom};
-  const report: SolveReport = {actions: [], dropped: [], violations: [], anchorDowngrades: []};
+  const decisions: SolverDecision[] = [];
+  const report: SolveReport = {actions: [], dropped: [], violations: [], anchorDowngrades: [], decisions};
+  const decide = (d: Omit<SolverDecision, 'stage'> & {stage?: SolverDecision['stage']}) => { decisions.push({stage: 'solve', ...d}); };
+  /** a dropped event: the legacy `dropped` list AND a structured decision */
+  const drop = (eventId: string, reason: string, code: string, constraint: SolverDecision['constraint'], requested: unknown = 'render this event') => { report.dropped.push({eventId, reason}); decide({eventId, kind: 'dropped', field: 'event', requested, produced: null, code: `dropped.${code}`, reason, constraint}); };
   const act = (eventId: string, action: string, detail?: string) => report.actions.push({eventId, action, ...(detail ? {detail} : {})});
   const events: RenderEvent[] = [];
   const neutralScene = (shotId: string): ShotScene => scenes[shotId] ?? {shotId, noMatte: true, estimated: true, subjectBox: {x: 0.3, y: 0.3, w: 0.4, h: 0.62}, alphaAreaFrac: 0, faceKeepOut: {x: 0.3, y: 0.3, w: 0.4, h: 0.26}, freeSpace: [], blurHint: 0, luminance: 0.45};
 
   const ordered = [...plan.events].filter(e => e.wordRange[1] < words.length && e.wordRange[0] <= e.wordRange[1]).sort((a, b) => (words[a.wordRange[0]]!.startFrame - words[b.wordRange[0]]!.startFrame) || a.id.localeCompare(b.id));
-  for (const e of plan.events) if (!ordered.includes(e)) report.dropped.push({eventId: e.id, reason: 'wordRange outside transcript'});
+  for (const e of plan.events) if (!ordered.includes(e)) drop(e.id, 'wordRange outside transcript', 'range_outside_transcript', 'hard', {wordRange: e.wordRange, words: words.length});
 
   const cameraAt = (frame: number) => {
     const shot = shotOfFrame(shots, frame);
@@ -403,6 +453,7 @@ export function solveLayout(input: SolveInput): {spec: RenderSpec; report: Solve
   // ---- match cuts (type.matchCut): own frame, <= 1 per 20 s, never overlapped by other type; solved first so everything else can step around them
   const mc = acceptMatchCuts(ordered, words, shots, fps);
   report.dropped.push(...mc.dropped);
+  for (const d of mc.dropped) decide({eventId: d.eventId, kind: 'dropped', field: 'event', requested: 'type.matchCut', produced: null, code: 'dropped.match_cut', reason: d.reason, constraint: 'discretionary'});
   const matchCutEvents: RenderEvent[] = [];
   for (const m of mc.accepted) {
     const re = solveMatchCutEvent({ev: m.ev, words, shot: m.shot, fps, width, height, window: m.window, style: planStyle(plan)});
@@ -415,11 +466,12 @@ export function solveLayout(input: SolveInput): {spec: RenderSpec; report: Solve
   for (const ev of ordered) {
     if (ev.preset === 'type.matchCut') continue;
     const shot = shots.find(s => s.id === ev.shotId) ?? shotOfFrame(shots, words[ev.wordRange[0]]!.startFrame);
-    if (!shot) { report.dropped.push({eventId: ev.id, reason: 'no shot'}); continue; }
+    if (!shot) { drop(ev.id, 'no shot', 'no_shot', 'hard', {shotId: ev.shotId}); continue; }
     const scene = neutralScene(shot.id);
     // ---- preset (+ worker gate fallback)
     const presetResolved: PresetName = input.presetOverrides?.[ev.id] ?? (ev.needsCustomTreatment ? closestPreset(ev.needsCustomTreatment.description, ev.preset) : ev.preset);
-    if (ev.needsCustomTreatment) act(ev.id, 'custom-treatment-fallback', presetResolved);
+    if (ev.needsCustomTreatment) { act(ev.id, 'custom-treatment-fallback', presetResolved); decide({eventId: ev.id, kind: 'replaced', field: 'preset', requested: ev.preset, produced: presetResolved, code: 'replaced.custom_treatment', reason: `needsCustomTreatment (${ev.needsCustomTreatment.description.slice(0, 80)}) was not rendered by a worker: closest preset used`, constraint: 'hard'}); }
+    else if (input.presetOverrides?.[ev.id] && input.presetOverrides[ev.id] !== ev.preset) decide({eventId: ev.id, kind: 'replaced', field: 'preset', requested: ev.preset, produced: presetResolved, code: 'replaced.preset_override', reason: 'preset overridden by the worker gate', constraint: 'discretionary'});
     const def = PRESETS[presetResolved];
     const isCaptionOnly = ev.lines.every(l => isCaptionLike(l.role));
     const dominant: LineRole = ev.lines.some(l => l.role === 'hero') ? 'hero' : ev.lines.some(l => l.role === 'punch') ? 'punch' : ev.lines.some(l => l.role === 'support') ? 'support' : ev.lines.some(l => l.role === 'connector') ? 'connector' : 'caption';
@@ -430,12 +482,24 @@ export function solveLayout(input: SolveInput): {spec: RenderSpec; report: Solve
     if (!ev.persistAcrossCut) { inFrame = Math.max(inFrame, shot.startFrame); outFrame = Math.min(outFrame, shot.endFrame); }
     if (presetResolved === 'type.words') ({inFrame, outFrame} = playbookWindow(ev, words, shot, fps));
     if (outFrame - inFrame < 6) outFrame = ev.persistAcrossCut ? inFrame + 6 : Math.min(shot.endFrame, inFrame + 6);
-    if (outFrame - inFrame < 4) { report.dropped.push({eventId: ev.id, reason: 'too short after clipping to the shot'}); continue; }
-    if (mc.accepted.some(m => inFrame < m.window.outFrame + MIN_GAP_FRAMES && m.window.inFrame < outFrame + MIN_GAP_FRAMES)) { report.dropped.push({eventId: ev.id, reason: 'overlaps a match cut'}); continue; }
+    if (outFrame - inFrame < 4) { drop(ev.id, 'too short after clipping to the shot', 'too_short', 'hard', {frames: [inFrame, outFrame]}); continue; }
+    // A match cut owns the frame for its window. An event that touches it is CLIPPED to the free side instead of being dropped whole (a run that starts a little before the card ends where the card
+    // begins; one that begins as the card ends starts where it ends), and dropped only when less than the minimum readable time is left. Every clip is a recorded decision.
+    const touching = mc.accepted.find(m => inFrame < m.window.outFrame + MIN_GAP_FRAMES && m.window.inFrame < outFrame + MIN_GAP_FRAMES);
+    if (touching) {
+      // the card is a HARD CUT to a full-frame layout: the text before it ends on the card's first frame and the text after it starts on its last, with no gap (a gap would cut the word spoken just before the card)
+      const before = touching.window.inFrame;
+      const after = touching.window.outFrame;
+      const wasIn = inFrame, wasOut = outFrame;
+      if (inFrame < touching.window.inFrame) outFrame = Math.min(outFrame, before); else inFrame = Math.max(inFrame, after);
+      if (outFrame - inFrame < minReadFrames(fps) || mc.accepted.some(m => inFrame < m.window.outFrame && m.window.inFrame < outFrame)) { drop(ev.id, 'overlaps a match cut', 'overlaps_match_cut', 'discretionary', {frames: [wasIn, wasOut]}); continue; }
+      decide({eventId: ev.id, kind: 'adjusted', field: 'window', requested: `${wasIn}-${wasOut}`, produced: `${inFrame}-${outFrame}`, code: 'adjusted.clipped_to_match_cut', reason: 'the match cut owns the frame; the event is clipped to the free side so its words keep their text', constraint: 'discretionary'});
+    }
 
     // ---- density against what is already accepted
     const isHeroEv = ev.lines.some(l => l.role === 'hero') && def.hasHero;
     let skip = false;
+    let skipWhy = '';
     for (const prev of events) {
       const pid = parentId(prev.id);
       if (pid === ev.id) continue;
@@ -448,10 +512,10 @@ export function solveLayout(input: SolveInput): {spec: RenderSpec; report: Solve
         if (isHeroEv && prevHero && !related) {
           // trim the earlier one so this one can start with the gap
           const trimmed = inFrame - gap;
-          if (prev.zone === null && trimmed - prev.inFrame >= 6) { prev.outFrame = trimmed; prev.keyframes = retimeTail(prev, trimmed); act(prev.id, 'trim-for-gap', `outFrame=${trimmed}`); } else { skip = true; }
+          if (prev.zone === null && trimmed - prev.inFrame >= 6) { decide({eventId: prev.id, kind: 'trimmed', field: 'timing', requested: {outFrame: prev.outFrame}, produced: {outFrame: trimmed}, code: 'trimmed.gap_before_hero', reason: `shortened so the hero "${ev.id}" starts with a ${MIN_GAP_FRAMES}-frame gap`, constraint: 'discretionary'}); prev.outFrame = trimmed; prev.keyframes = retimeTail(prev, trimmed); act(prev.id, 'trim-for-gap', `outFrame=${trimmed}`); } else { skip = true; skipWhy = `one hero at a time and the earlier hero "${prev.id}" cannot be shortened (${prev.zone !== null ? 'it is placed in a zone' : 'it would be under 6 frames'})`; }
         } else if (needGap || (isCaptionOnly && prevCap)) {
           const trimmed = inFrame - gap;
-          if (prev.zone === null && trimmed - prev.inFrame >= 4) { prev.outFrame = trimmed; prev.keyframes = retimeTail(prev, trimmed); act(prev.id, 'trim-for-gap', `outFrame=${trimmed}`); } else skip = true;
+          if (prev.zone === null && trimmed - prev.inFrame >= 4) { decide({eventId: prev.id, kind: 'trimmed', field: 'timing', requested: {outFrame: prev.outFrame}, produced: {outFrame: trimmed}, code: 'trimmed.gap_between_events', reason: `shortened to leave a ${gap}-frame gap before "${ev.id}"`, constraint: 'discretionary'}); prev.outFrame = trimmed; prev.keyframes = retimeTail(prev, trimmed); act(prev.id, 'trim-for-gap', `outFrame=${trimmed}`); } else { skip = true; skipWhy = `overlaps "${prev.id}" and the gap cannot be made (${prev.zone !== null ? 'it is placed in a zone' : 'it would be under 4 frames'})`; }
         }
       }
     }
@@ -459,10 +523,10 @@ export function solveLayout(input: SolveInput): {spec: RenderSpec; report: Solve
     if (!skip) {
       const active = events.filter(p => parentId(p.id) !== ev.id && p.inFrame < outFrame && inFrame < p.outFrame);
       const clusters = new Set(active.filter(p => !p.lines.every(l => isCaptionLike(l.role))).map(p => parentId(p.id)));
-      if (!isCaptionOnly && clusters.size >= 2) skip = true;
-      if (isHeroEv && active.some(p => p.lines.some(l => l.role === 'hero') && !(p.wordRange[0] <= ev.wordRange[1] && ev.wordRange[0] <= p.wordRange[1]))) skip = true;
+      if (!isCaptionOnly && clusters.size >= 2) { skip = true; skipWhy = 'at most 2 text clusters on screen at once'; }
+      if (isHeroEv && active.some(p => p.lines.some(l => l.role === 'hero') && !(p.wordRange[0] <= ev.wordRange[1] && ev.wordRange[0] <= p.wordRange[1]))) { skip = true; skipWhy = 'at most 1 hero active at a time'; }
     }
-    if (skip) { report.dropped.push({eventId: ev.id, reason: 'density / gap rules'}); continue; }
+    if (skip) { drop(ev.id, 'density / gap rules', 'density_gap', 'discretionary', {frames: [inFrame, outFrame], hero: isHeroEv}); decisions[decisions.length - 1]!.reason = `density / gap rules: ${skipWhy || 'unspecified'}`; continue; }
 
     // ---- anchor (jitter downgrade)
     let anchor: keyof typeof ANCHOR_FACTOR = ev.anchor === 'auto' ? def.anchor : ev.anchor;
@@ -477,20 +541,24 @@ export function solveLayout(input: SolveInput): {spec: RenderSpec; report: Solve
     if (presetResolved === 'type.words') {
       const myIdx = ordered.indexOf(ev);
       const limitOut = Math.min(Infinity, ...ordered.slice(myIdx + 1)
-        .filter(o => !(o.wordRange[0] <= ev.wordRange[1] && ev.wordRange[0] <= o.wordRange[1]))
-        .map(o => mcStart(o) - (o.lines.some(l => l.role === 'hero' || l.role === 'punch') ? 2 : 1) - (!isCaptionOnly && !o.lines.every(l => isCaptionLike(l.role)) ? MIN_GAP_FRAMES : 1)));
-      if (limitOut - inFrame < 8) { report.dropped.push({eventId: ev.id, reason: 'density / gap rules'}); continue; }
-      const res = solvePlaybookEvent({ev, style: planStyle(plan), fontPair: plan.fontPair, words, shot, scene, width, height, fps, seed, depth, cameraAt, limitOut, isLast: myIdx === ordered.length - 1, state: pbState, phase: 0, varyPose: input.planSource === 'director' || input.planSource === 'fallback'});
+        // a match cut ALWAYS limits the text before it, even when its (long) word range overlaps this event's: it is a hard cut that owns the frame from its window's first frame
+        .filter(o => o.preset === 'type.matchCut' ? mc.accepted.some(m => m.ev === o) : !(o.wordRange[0] <= ev.wordRange[1] && ev.wordRange[0] <= o.wordRange[1]))
+        .map(o => (o.preset === 'type.matchCut' ? mcStart(o) : mcStart(o) - (o.lines.some(l => l.role === 'hero' || l.role === 'punch') ? 2 : 1) - (!isCaptionOnly && !o.lines.every(l => isCaptionLike(l.role)) ? MIN_GAP_FRAMES : 1))));
+      const minRead = minReadFrames(fps);
+      if (limitOut - inFrame < minRead) { drop(ev.id, 'density / gap rules', 'density_next_event', 'discretionary', {frames: [inFrame, outFrame]}); decisions[decisions.length - 1]!.reason = `density / gap rules: the next unrelated event starts ${limitOut - inFrame} frames after this one (< ${minRead} needed to read it)`; continue; }
+      const res = solvePlaybookEvent({ev, style: planStyle(plan), fontPair: plan.fontPair, identity: input.identity, words, shot, scene, width, height, fps, seed, depth, cameraAt, limitOut, isLast: myIdx === ordered.length - 1, state: pbState, phase: 0, decide, varyPose: input.planSource === 'director' || input.planSource === 'fallback', ...(input.adapt ? {adapt: true} : {}), ...(input.faceFrames ? {faceFrames: true} : {}), ...(input.fitHeroFace ? {fitHeroFace: true} : {}), ...(input.relocateBeforeFloor ? {relocateBeforeFloor: true} : {}), ...(input.motionVariety ? {motionVariety: true} : {})});
       for (const a of res.actions) act(ev.id, a.action, a.detail);
-      if (res.dropped || res.events.length === 0) { report.dropped.push({eventId: ev.id, reason: res.dropped ?? 'playbook produced no event'}); continue; }
+      if (res.dropped || res.events.length === 0) { drop(ev.id, res.dropped ?? 'playbook produced no event', 'playbook_no_event', 'hard', {lines: ev.lines.map(l => l.text)}); continue; }
       for (const e of res.events) { e.notes.push(...res.notes); events.push(e); if (e.notes.some(n => n.startsWith('unresolved'))) report.violations.push({eventId: e.id, rule: 'unresolved', detail: e.notes.join('; ')}); }
       continue;
     }
     const rng = mulberry32(seedFor(seed, ev.id));
     // library motion for the block-level presets: tagged (or rotated) entry + exit, never the same pair twice in a row
     const lmotion = pickLegacyMotion(pbState, ev, myIsLast(ev));
+    if (ev.enter && lmotion.enter !== ev.enter) decide({eventId: ev.id, kind: 'replaced', field: 'enter', requested: ev.enter, produced: lmotion.enter, code: LEGACY_ENTERS.includes(ev.enter) ? 'replaced.enter_repeat_pair' : 'replaced.enter_not_legal', reason: LEGACY_ENTERS.includes(ev.enter) ? 'the same entry + exit pair is never used on two lockups in a row' : `block-level preset ${presetResolved} accepts only ${LEGACY_ENTERS.join(' / ')} (the block is one element: no per-word whip / cascade)`, constraint: LEGACY_ENTERS.includes(ev.enter) ? 'discretionary' : 'hard'});
+    if (ev.exit && lmotion.exit !== ev.exit) decide({eventId: ev.id, kind: 'replaced', field: 'exit', requested: ev.exit, produced: lmotion.exit, code: myIsLast(ev) ? 'replaced.exit_last_event' : LEGACY_EXITS.includes(ev.exit) ? 'replaced.exit_repeat_pair' : 'replaced.exit_not_legal', reason: myIsLast(ev) ? 'the last lockup of the plan always fades out (OUT-7)' : LEGACY_EXITS.includes(ev.exit) ? 'the same entry + exit pair is never used on two lockups in a row' : `block-level preset ${presetResolved} accepts only ${LEGACY_EXITS.join(' / ')}`, constraint: LEGACY_EXITS.includes(ev.exit) || myIsLast(ev) ? 'discretionary' : 'hard'});
     const bgHex = lumToHex(scene.luminance);
-    const accentRaw = resolveAccent(ev.accent) ?? plateAccents(scene.plateColor, bgHex)[0]!;
+    const accentRaw = input.identity ? input.identity.accent : resolveAccent(ev.accent) ?? plateAccents(scene.plateColor, bgHex)[0]!;
     const accentHex = nudgeForContrast(accentRaw, bgHex).hex;
     for (const g0 of groupsOf(ev, presetResolved)) {
       const gLines = g0.lineIdx.map(i => ev.lines[i]!);
@@ -500,7 +568,7 @@ export function solveLayout(input: SolveInput): {spec: RenderSpec; report: Solve
       const gutterTooNarrow = gut0 !== null && gut0.right - gut0.left < 0.22 * width;
       const g: Group = gutterTooNarrow ? {...g0, region: def.region} : g0;
       const gut = gutterTooNarrow ? null : gut0;
-      const built = buildBlock({lines: gLines, preset: presetResolved, ev, brand, width, height, words, inFrame, fps, accent: accentHex, fontPair: plan.fontPair, ...(gut ? {maxW: gut.right - gut.left} : {})});
+      const built = buildBlock({lines: gLines, preset: presetResolved, ev, brand, width, height, words, inFrame, fps, accent: accentHex, fontPair: input.identity ? undefined : plan.fontPair, ...(input.identity ? {lockIdentity: true} : {}), ...(gut ? {maxW: gut.right - gut.left} : {}), ...(input.readableLegacy ? {floors: true} : {})});
       const requested = g.layering === 'auto' ? def.layering : g.layering;
       const gHero = gLines.some(l => l.role === 'hero') && def.hasHero;
       const notes: string[] = [];
@@ -511,8 +579,8 @@ export function solveLayout(input: SolveInput): {spec: RenderSpec; report: Solve
       // ---- forced front / no matte
       let wantBehind = requested === 'behind' || (requested === 'auto');
       if (def.name === 'caption.serif.lower' || isCaptionOnly) wantBehind = false;
-      if (scene.noMatte) { if (wantBehind) notes.push('no-matte: forced front'); wantBehind = false; }
-      else if (scene.alphaAreaFrac > FORCE_FRONT_ALPHA_AREA && wantBehind) { notes.push(`alpha-area ${scene.alphaAreaFrac.toFixed(2)} > ${FORCE_FRONT_ALPHA_AREA}: forced front`); wantBehind = false; act(ev.id + g.suffix, 'force-front', 'alpha-area'); }
+      if (scene.noMatte) { if (wantBehind) { notes.push('no-matte: forced front'); decide({eventId: ev.id + g.suffix, kind: 'replaced', field: 'layering', requested: 'behind', produced: 'front', code: 'replaced.no_matte_front', reason: 'type behind the speaker needs a person matte and there is none', constraint: 'hard'}); } wantBehind = false; }
+      else if (scene.alphaAreaFrac > FORCE_FRONT_ALPHA_AREA && wantBehind) { notes.push(`alpha-area ${scene.alphaAreaFrac.toFixed(2)} > ${FORCE_FRONT_ALPHA_AREA}: forced front`); wantBehind = false; act(ev.id + g.suffix, 'force-front', 'alpha-area'); decide({eventId: ev.id + g.suffix, kind: 'replaced', field: 'layering', requested: 'behind', produced: 'front', code: 'replaced.alpha_area_front', reason: `the speaker fills ${(scene.alphaAreaFrac * 100).toFixed(0)}% of the frame (> ${(FORCE_FRONT_ALPHA_AREA * 100).toFixed(0)}%): nothing legible fits behind`, constraint: 'hard'}); }
 
       const prefY = preferredCy({region: g.region, scene, block: built.block, scale: 1, safe, width, height, behind: wantBehind, hero: gHero, frame: inFrame});
       if (wantBehind && gHero) {
@@ -523,7 +591,7 @@ export function solveLayout(input: SolveInput): {spec: RenderSpec; report: Solve
         const subj: Rect = {left: sb.x * width, right: (sb.x + sb.w) * width, top: sb.y * height, bottom: (sb.y + sb.h) * height};
         const ov = overlapFraction(r, subj);
         // a measured alpha grid decides (hero occlusion ~4-22%, first/last letters readable); the bbox shortcut is only for an estimated box
-        if (ov > FORCE_FRONT_BOX_OVERLAP && !scene.grid) { wantBehind = false; notes.push(`hero box overlaps subject bbox ${(ov * 100).toFixed(0)}% > 70%: forced front`); act(ev.id + g.suffix, 'force-front', 'bbox-overlap'); }
+        if (ov > FORCE_FRONT_BOX_OVERLAP && !scene.grid) { wantBehind = false; notes.push(`hero box overlaps subject bbox ${(ov * 100).toFixed(0)}% > 70%: forced front`); act(ev.id + g.suffix, 'force-front', 'bbox-overlap'); decide({eventId: ev.id + g.suffix, kind: 'replaced', field: 'layering', requested: 'behind', produced: 'front', code: 'replaced.bbox_overlap_front', reason: `the hero box would sit ${(ov * 100).toFixed(0)}% inside the speaker box (> 70%)`, constraint: 'hard'}); }
       }
 
       const others = events.filter(p => p.inFrame < outFrame && inFrame < p.outFrame).map(p => eventBlockAabbAtMid(p));
@@ -533,6 +601,7 @@ export function solveLayout(input: SolveInput): {spec: RenderSpec; report: Solve
       if (layering === 'behind' && !sol.ok) {
         notes.push(`behind rejected (${sol.why}); flipped to front`);
         act(ev.id + g.suffix, 'flip-front', sol.why);
+        decide({eventId: ev.id + g.suffix, kind: 'replaced', field: 'layering', requested: 'behind', produced: 'front', code: 'replaced.occlusion_flip_front', reason: `behind rejected: ${sol.why}`, constraint: 'hard'});
         layering = 'front';
         sol = solveFor(false);
       } else if (layering === 'behind' && sol.shrink > 0) act(ev.id + g.suffix, 'shrink', `${(sol.shrink * 100).toFixed(0)}%`);
@@ -586,6 +655,12 @@ export function solveLayout(input: SolveInput): {spec: RenderSpec; report: Solve
   }
   events.push(...matchCutEvents);
   events.sort((a, b) => a.inFrame - b.inFrame || a.id.localeCompare(b.id));
+  // Post-integration fix: a coverage fill never draws on top of another visible text event (eventCollision.ts). The lockup wins; the drop is a recorded decision.
+  const collisions = dropFillCollisions(events);
+  if (collisions.dropped.length > 0) {
+    for (const c of collisions.dropped) drop(c.eventId, `collides with ${c.against} at frame ${c.frame}`, 'fill_collision', 'hard', {against: c.against, frame: c.frame});
+    events.splice(0, events.length, ...collisions.kept);
+  }
   const last = Math.max(0, ...events.map(e => e.outFrame), ...shots.map(s => s.endFrame));
   const spec: RenderSpec = {
     version: '1',
@@ -598,7 +673,7 @@ export function solveLayout(input: SolveInput): {spec: RenderSpec; report: Solve
     noMatte: shots.length > 0 && shots.every(s => scenes[s.id]?.noMatte !== false),
     shots: shots.map(s => ({id: s.id, startFrame: s.startFrame, endFrame: s.endFrame, noMatte: scenes[s.id]?.noMatte !== false})),
     events,
-    captions: buildGapCaptions({words, events, shots, scenes: Object.fromEntries(shots.map(sh => [sh.id, neutralScene(sh.id)])), width, height, fps}),
+    captions: buildGapCaptions({words, events, shots, scenes: Object.fromEntries(shots.map(sh => [sh.id, neutralScene(sh.id)])), width, height, fps, ...(input.captionShortWords ? {shortWords: true} : {})}),
     ...(plan.fontPair ? {fontPair: plan.fontPair} : {}),
     planSource: input.planSource,
   };

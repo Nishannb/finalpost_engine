@@ -26,6 +26,7 @@ export const TypeMatchCutPreset: React.FC<PresetProps> = ({event}) => {
         {...(m.after ? {after: m.after} : {})}
         variant={m.variant}
         durationInFrames={dur}
+        {...(m.shutter ? {shutter: true} : {})}
       />
     </Sequence>
   );

@@ -63,14 +63,24 @@ export function buildBedLoudnessTrack(input: BedLoudnessInput): BedLoudnessTrack
   const carvedMap = input.carved && bed.carvedLoudnessMap && bed.carvedLoudnessMap.length > 0 ? bed.carvedLoudnessMap : null;
   const loopMap = bed.loopLoudnessMap && bed.loopLoudnessMap.length > 0 ? bed.loopLoudnessMap : null;
   const loopDur = bed.loopDurationSec && bed.loopDurationSec > 0 ? bed.loopDurationSec : null;
+  // Production safety: a loop section with no valid loudness measurement must never get a POSITIVE correction (a boost) from an assumed value.
+  // The correction is min(+6, duck.bedLufs - track(t)), so an unmeasured step is given max(-16, duck.bedLufs): correction <= 0. That is a bound,
+  // not a measurement: a bed quieter than -16 keeps the existing cut, a louder one gets no boost. Measured loop data is used exactly as before.
+  const validLufs = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= -70 && value <= 0;
+  const duckBed = validLufs(input.duck.bedLufs) ? input.duck.bedLufs : null;
+  const unmeasuredLoopLufs = duckBed === null ? DUCK_ASSUMED_BED_LUFS : Math.max(DUCK_ASSUMED_BED_LUFS, duckBed);
+  const loopFallback = validLufs(bed.loopLufs) ? bed.loopLufs : null;
+  const unmeasured: boolean[] = [];
   const n = Math.ceil(input.durationSec / step) + 1;
   const raw: number[] = [];
   for (let i = 0; i < n; i += 1) {
     const t = i * step;
     if (input.loopFromSec !== null && t >= input.loopFromSec && loopDur) {
       const position = (t - input.loopFromSec) % loopDur;
-      if (loopMap) raw.push(loopMap[Math.min(loopMap.length - 1, Math.floor((position / loopDur) * loopMap.length))]!);
-      else raw.push(bed.loopLufs ?? DUCK_ASSUMED_BED_LUFS);
+      const fromMap = loopMap ? loopMap[Math.min(loopMap.length - 1, Math.floor((position / loopDur) * loopMap.length))] : undefined;
+      const measured = loopMap ? (validLufs(fromMap) ? fromMap : null) : loopFallback;
+      unmeasured[i] = measured === null;
+      raw.push(measured ?? unmeasuredLoopLufs);
       continue;
     }
     const position = input.startOffsetSec + t;
@@ -99,6 +109,13 @@ export function buildBedLoudnessTrack(input: BedLoudnessInput): BedLoudnessTrack
   const forward = [...smooth];
   for (let i = 1; i < forward.length; i += 1) forward[i] = Math.min(forward[i - 1]! + maxStep, Math.max(forward[i - 1]! - maxStep, forward[i]!));
   for (let i = forward.length - 2; i >= 0; i -= 1) forward[i] = Math.min(forward[i + 1]! + maxStep, Math.max(forward[i + 1]! - maxStep, forward[i]!));
+  if (unmeasured.some(Boolean)) {
+    // Smoothing must not pull an unmeasured step below its bound (that would bring a boost back); then a RAISE-ONLY slew repair keeps the change gradual.
+    // Raising the track only lowers the music, so this can never make the bed louder than before.
+    for (let i = 0; i < forward.length; i += 1) if (unmeasured[i]) forward[i] = Math.max(forward[i]!, unmeasuredLoopLufs);
+    for (let i = forward.length - 2; i >= 0; i -= 1) forward[i] = Math.max(forward[i]!, forward[i + 1]! - maxStep);
+    for (let i = 1; i < forward.length; i += 1) forward[i] = Math.max(forward[i]!, forward[i - 1]! - maxStep);
+  }
   return {stepSec: step, lufs: forward.map(round2)};
 }
 

@@ -9,6 +9,7 @@ import {AbsoluteFill, Audio, Sequence, useCurrentFrame, useVideoConfig} from 're
 import {duckBaseDbAt, duckLinearGainAt, type DuckEnvelope} from '../audio/duckEnvelope';
 import {placementGainAt} from '../audio/placementGain';
 import {resolveMediaSrc} from '../lib/mediaSrc';
+import {checkMusicTimeline, musicTimelineClips, musicTimelineGainAt} from '../audio/musicTimeline'; // AUDIO_TIMELINE (Phase 1.4)
 
 /**
  * Full bed (0) ↔ VO-carved bed (1) from the stored duck envelope. Reads the STATIC curve (duckBaseDbAt): the loudness correction moves the level, not the mix.
@@ -85,7 +86,9 @@ export const MusicBedTrack: React.FC<{
   speechWindows?: readonly SpeechWindow[];
   /** Generated beds. Absent → the legacy square gate, unchanged. */
   duck?: DuckEnvelope | null;
-}> = ({bed, speechWindows = [], duck = null}) => {
+  /** AUDIO_TIMELINE (Phase 1.4): audioDesign.musicTimeline (audio/musicTimeline.ts). Absent on every existing blueprint = the branches below, unchanged. */
+  timeline?: unknown;
+}> = ({bed, speechWindows = [], duck = null, timeline}) => {
   const {fps, durationInFrames} = useVideoConfig();
   // Composition frame, never the Sequence-local one, so the duck envelope does not restart.
   const globalFrame = useCurrentFrame();
@@ -97,6 +100,39 @@ export const MusicBedTrack: React.FC<{
     duck
       ? duckLinearGainAt(duck, frame / fps)
       : musicBedVolumeAt({frame, fps, speechWindows, ducking, musicGain, duckedGain});
+
+  // >>> AUDIO_TIMELINE (Phase 1.4). Runs only when a timeline is passed; otherwise skipped, and the branches below run exactly as before.
+  // Late entry (startFrame) and gain automation on top of the existing placed-bed fields; the duck, end fade, carved twin and loop rules are the existing ones.
+  if (timeline !== undefined && timeline !== null) {
+    const checked = checkMusicTimeline(timeline);
+    if (!checked.ok) return null; // an invalid timeline is never repaired: no bed rather than a bed that does not follow its plan
+    const clips = musicTimelineClips({spec: checked.spec, fps, durationInFrames, musicStartOffsetSec: bed.musicStartOffsetSec, musicLoopFromSec: bed.musicLoopFromSec, hasLoopFile: Boolean(bed.musicLoopUrl)});
+    if (!clips.head) return null;
+    const timeSec = globalFrame / fps;
+    const base = musicTimelineGainAt({
+      spec: checked.spec,
+      frame: globalFrame,
+      fps,
+      baseGainAt: t => volumeAt(t * fps),
+      endGainAt: t => placementGainAt(t, bed.musicEndSec, bed.musicEndFadeSec),
+    });
+    const carvedSrc = bed.musicCarvedUrl && duck ? resolveMediaSrc(bed.musicCarvedUrl) : null;
+    const gains = carvedSrc && duck ? carvedGains(carvedMix(duckBaseDbAt(duck, timeSec), duck.speechDb, duck.openDb, duck.pauseDb)) : {full: 1, carved: 0};
+    return (
+      <AbsoluteFill>
+        <Sequence from={clips.head.from} durationInFrames={clips.head.durationInFrames}>
+          <Audio src={resolveMediaSrc(bed.musicFullUrl || bed.musicUrl)} startFrom={clips.head.startFromFrames} volume={() => base * gains.full} />
+          {carvedSrc ? <Audio src={carvedSrc} startFrom={clips.head.startFromFrames} volume={() => base * gains.carved} /> : null}
+        </Sequence>
+        {clips.loop ? (
+          <Sequence from={clips.loop.from} durationInFrames={clips.loop.durationInFrames}>
+            <Audio src={resolveMediaSrc(bed.musicLoopUrl as string)} loop loopVolumeCurveBehavior="extend" volume={() => base} />
+          </Sequence>
+        ) : null}
+      </AbsoluteFill>
+    );
+  }
+  // <<< AUDIO_TIMELINE (Phase 1.4)
 
   // Placed bed (Phase 3): start offset on a downbeat, an end fade, a bar-aligned loop hand-off. The duck envelope stays in VIDEO time and decides the level;
   // the end fade can only lower it. Blueprints without placement fields never reach this branch, so they render exactly as before.

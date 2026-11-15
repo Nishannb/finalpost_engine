@@ -9,6 +9,7 @@
 import {env} from '../../config/env.ts';
 import {EngineError} from '../../lib/errors.ts';
 import {
+  claimOnce,
   incrementMonthlyUsage,
   readMonthlyUsage,
 } from '../../store/engineStore.ts';
@@ -94,6 +95,24 @@ export async function recordRender(
     'renderSeconds',
     Math.ceil(outputDurationSec),
   );
+}
+
+/**
+ * A render that FAILED did not deliver an export, so its metered seconds are returned. Once per render job (an atomic claim, so two pollers finishing the same
+ * failed job cannot both refund). A retry meters a fresh render, so a failed-then-succeeded export is counted exactly once.
+ */
+export async function refundFailedRender(
+  userId: string,
+  renderJobId: string,
+  outputDurationSec: number,
+): Promise<boolean> {
+  if (env.DEV_AUTH_BYPASS && env.NODE_ENV !== 'production') {
+    return false;
+  }
+  const claim = await claimOnce(`engine:render-refund:${renderJobId}`);
+  if (!claim) return false;
+  await incrementMonthlyUsage(userId, 'renderSeconds', -Math.ceil(outputDurationSec));
+  return true;
 }
 
 export function estimateRenderCostUsd(outputDurationSec: number): number {

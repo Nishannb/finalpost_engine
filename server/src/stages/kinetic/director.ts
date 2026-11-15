@@ -4,9 +4,15 @@
  * Gemini is called only when the existing GEMINI_API_KEY is configured. `call` is injectable (tests / other providers).
  */
 import {PRESETS, closestPreset, isKnownPreset} from './presets.ts';
+import {SPATIAL_CONTRACT_LEGEND} from './affordances.ts';
+import {RICH_INPUT_LEGEND, describeSpeaker, formatWordsRich} from './directorInput.ts';
+import {FORCE_FRONT_ALPHA_AREA, sceneBehindEligibility} from './guardrails.ts';
 import {resolvePlan, type ResolvedPlan} from './plan.ts';
 import {PRESET_NAMES, type BrandConfig, type KineticShot, type KineticWord} from './schema.ts';
 import type {ShotScene} from './scene.ts';
+
+/** Appended to the system prompt when 3D presets are not enabled for the render path: the Director is told, not just corrected afterwards. */
+export const NO_3D_NOTE = '\n\nRENDER LIMITS FOR THIS JOB: 3D extruded presets ("hero.extruded3d.*", "hero.extrudedStack.*") are NOT available. Do not use them; emphasise a keyword with type.words (hero role, accent colour, size) instead.';
 
 export type DirectorCall = (input: {system: string; user: string}) => Promise<string>;
 
@@ -30,16 +36,21 @@ MATCH CUT (preset "type.matchCut", full-frame text match cut, ~1.8 s, it owns th
 "title":true only for a lone short hero word in cinematicClean, at most once per 15 seconds.
 Rules: use ONLY words from the transcript (every line's text comes from the words inside wordRange — wordRange MUST include every spoken token that appears in lines[].text, including multi-word brand names); NEVER invent words; NEVER output coordinates, pixels, frame numbers, seconds or font sizes; preset must be one of the catalog names; at most ONE hero event active at a time; hero words come from high-emphasis words; keep every event inside one shot unless persistAcrossCut; put needsCustomTreatment only when no preset can express the idea.`;
 
-export function buildDirectorPrompt(input: {words: KineticWord[]; shots: KineticShot[]; scenes: Record<string, ShotScene>; brand: BrandConfig}): string {
+export function buildDirectorPrompt(input: {words: KineticWord[]; shots: KineticShot[]; scenes: Record<string, ShotScene>; brand: BrandConfig; /** opt-in (default false = the exact previous prompt): word times, pauses, sentence / phrase structure, speaker position (directorInput.ts) */ rich?: {fps: number}; /** Phase 4 (default absent = the exact previous prompt): per shot id, the SPACE block from affordances.ts */ spatial?: Record<string, string>}): string {
   const catalog = PRESET_NAMES.map(n => `- ${n}: layering ${PRESETS[n].layering}, anchor ${PRESETS[n].anchor}, lines ${PRESETS[n].lines.join('-')}, ${PRESETS[n].hasHero ? 'hero' : 'caption-only'}`).join('\n');
-  const words = input.words.map(w => `${w.idx}:${w.text}${w.emphasisScore >= 0.65 ? '*' : ''}`).join(' ');
+  const words = input.rich ? formatWordsRich(input.words, input.rich.fps) : input.words.map(w => `${w.idx}:${w.text}${w.emphasisScore >= 0.65 ? '*' : ''}`).join(' ');
   const shots = input.shots.map(s => {
     const sc = input.scenes[s.id];
     const plate = sc ? ` plate: brightness ${(sc.luminance ?? 0.45).toFixed(2)} (0 dark .. 1 bright)${sc.plateColor ? `, mean colour ${sc.plateColor}` : ''}` : '';
-    const box = sc && !sc.noMatte ? `; speaker box x ${sc.subjectBox.x.toFixed(2)}-${(sc.subjectBox.x + sc.subjectBox.w).toFixed(2)}, y ${sc.subjectBox.y.toFixed(2)}-${(sc.subjectBox.y + sc.subjectBox.h).toFixed(2)}` : '';
-    return `${s.id} (${sc?.noMatte ? 'no matte: behind-the-head and stack-over-cutout are refused, text will be in front' : 'matte available: behind-the-head and stack-over-cutout are legal'};${plate}${box}${(sc?.alphaAreaFrac ?? 0) > 0.55 ? '; subject fills the frame' : ''})`;
+    const measuredNoMatte = Boolean(sc?.noMatte && sc.boxSource === 'measured');
+    const box = sc && (!sc.noMatte || measuredNoMatte) ? `; speaker box x ${sc.subjectBox.x.toFixed(2)}-${(sc.subjectBox.x + sc.subjectBox.w).toFixed(2)}, y ${sc.subjectBox.y.toFixed(2)}-${(sc.subjectBox.y + sc.subjectBox.h).toFixed(2)}` : '';
+    // Phase 5.12 (G1-a): a matte with a speaker filling more than FORCE_FRONT_ALPHA_AREA of the frame is categorically refused by the solver, so the Director is not told it is legal (and the
+    // line avoids the words "matte available", which the system prompt reads as "ask for one behind hero"). No matte / an eligible matte: the exact previous text.
+    const areaRefused = Boolean(sc && !sc.noMatte && !sceneBehindEligibility(sc).eligible);
+    const matteText = areaRefused ? `behind refused: the speaker fills ${Math.round(sc!.alphaAreaFrac * 100)}% of the frame (over ${Math.round(FORCE_FRONT_ALPHA_AREA * 100)}%), so behind-the-head and stack-over-cutout are refused, text will be in front` : 'matte available: behind-the-head and stack-over-cutout are legal';
+    return `${s.id} (${sc?.noMatte ? `no matte: behind-the-head and stack-over-cutout are refused, text will be in front${measuredNoMatte ? '; the speaker box is MEASURED, so beside-the-speaker and above-the-head placements are legal' : ''}` : matteText};${plate}${box}${(sc?.alphaAreaFrac ?? 0) > 0.55 ? '; subject fills the frame' : ''})${input.rich ? `\n  ${describeSpeaker(sc)}` : ''}${input.spatial?.[s.id] ? `\n${input.spatial[s.id]}` : ''}`;
   }).join('\n');
-  return `PRESET CATALOG:\n${catalog}\n\nSHOTS: ${shots}\nWORDS (idx:text, * = emphasis candidate):\n${words}\n\nReturn the KineticPlan JSON.`;
+  return `PRESET CATALOG:\n${catalog}\n\nSHOTS: ${shots}\nWORDS ${input.rich ? '(one phrase per line, see INPUT FORMAT; * = emphasis candidate)' : '(idx:text, * = emphasis candidate)'}:\n${words}\n\nReturn the KineticPlan JSON.`;
 }
 
 /** Unknown preset ids from a model become a custom-treatment request on the closest known preset (the schema itself stays strict). */
@@ -78,22 +89,28 @@ export async function geminiDirectorCall(): Promise<DirectorCall | null> {
       timeoutMs: 45_000,
       retries: 0,
       headers: {'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY},
-      body: JSON.stringify({systemInstruction: {parts: [{text: system}]}, contents: [{role: 'user', parts: [{text: user}]}], generationConfig: {temperature: 0.3, responseMimeType: 'application/json'}}),
+      // Optional cost bounds (both unset by default = the previous request exactly): a hard output cap (Gemini counts thinking inside it) and a lower thinking level.
+      body: JSON.stringify({systemInstruction: {parts: [{text: system}]}, contents: [{role: 'user', parts: [{text: user}]}], generationConfig: {temperature: 0.3, responseMimeType: 'application/json', ...(env.KINETIC_DIRECTOR_MAX_OUTPUT_TOKENS > 0 ? {maxOutputTokens: env.KINETIC_DIRECTOR_MAX_OUTPUT_TOKENS} : {}), ...(env.KINETIC_DIRECTOR_THINKING_LEVEL.trim() ? {thinkingConfig: {thinkingLevel: env.KINETIC_DIRECTOR_THINKING_LEVEL.trim()}} : {})}}),
     });
     return body.candidates?.[0]?.content?.parts?.map(p => p.text ?? '').join('') ?? '';
   };
 }
 
-export async function runKineticDirector(input: {words: KineticWord[]; shots: KineticShot[]; scenes: Record<string, ShotScene>; brand: BrandConfig; call?: DirectorCall | null; fps?: number}): Promise<ResolvedPlan> {
+export async function runKineticDirector(input: {words: KineticWord[]; shots: KineticShot[]; scenes: Record<string, ShotScene>; brand: BrandConfig; call?: DirectorCall | null; fps?: number; /** opt-in rich input (directorInput.ts); default off = the previous prompt exactly */ richInput?: boolean; /** 3D extruded presets may be requested by the fallback (default true: the standalone engine renders them) */ allowThreeD?: boolean; /** Phase 4: per shot id, the SPACE block (affordances.ts); also appends the contract legend to the system prompt */ spatial?: Record<string, string>; /** Phase 4: nearest-occurrence word-range repair (plan.ts) */ nearestRange?: boolean}): Promise<ResolvedPlan> {
   const first = input.shots[0] ? input.scenes[input.shots[0].id] : undefined;
-  const opts = {fps: input.fps ?? 30, plate: {...(first?.luminance !== undefined ? {luminance: first.luminance} : {}), ...(first?.plateColor ? {color: first.plateColor} : {})}};
+  const sceneList = input.shots.map(sh => input.scenes[sh.id]).filter((x): x is ShotScene => Boolean(x));
+  /** the recovery planner only asks for what some shot can grant: no matte anywhere = no behind-the-head / stack requests */
+  // Phase 5.12 (G1-a): 'matte' = some shot the solver can categorically place behind in (a matte AND alphaAreaFrac <= FORCE_FRONT_ALPHA_AREA), not merely a matte: the fallback planner then
+  // tags no behind / stack event the solver would refuse, and those heroes stay in the normal zones (front), exactly as on a no-matte shot.
+  const capabilities = {matte: sceneList.length === 0 || sceneList.some(x => sceneBehindEligibility(x).eligible), threeD: input.allowThreeD !== false};
+  const opts = {fps: input.fps ?? 30, capabilities, ...(input.nearestRange ? {nearestRange: true} : {}), plate: {...(first?.luminance !== undefined ? {luminance: first.luminance} : {}), ...(first?.plateColor ? {color: first.plateColor} : {})}};
   let call = input.call;
   if (call === undefined) {
     try { call = await geminiDirectorCall(); } catch { call = null; }
   }
   if (!call) return resolvePlan(undefined, input.words, input.shots, 'director_not_configured', opts);
   try {
-    const text = await call({system: KINETIC_DIRECTOR_SYSTEM, user: buildDirectorPrompt(input)});
+    const text = await call({system: (input.richInput ? KINETIC_DIRECTOR_SYSTEM + RICH_INPUT_LEGEND : KINETIC_DIRECTOR_SYSTEM) + (input.allowThreeD === false ? NO_3D_NOTE : '') + (input.spatial ? SPATIAL_CONTRACT_LEGEND : ''), user: buildDirectorPrompt({words: input.words, shots: input.shots, scenes: input.scenes, brand: input.brand, ...(input.richInput ? {rich: {fps: input.fps ?? 30}} : {}), ...(input.spatial ? {spatial: input.spatial} : {})})});
     return resolvePlan(normalizeUnknownPresets(parseDirectorText(text)), input.words, input.shots, undefined, opts);
   } catch (err) {
     return resolvePlan(undefined, input.words, input.shots, `director_failed: ${err instanceof Error ? err.message : String(err)}`, opts);

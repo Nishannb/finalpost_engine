@@ -19,7 +19,9 @@ import {copyFileSync, existsSync, mkdirSync, readFileSync} from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
-import {buildDuckEnvelope, VO_LUFS_ASSUMED, type DuckPresetName} from '../stages/music/duckEnvelope.ts';
+import {classifyBedLoudness, classifyTranscript, classifyVoiceLoudness} from '../stages/music/bgmFailSafe.ts';
+import {bedLoudnessRenderIssue} from '../stages/render/renderSafety.ts';
+import {buildDuckEnvelope, type DuckPresetName} from '../stages/music/duckEnvelope.ts';
 import type {AudioDesign, TimelineBlueprint} from '../types/blueprint.ts';
 
 export type CliOptions = {
@@ -34,6 +36,10 @@ export type CliOptions = {
   carved?: '0' | '1';
   master: '0' | '1';
   measure: '0' | '1';
+  /** Phase SFX-3E: an explicitly supplied MEASURED voice loudness (LUFS) for a duck rebuild when the blueprint records none. Never assumed. */
+  voLufs?: number;
+  /** Phase SFX-3G: an explicitly supplied MEASURED integrated loudness (LUFS) of the generated bed, for a rebuild when the blueprint records none. Never assumed. */
+  bedLufs?: number;
 };
 
 type Envelope = {videoId?: string; sourceVideoPath?: string | null; voLufs?: number | null; blueprint: TimelineBlueprint};
@@ -68,6 +74,8 @@ export function parseCliArgs(argv: string[]): CliOptions {
       case '--hold-ms': opts.holdMs = num(flag, value()); if (opts.holdMs < 0 || opts.holdMs > 2000) throw new Error('--hold-ms must be 0..2000'); break;
       case '--release-ms': opts.releaseMs = num(flag, value()); if (opts.releaseMs < 10 || opts.releaseMs > 3000) throw new Error('--release-ms must be 10..3000'); break;
       case '--lead-ms': opts.leadMs = num(flag, value()); if (opts.leadMs < 0 || opts.leadMs > 200) throw new Error('--lead-ms must be 0..200'); break;
+      case '--vo-lufs': opts.voLufs = num(flag, value()); if (opts.voLufs < -70 || opts.voLufs > 0) throw new Error('--vo-lufs must be a measured loudness in -70..0 LUFS'); break;
+      case '--bed-lufs': opts.bedLufs = num(flag, value()); if (opts.bedLufs < -70 || opts.bedLufs > 0) throw new Error('--bed-lufs must be a measured loudness in -70..0 LUFS'); break;
       case '--carved': opts.carved = bit(flag, value()); break;
       case '--master': opts.master = bit(flag, value()); break;
       case '--measure': opts.measure = bit(flag, value()); break;
@@ -118,24 +126,51 @@ export function duckOverridesRequested(opts: CliOptions): boolean {
 /** Pure: returns an AudioDesign with the duck rebuilt when asked (or when it is missing but words and a generated bed exist). Otherwise returns the input untouched. */
 export function applyDuckOverrides(
   blueprint: TimelineBlueprint,
-  opts: Pick<CliOptions, 'duckPreset' | 'speechOffset' | 'pauseOffset' | 'openOffset' | 'holdMs' | 'releaseMs' | 'leadMs'>,
+  opts: Pick<CliOptions, 'duckPreset' | 'speechOffset' | 'pauseOffset' | 'openOffset' | 'holdMs' | 'releaseMs' | 'leadMs'> & {voLufs?: number; bedLufs?: number},
   envelopeVoLufs?: number | null,
-): {audioDesign: AudioDesign | undefined; rebuilt: boolean} {
+): {audioDesign: AudioDesign | undefined; rebuilt: boolean; warnings: string[]} {
   const audio = blueprint.audioDesign;
-  if (!audio) return {audioDesign: audio, rebuilt: false};
+  const warnings: string[] = [];
+  if (!audio) return {audioDesign: audio, rebuilt: false, warnings};
   const requested = duckOverridesRequested(opts as CliOptions);
   const hasBed = audio.musicSource === 'generated' && Boolean(audio.musicFullUrl ?? audio.musicUrl);
   const words = blueprint.captionWords ?? [];
   const missing = !audio.duck && words.length > 0 && hasBed;
-  if (!requested && !missing) return {audioDesign: audio, rebuilt: false};
-  if (!hasBed) return {audioDesign: audio, rebuilt: false};
-  const voLufs = audio.voLufs ?? envelopeVoLufs ?? VO_LUFS_ASSUMED;
+  if (!requested && !missing) return {audioDesign: audio, rebuilt: false, warnings};
+  if (!hasBed) return {audioDesign: audio, rebuilt: false, warnings};
+  const preset = opts.duckPreset ?? audio.duck?.preset ?? 'talking';
+  // Phase SFX-3E: never an assumed voice level. The level the blueprint itself recorded (audioDesign.voLufs, the saved envelope's voLufs, or the
+  // stored duck's voLufs) keeps historical renders compatible; an explicit --vo-lufs is the operator's measured value. Otherwise a voice-relative
+  // (talking) rebuild is refused with a diagnostic instead of guessing. An absolute preset does not use the voice.
+  const recorded = opts.voLufs ?? audio.voLufs ?? envelopeVoLufs ?? audio.duck?.voLufs;
+  const voice = classifyVoiceLoudness({measured: recorded, voiceTrack: 'unknown'});
+  if (preset === 'talking' && voice.status !== 'measured') {
+    throw new Error(
+      `Cannot rebuild the voice-relative duck: this blueprint records no valid voice loudness (${voice.status}${voice.status === 'invalid' ? `: ${voice.reason}` : ''}). ` +
+        'The level is never assumed. Pass --vo-lufs <measured LUFS>, use an absolute --duck-preset (default | legacy_brief), or render without duck options.',
+    );
+  }
+  const voLufs = voice.status === 'measured' ? voice.lufs : undefined;
+  // Phase SFX-3G: the bed's loudness too: the stored duck's bedLufs or an explicit --bed-lufs, never the assumed -16. A voice-relative rebuild
+  // without it is refused (an absolute preset does not use it).
+  const bed = classifyBedLoudness(opts.bedLufs ?? audio.duck?.bedLufs);
+  if (preset === 'talking' && bed.status !== 'measured') {
+    throw new Error(
+      `Cannot rebuild the voice-relative duck: this blueprint records no valid bed loudness (${bed.status}${bed.status === 'invalid' ? `: ${bed.reason}` : ''}). ` +
+        'The bed loudness is never assumed. Pass --bed-lufs <measured LUFS>, use an absolute --duck-preset (default | legacy_brief), or render without duck options.',
+    );
+  }
+  // Speech timing: stored caption words that are empty or untrusted never open the bed; it is held at the speech level for the whole video.
+  const durationSec = audio.duck?.durationSec ?? blueprint.outputDurationSec;
+  const transcript = classifyTranscript({words, analysis: 'unknown', durationSec});
+  const duckWords = transcript.status === 'speech' ? words : [{start: 0, end: Math.max(durationSec, 1e-3)}];
+  if (transcript.status !== 'speech') warnings.push(`duck rebuild: caption words ${transcript.status} (${'reason' in transcript ? transcript.reason : ''}); the bed is held at the speech level for the whole video`);
   const duck = buildDuckEnvelope({
-    words,
-    durationSec: audio.duck?.durationSec ?? blueprint.outputDurationSec,
-    preset: opts.duckPreset ?? audio.duck?.preset ?? 'talking',
-    voLufs,
-    bedLufs: audio.duck?.bedLufs ?? -16,
+    words: duckWords,
+    durationSec,
+    preset,
+    ...(voLufs !== undefined ? {voLufs} : {}),
+    ...(bed.status === 'measured' ? {bedLufs: bed.lufs} : {}),
     speechOffsetLu: opts.speechOffset,
     pauseOffsetLu: opts.pauseOffset,
     openOffsetLu: opts.openOffset,
@@ -145,7 +180,29 @@ export function applyDuckOverrides(
     ...(opts.releaseMs !== undefined ? {releaseSec: opts.releaseMs / 1000} : {}),
     ...(opts.leadMs !== undefined ? {leadSec: opts.leadMs / 1000} : {}),
   });
-  return {audioDesign: {...audio, duck, voLufs: audio.voLufs ?? voLufs}, rebuilt: true};
+  return {audioDesign: {...audio, duck, ...(audio.voLufs !== undefined || voLufs !== undefined ? {voLufs: audio.voLufs ?? voLufs} : {})}, rebuilt: true, warnings};
+}
+
+/**
+ * Phase SFX-3G/3H: why a stored blueprint's generated bed cannot be rendered, or null. The production rule (stages/render/renderSafety.ts, also
+ * enforced by renderLocally itself): a `talking` duck's bed loudness must be valid AND backed by provenance. A blueprint written before SFX-3H has
+ * no provenance and is refused until an operator attests the value with --bed-lufs.
+ */
+export function storedBedLoudnessIssue(audio: AudioDesign | undefined): string | null {
+  const issue = bedLoudnessRenderIssue(audio);
+  if (!issue) return null;
+  return `${issue.code}: ${issue.detail}; it is never rendered against the assumed -16 LUFS or an unverified value. Pass --bed-lufs <measured LUFS> (with --vo-lufs if needed) to attest (or rebuild) it.`;
+}
+
+/**
+ * Phase SFX-3H: an operator's explicit attestation. When the duck of a generated `talking` bed already uses exactly `bedLufs`, the provenance
+ * {status: 'operator_attested', lufs} is recorded; the duck and every level are left untouched. Otherwise nothing changes (the caller rebuilds).
+ */
+export function applyBedAttestation(audio: AudioDesign | undefined, bedLufs: number | undefined): {audioDesign: AudioDesign | undefined; attested: boolean} {
+  if (!audio || bedLufs === undefined || audio.musicSource !== 'generated' || !audio.duck) return {audioDesign: audio, attested: false};
+  const bed = classifyBedLoudness(audio.duck.bedLufs);
+  if (bed.status !== 'measured' || bed.lufs !== bedLufs) return {audioDesign: audio, attested: false};
+  return {audioDesign: {...audio, musicProvenance: {...(audio.musicProvenance ?? {source: 'generated'}), bedLoudness: {status: 'operator_attested', lufs: bedLufs}}}, attested: true};
 }
 
 /** Pure: MusicBedTrack plays the twin whenever musicCarvedUrl is present, so `--carved 0` must omit the key. `--carved 1` never invents a URL. */
@@ -169,9 +226,19 @@ async function main(): Promise<void> {
   let blueprint = loaded.blueprint;
 
   const videoUrl = resolveVideoUrl(blueprint.videoUrl, loaded.sourceVideoPath);
-  const {audioDesign: ducked, rebuilt} = applyDuckOverrides(blueprint, opts, loaded.voLufs);
+  // Phase SFX-3G/3H: an explicit --bed-lufs rebuilds the duck when the stored value is missing, invalid or different; when it equals the stored
+  // value the duck is kept as saved and only attested (applyBedAttestation). Without it an unverified bed is refused below.
+  const stored = blueprint.audioDesign?.duck ? classifyBedLoudness(blueprint.audioDesign.duck.bedLufs) : null;
+  const needsRebuild = opts.bedLufs !== undefined && blueprint.audioDesign?.musicSource === 'generated' && stored !== null && (stored.status !== 'measured' || stored.lufs !== opts.bedLufs);
+  const rebuildOpts = needsRebuild && !duckOverridesRequested(opts) ? {...opts, releaseMs: Math.round((blueprint.audioDesign?.duck?.releaseSec ?? 0.3) * 1000)} : opts;
+  const {audioDesign: ducked, rebuilt, warnings: duckWarnings} = applyDuckOverrides(blueprint, rebuildOpts, loaded.voLufs);
+  for (const warning of duckWarnings) console.warn(warning);
+  const {audioDesign: attestedDesign, attested} = applyBedAttestation(ducked, opts.bedLufs);
+  if (attested) console.warn(`bed loudness ${opts.bedLufs} LUFS attested by the operator (--bed-lufs); the duck is unchanged.`);
+  const bedIssue = storedBedLoudnessIssue(attestedDesign);
+  if (bedIssue) throw new Error(`Refusing to render: ${bedIssue}`);
   if (duckOverridesRequested(opts) && !rebuilt) console.warn('No generated bed on this blueprint, so the duck options were ignored.');
-  const {audioDesign, warning: carvedWarning} = applyCarvedOverride(ducked, opts.carved);
+  const {audioDesign, warning: carvedWarning} = applyCarvedOverride(attestedDesign, opts.carved);
   if (carvedWarning) console.warn(carvedWarning);
   blueprint = {...blueprint, videoUrl, ...(audioDesign ? {audioDesign} : {})};
 

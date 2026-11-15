@@ -5,6 +5,8 @@
 
 import {z} from 'zod';
 
+import {footageKindSchema} from '../lib/footageKind.ts';
+
 import {
   CAPTION_TEMPLATES,
   LAYOUT_STYLES,
@@ -80,6 +82,8 @@ export const analyzeRequestSchema = z.object({
   requestedEdits: z.array(z.string().trim().min(1).max(40)).max(24).optional(),
   /** Caption kinetic template the Director should honor. */
   captionTemplate: z.enum(CAPTION_TEMPLATES).optional(),
+  /** What the main video is, as the app knows it: 'camera' | 'screen_recording' | 'unknown' (lib/footageKind.ts). Absent = 'unknown'. Only 'camera' may enter Kinetic V2. */
+  footageKind: footageKindSchema.optional(),
 });
 
 export const bindLabeledAssetsRequestSchema = z.object({

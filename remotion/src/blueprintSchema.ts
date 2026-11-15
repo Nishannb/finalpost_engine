@@ -8,6 +8,7 @@
  */
 
 import {renderSpecSchema} from './kinetic/spec';
+import {checkMusicTimeline, type MusicTimelineSpec} from './audio/musicTimeline';
 import {z} from 'zod';
 
 export const languageCodeSchema = z.enum(['en', 'es', 'hi', 'ta', 'ne', 'auto']);
@@ -707,6 +708,46 @@ export const subjectStageMotionSchema = z.object({
   /** slow_push total scale gain in percent (spec 4-6). */
   scalePct: z.number().min(0).max(20).optional(),
 });
+/** Phase 5.24 design contract (mirrors server/src/stages/subjectStage/stageDesign.ts). Rects are composition fractions. */
+const stageRectSchema = z.object({x: z.number(), y: z.number(), w: z.number().min(0), h: z.number().min(0)});
+const stageTimedWordSchema = z.object({text: z.string(), start: z.number(), end: z.number()});
+const subjectStageSetDesignSchema = z.object({
+  kind: z.literal('set'),
+  mode: z.enum(['set', 'graded']),
+  room: z.enum(['replaced', 'graded']),
+  headline: z.object({text: z.string().max(40), lines: z.array(z.string().max(40)).min(1).max(3), sizeFrac: z.number().min(0).max(0.3), rect: stageRectSchema, layer: z.enum(['behind', 'front']), align: z.enum(['left', 'center', 'right'])}),
+  kicker: z.string().max(4),
+  dependsOnMatte: z.boolean(),
+  headlineSource: z.enum(['editorial', 'strong_keyword']),
+  placementBasis: z.enum(['matte_grid', 'speaker_box']).optional(),
+  requires: z.record(z.string(), z.boolean()).optional(),
+});
+const subjectStageSourceCardDesignSchema = z.object({
+  kind: z.literal('source_card'),
+  layer: z.enum(['behind', 'front']),
+  card: stageRectSchema,
+  textRect: stageRectSchema,
+  quote: z.string().max(200),
+  lines: z.array(z.string()).min(1).max(5),
+  sizeFrac: z.number().min(0).max(0.2),
+  attribution: z.string().max(60).optional(),
+  words: z.array(stageTimedWordSchema).optional(),
+  side: z.enum(['left', 'right', 'above', 'below']),
+  tiltDeg: z.number().min(-5).max(5),
+  dependsOnMatte: z.boolean(),
+  quoteSource: z.enum(['editorial', 'quoted', 'reported', 'clause', 'director', 'contract_fixture', 'deterministic']),
+  placementBasis: z.enum(['matte_grid', 'speaker_box']).optional(),
+  requires: z.record(z.string(), z.boolean()).optional(),
+});
+const subjectStageDesignSchema = z.discriminatedUnion('kind', [subjectStageSetDesignSchema, subjectStageSourceCardDesignSchema, z.object({kind: z.literal('restrained'), reason: z.string()})]);
+const subjectStageLookSchema = z.object({
+  tone: z.enum(['light', 'dark']),
+  ground: z.string(), groundEdge: z.string(), ink: z.string(), inkSoft: z.string(), accent: z.string(), paper: z.string(), paperInk: z.string(),
+  fonts: z.object({display: z.enum(['anton', 'archivoBlack']), serif: z.literal('playfair'), text: z.literal('inter')}),
+});
+const subjectStageCutawaySchema = z
+  .object({start: z.number().min(0), end: z.number().min(0), assetUrl: z.string(), mediaKind: z.enum(['video', 'image']), enter: z.enum(['hard_cut', 'dip']), exit: z.enum(['hard_cut', 'dip']), credit: z.string().optional()})
+  .refine(c => c.end > c.start, {message: 'subjectStage cutaway must end after it starts'});
 export const subjectStageSpanSchema = z
   .object({
     start: z.number().min(0),
@@ -720,6 +761,8 @@ export const subjectStageSpanSchema = z
     placement: z.object({xPct: z.number(), yPct: z.number(), wPct: z.number().min(5).max(100), hPct: z.number().min(5).max(100).optional()}).optional(),
     enter: z.enum(['hard_cut', 'flash_cut', 'slide_up_front']).default('hard_cut'),
     wash: z.enum(['warm', 'none']).optional(),
+    /** Phase 5.24: the designed S1 / S2 treatment; absent = the Phase 3 placeholder rendering */
+    design: subjectStageDesignSchema.optional(),
   })
   .refine(span => span.end > span.start, {message: 'subjectStage span must end after it starts'});
 export const subjectStageAccentSchema = z
@@ -743,6 +786,14 @@ export const subjectStageSchema = z.object({
   bg: z.object({blurPx: z.number().min(0).max(40), dimPct: z.number().min(0).max(60)}).default({blurPx: 0, dimPct: 18}),
   spans: z.array(subjectStageSpanSchema).default([]),
   accents: z.array(subjectStageAccentSchema).default([]),
+  /** Phase 5.24 (all optional: old payloads parse and render exactly as before) */
+  look: subjectStageLookSchema.optional(),
+  subject: z.object({box: stageRectSchema, faceKeepOut: stageRectSchema, alphaAreaFrac: z.number().nullable()}).optional(),
+  cutaways: z.array(subjectStageCutawaySchema).optional(),
+  /** set by the render prefetch when the person cutout could not be fetched: degraded render (original footage + matte-independent elements) */
+  matteMissing: z.boolean().optional(),
+  /** Phase 5.25: where the matte is present and continuous (output seconds); absent = the whole stage spans */
+  matteIntervals: z.array(z.object({start: z.number().min(0), end: z.number().min(0)})).optional(),
 });
 
 export const timelineBlueprintSchema = z.object({
@@ -916,6 +967,12 @@ export const timelineBlueprintSchema = z.object({
         voLufs: z.number().optional(),
         bedLufs: z.number().optional(),
       }).optional(),
+      /**
+       * AI Music Director (Phase 1.4A): optional music timeline (audio/musicTimeline.ts): late entry and gain automation for MusicBedTrack. Absent on every
+       * existing blueprint. Validated by the renderer's own checkMusicTimeline (version 1, integer startFrame >= 0, strictly increasing finite times, gains in [0, 1]),
+       * so the schema and the renderer cannot disagree; the value is passed through unchanged.
+       */
+      musicTimeline: z.custom<MusicTimelineSpec>(value => checkMusicTimeline(value).ok, {message: 'invalid musicTimeline (audio/musicTimeline.ts checkMusicTimeline)'}).optional(),
       sfx: z
         .array(
           z.object({
@@ -935,6 +992,8 @@ export const timelineBlueprintSchema = z.object({
             reason: z.string().optional(),
             src: z.string().optional(),
             durationSec: z.number().positive().optional(),
+            /** Phase SFX-3D: 1 = mono source, compensated for the -3.01 dB mono-to-stereo upmix (lib/sfxPlaybackVolume.ts). Absent = unchanged. */
+            sourceChannels: z.union([z.literal(1), z.literal(2)]).optional(),
           }),
         )
         .optional()
@@ -974,6 +1033,9 @@ export type BRollClip = z.infer<typeof brollClipSchema>;
 export type SubjectStage = z.infer<typeof subjectStageSchema>;
 export type SubjectStageSpan = z.infer<typeof subjectStageSpanSchema>;
 export type SubjectStageAccent = z.infer<typeof subjectStageAccentSchema>;
+export type SubjectStageDesign = z.infer<typeof subjectStageDesignSchema>;
+export type SubjectStageLook = z.infer<typeof subjectStageLookSchema>;
+export type SubjectStageCutaway = z.infer<typeof subjectStageCutawaySchema>;
 export type SubjectStageAsset = z.infer<typeof subjectStageAssetSchema>;
 export type ImpactFxSpec = z.infer<typeof impactFxSchema>;
 export type ExplainerLayoutSpan = z.infer<typeof explainerLayoutSpanSchema>;

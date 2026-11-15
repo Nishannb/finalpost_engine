@@ -8,6 +8,7 @@
  *   POST /v1/edits/:id/retry    full_edit: retry a failed job
  */
 
+import {footageKindSchema} from '../../lib/footageKind.ts';
 import {Router} from 'express';
 import {z} from 'zod';
 
@@ -16,13 +17,14 @@ import {
   createCaptionsEditJob,
   loadCaptionsEditJob,
   markCaptionsSourceUploaded,
+  redeliverCallbacks,
   retryFullEdit,
   submitFullEditAssets,
 } from '../../pipeline/captionsEditRunner.ts';
 import {labeledAssetBindingSchema} from '../schemas.ts';
 import {assertFullEditEntitlement, resolveCatalogAccess} from '../../lib/entitlement.ts';
 import {isCaptionKitPresetId} from '../../lib/captionKitPresets.ts';
-import {buildEditStyleCatalog, resolveRequestedStyle, type EditStyleConfig} from '../../lib/editStyles.ts';
+import {V1_RELEASE_STYLES, buildEditStyleCatalog, resolveRequestedStyle, v1ReleaseViolation, type EditStyleConfig} from '../../lib/editStyles.ts';
 import {env} from '../../config/env.ts';
 import {hitRateLimit} from '../../store/engineStore.ts';
 import {CAPTION_TEMPLATES, SUPPORTED_LANGUAGES} from '../../types/blueprint.ts';
@@ -73,6 +75,8 @@ const createSchema = z.object({
    * switch off it is ignored and `mode` behaves exactly as before. When honoured it WINS over `mode` (the job mode is derived from it).
    */
   style: z.string().trim().max(60).optional(),
+  /** What the uploaded video is, as the app knows it: 'camera' | 'screen_recording' | 'unknown' (lib/footageKind.ts). Absent = 'unknown'. Only 'camera' may enter Kinetic V2. */
+  footageKind: footageKindSchema.optional(),
 });
 
 export const editRoutes = Router();
@@ -80,6 +84,10 @@ export const editRoutes = Router();
 const EDIT_STYLES_REFRESH_WINDOW_SEC = 10;
 
 function editStyleConfig(): EditStyleConfig {
+  // V1 release mode (V1_KINETIC_RELEASE): styles are always on and only Basic Captions + Kinetic Typography are startable or listed, whatever EDIT_STYLES_AVAILABLE says.
+  if (env.V1_KINETIC_RELEASE) {
+    return {enabled: true, availableOverride: V1_RELEASE_STYLES.join(','), orderOverride: V1_RELEASE_STYLES.join(','), engineFlags: env.EDIT_STYLES_ENGINE_FLAGS};
+  }
   return {enabled: env.EDIT_STYLES_ENABLED, availableOverride: env.EDIT_STYLES_AVAILABLE, orderOverride: env.EDIT_STYLES_ORDER, engineFlags: env.EDIT_STYLES_ENGINE_FLAGS};
 }
 
@@ -125,6 +133,17 @@ editRoutes.post('/edits/captions', async (req, res) => {
     }
     throw new EngineError('bad_request', 'Unknown edit style', {style: styled.style});
   }
+  // V1 release mode: no pipeline other than Basic Captions / Kinetic Typography is reachable, and an unsupported video is refused here, before any upload (never routed to a different edit).
+  const violation = v1ReleaseViolation({
+    release: env.V1_KINETIC_RELEASE,
+    style: styled ? styled.style : null,
+    mode: parsed.data.mode,
+    footageKind: parsed.data.footageKind,
+    engineFlags: env.EDIT_STYLES_ENGINE_FLAGS,
+  });
+  if (violation) {
+    throw new EngineError(violation.code, violation.message, violation.details);
+  }
   // A style wins over `mode`; without one (older app, or the kill switch off) the request's mode is used exactly as before.
   const mode = styled ? styled.mode : parsed.data.mode;
   // Free creators may only start the lean `basic_captions` job. Every Pro style and every other mode (full_edit, captions with cuts,
@@ -144,6 +163,7 @@ editRoutes.post('/edits/captions', async (req, res) => {
     scriptText: parsed.data.scriptText,
     ...(mode === 'full_edit' && parsed.data.fullEdit ? {fullEdit: parsed.data.fullEdit} : {}),
     ...(styled ? {style: styled.style, degraded: styled.degraded, degradedReasons: styled.degradedReasons} : {}),
+    ...(parsed.data.footageKind ? {footageKind: parsed.data.footageKind} : {}),
   });
   res.status(202).json({
     ok: true,
@@ -196,6 +216,19 @@ editRoutes.post('/edits/:editJobId/assets', async (req, res) => {
     skipAll: parsed.data.skipAll,
   });
   res.status(202).json({ok: true, job});
+});
+
+/**
+ * Operator re-drive of completion callbacks that ended `exhausted` / `rejected` for one job (service-key callers only; a creator's token is refused).
+ * The job itself is not touched: no render, no usage, no state change.
+ */
+editRoutes.post('/edits/:editJobId/callbacks/redeliver', async (req, res) => {
+  const auth = getAuth(res);
+  if (auth.via !== 'service-key') {
+    throw new EngineError('unauthorized', 'Service credentials are required');
+  }
+  const reopened = await redeliverCallbacks(String(req.params.editJobId));
+  res.status(202).json({ok: true, reopened});
 });
 
 editRoutes.post('/edits/:editJobId/retry', async (req, res) => {

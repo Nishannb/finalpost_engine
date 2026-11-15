@@ -121,7 +121,11 @@ export function restingMargin(ev: WordEv & {lines: RenderLine[]}, safe: Rect): n
   let m = Infinity;
   for (const line of ev.lines) {
     const [a, b] = restingRange(ev, line);
-    for (let f = a; f <= b; f += 1) m = Math.min(m, marginInside(wordAabbAt(ev, line, f), safe));
+    if (a <= b) { for (let f = a; f <= b; f += 1) m = Math.min(m, marginInside(wordAabbAt(ev, line, f), safe)); continue; }
+    // a word whose exit starts before its entry settles (a quick running word) has no rest pose: its peak pose (the middle of its visible span) stands in, so it is still checked
+    // against the safe rect (an empty range used to return +Infinity, which skipped the check and could not be serialised)
+    const from = ev.inFrame + line.enterFrame, to = Math.max(from, line.exitFrame !== null ? ev.inFrame + line.exitFrame : ev.outFrame);
+    m = Math.min(m, marginInside(wordAabbAt(ev, line, Math.round((from + to) / 2)), safe));
   }
   return m;
 }

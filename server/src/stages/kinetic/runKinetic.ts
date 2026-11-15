@@ -14,12 +14,15 @@ import {promisify} from 'node:util';
 import {BboxMotionCamera, StaticCamera, loadCameraTracker, type CameraProvider, type CameraTrack} from './camera.ts';
 import {StageCache, fileSha256, sha256} from './cache.ts';
 import {SubjectBandDepth, loadDepthProvider, type DepthProvider} from './depth.ts';
+import {summarizeDecisions, type DecisionSummary, type SolverDecision} from './diagnostics.ts';
 import {KINETIC_DIRECTOR_SYSTEM, runKineticDirector, type DirectorCall} from './director.ts';
 import {verifyRenderSpec, type Violation} from './guardrails.ts';
 import {detectShots, probeVideo, type ShotDetector, type VideoMeta} from './ingest.ts';
 import {solveLayout} from './layout.ts';
+import type {EventProvenance, RejectedEvent} from './plan.ts';
 import {analyzeMatte, composeForeground, gridOf, resolveMatte, type MatteAnalysis} from './matte.ts';
 import {buildScene, type ShotScene} from './scene.ts';
+import {resolveMeasuredSpeakerBox, type SpeakerBoxInput} from './speakerBox.ts';
 import {brandConfigSchema, type BrandConfig, type KineticShot, type KineticWord, type RenderSpec} from './schema.ts';
 import {JsonTranscriptProvider, GroqTranscriptProvider, loadWhisperXProvider, toKineticWords, type RawWord, type TranscriptProvider} from './transcript.ts';
 import {gateCustomTreatments, type GateOutcome, type WorkerRun} from './workerGate.ts';
@@ -43,6 +46,13 @@ export type KineticOptions = {
   render?: boolean;
   /** inclusive frame range to render (smoke / partial) */
   frameRange?: [number, number];
+  /**
+   * G1: a measured person box from the edit pipeline's speaker-position step (no matte needed). Used only when there is no matte box; a `fallback` source or an invalid box is ignored
+   * (the scene stays an estimate, exactly as before). Pass `geometry` when source and composition differ in aspect (cover crop) or the speaker is zoomed.
+   */
+  speakerBox?: SpeakerBoxInput;
+  /** opt-in Director input v2 (word times, pauses, sentence / phrase structure, speaker position: directorInput.ts). Default off = the previous prompt exactly. */
+  richDirectorInput?: boolean;
   deps?: Partial<KineticDeps>;
 };
 
@@ -83,6 +93,13 @@ export type KineticReport = {
   workerGate: GateOutcome[];
   meta: VideoMeta;
   warnings: string[];
+  /** G5: where every plan event came from (director / director_repaired / fallback), the director events that were rejected, and whether the plan is a mix */
+  planProvenance: Record<string, EventProvenance>;
+  planRejected: RejectedEvent[];
+  planPartial: boolean;
+  /** G2 / G6: every change acceptance and the solver made to what the director asked (requested / produced / reason / hard-or-discretionary) */
+  decisions: SolverDecision[];
+  decisionSummary: DecisionSummary;
 };
 
 export async function loadBrand(opts: {brand?: BrandConfig; brandPath?: string}): Promise<BrandConfig> {
@@ -227,11 +244,13 @@ export async function runKinetic(opts: KineticOptions): Promise<{spec: RenderSpe
   }
   const lum = await cache.run('luminance', {videoHash, shots, v: 1}, () => deps.luminance(opts.video, meta, shots)).catch(() => ({} as Record<string, number>));
   const plateColors = await cache.run('plate-color', {videoHash, shots, v: 1}, () => deps.plateColor(opts.video, meta, shots)).catch(() => ({} as Record<string, string>));
-  const scenes: Record<string, ShotScene> = await cache.run('scene', {matteHash, shots, lum, plateColors, size: [meta.width, meta.height], v: 2}, async () => {
+  const measuredSpeaker = resolveMeasuredSpeakerBox(opts.speakerBox);
+  if (opts.speakerBox) warnings.push(`scene: ${measuredSpeaker.note}`);
+  const scenes: Record<string, ShotScene> = await cache.run('scene', {matteHash, shots, lum, plateColors, size: [meta.width, meta.height], v: 2, ...(measuredSpeaker.box ? {speaker: measuredSpeaker.box} : {})}, async () => {
     const out: Record<string, ShotScene> = {};
     for (const s of shots) {
       const ss = analysis ? analysis.samples.filter(x => x.frame >= s.startFrame && x.frame < s.endFrame && x.box) : [];
-      if (!analysis || ss.length === 0) { out[s.id] = buildScene({shotId: s.id, noMatte: true, luminance: lum[s.id], ...(plateColors[s.id] ? {plateColor: plateColors[s.id]} : {}), width: meta.width, height: meta.height}); continue; }
+      if (!analysis || ss.length === 0) { out[s.id] = buildScene({shotId: s.id, noMatte: true, ...(measuredSpeaker.box ? {speakerBox: measuredSpeaker.box} : {}), luminance: lum[s.id], ...(plateColors[s.id] ? {plateColor: plateColors[s.id]} : {}), width: meta.width, height: meta.height}); continue; }
       const x0 = Math.min(...ss.map(x => x.box!.x)), y0 = Math.min(...ss.map(x => x.box!.y)), x1 = Math.max(...ss.map(x => x.box!.x + x.box!.w)), y1 = Math.max(...ss.map(x => x.box!.y + x.box!.h));
       const grid = gridOf(analysis, s.startFrame, s.endFrame);
       out[s.id] = buildScene({shotId: s.id, subjectBox: {x: x0, y: y0, w: x1 - x0, h: y1 - y0}, boxTrack: ss.map(x => ({frame: x.frame, box: x.box!})), alphaAreaFrac: ss.reduce((a, x) => a + x.area, 0) / ss.length, ...(grid ? {grid} : {}), luminance: lum[s.id], ...(plateColors[s.id] ? {plateColor: plateColors[s.id]} : {}), width: meta.width, height: meta.height});
@@ -249,8 +268,8 @@ export async function runKinetic(opts: KineticOptions): Promise<{spec: RenderSpe
   const cameras: Record<string, CameraTrack> = Object.fromEntries(shots.map(s => [s.id, camera.track(s, scenes[s.id], {width: meta.width, height: meta.height})]));
 
   // D1 + D2
-  const planKey = {words: sha256(words), shots, scenes: sha256(scenes), brand: sha256(brand), director: deps.directorCall === undefined ? 'gemini-if-configured' : deps.directorCall ? 'injected' : 'none', fps: meta.fps, prompt: sha256(KINETIC_DIRECTOR_SYSTEM), v: 6};
-  const resolved = await cache.run('plan', planKey, () => runKineticDirector({words, shots, scenes, brand, call: deps.directorCall, fps: meta.fps}));
+  const planKey = {words: sha256(words), shots, scenes: sha256(scenes), brand: sha256(brand), director: deps.directorCall === undefined ? 'gemini-if-configured' : deps.directorCall ? 'injected' : 'none', fps: meta.fps, prompt: sha256(KINETIC_DIRECTOR_SYSTEM), v: 6, ...(opts.richDirectorInput ? {rich: 1} : {})};
+  const resolved = await cache.run('plan', planKey, () => runKineticDirector({words, shots, scenes, brand, call: deps.directorCall, fps: meta.fps, ...(opts.richDirectorInput ? {richInput: true} : {})}));
   if (resolved.source === 'fallback' && resolved.reason) fallbackReasons.push(resolved.reason);
   for (const n of resolved.notes ?? []) warnings.push(`plan: ${n}`);
   const gate = await gateCustomTreatments(resolved.plan, {...(deps.workerRun ? {run: deps.workerRun} : {}), log: m => warnings.push(m)});
@@ -274,6 +293,9 @@ export async function runKinetic(opts: KineticOptions): Promise<{spec: RenderSpe
     guardrailViolations: violations, solverActions: solveReport.actions, dropped: solveReport.dropped,
     occlusionPerEvent: spec.events.map(e => ({id: e.id, layering: e.layering, mean: e.occlusionFraction.mean, max: e.occlusionFraction.max})),
     workerGate: gate.outcomes, meta, warnings,
+    planProvenance: resolved.provenance ?? {}, planRejected: resolved.rejected ?? [], planPartial: Boolean(resolved.partial),
+    decisions: [...(resolved.decisions ?? []), ...(solveReport.decisions ?? [])],
+    decisionSummary: summarizeDecisions([...(resolved.decisions ?? []), ...(solveReport.decisions ?? [])]),
   };
 
   // R

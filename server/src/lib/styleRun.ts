@@ -15,6 +15,7 @@ import {ENGINE_FLAGS_OFF_REASON, EDIT_STYLES, type EditStyleId, type EditStyleOu
 import {effectiveFlagsFromEnv, type EffectiveFlags, type EffectiveFlagsEnv} from './effectiveFlags.ts';
 import {CUTS_BUDGET_PLAN, STYLED_POLISH_BUDGET_PLAN, type BudgetPlan} from './geminiEditBudget.ts';
 import type {ProductEditProfile} from './productEditProfile.ts';
+import type {EditingPipelineSelection} from './editingPipeline.ts';
 
 export type StyleRun = {
   style: EditStyleId;
@@ -31,6 +32,8 @@ export type StyleRun = {
   styleKey: string;
   /** Reasons already known before the run (the engine flags are off). */
   plannedReasons: string[];
+  /** Phase 5.23: the editing pipeline of the APPLIED style ('none' when it has none, e.g. a style that degraded to AI Clean Cut). Authoritative in analyzeVideo. */
+  pipeline: EditingPipelineSelection;
 };
 
 /** Bump when a style's flag set changes, so a cached blueprint of the old mapping is never served for the new one. */
@@ -46,7 +49,7 @@ const STYLED_PINS = {
   anidoodle: false,
 } as const satisfies Partial<EffectiveFlags>;
 
-function styledFlags(style: EditStyleId, env: EffectiveFlagsEnv): {profile: ProductEditProfile; flags: EffectiveFlags} {
+function styledFlags(style: EditStyleId, env: EffectiveFlagsEnv, release = false): {profile: ProductEditProfile; flags: EffectiveFlags} {
   switch (style) {
     case 'basic_captions':
       // The basic-captions path (analysisRunner + analyzeVideo) forces legacy, captions only, withNoGemini; the flags are irrelevant but pinned for clarity.
@@ -58,13 +61,27 @@ function styledFlags(style: EditStyleId, env: EffectiveFlagsEnv): {profile: Prod
       // Polish + Kinetic-Led. Kinetic type is planned by the motion-template stage, which only runs inside the motion stage: graphics on, library only.
       return {
         profile: 'polish',
-        flags: {...effectiveFlagsFromEnv(env, 'polish'), ...EDIT_STYLES[style].pins, ...STYLED_PINS, motionGraphics: true, libraryOnlyGraphics: true, motionTemplates: true, kineticLed: true, explainerSkill: false, textualMg: false},
+        flags: {
+          ...effectiveFlagsFromEnv(env, 'polish'), ...EDIT_STYLES[style].pins, ...STYLED_PINS, motionGraphics: true, libraryOnlyGraphics: true, motionTemplates: true, kineticLed: true, explainerSkill: false, textualMg: false,
+          // V1 release: the style IS the Kinetic V2 pipeline (never the env-gated template path under a Kinetic label), with the Match Cut shutter treatment. RVM / Subject Stage are not touched: the matte, 3D and Subject Stage flags keep their env values (default off).
+          ...(release ? {kineticEngine: true, matchCutShutter: true} : {}),
+        },
       };
     case 'explainer':
       // Polish + the explainer skill (B) + motion templates (explainer allowlist). Same motion-stage requirement: graphics on, library only.
       return {
         profile: 'polish',
         flags: {...effectiveFlagsFromEnv(env, 'polish'), ...EDIT_STYLES[style].pins, ...STYLED_PINS, motionGraphics: true, libraryOnlyGraphics: true, motionTemplates: true, explainerSkill: true, kineticLed: false, textualMg: false},
+      };
+    case 'subject_stage':
+      // Phase 5.23: the Subject Stage pipeline. Polish (cuts, grade, audio) with every OTHER text / graphics lane off: no Kinetic (V2 engine or template), no motion graphics or
+      // templates, no explainer / textual MG. The stage itself is ON for this job whatever POLISH_SUBJECT_STAGE says (the selection is authoritative, not the env flag).
+      return {
+        profile: 'polish',
+        flags: {
+          ...effectiveFlagsFromEnv(env, 'polish'), ...EDIT_STYLES[style].pins, ...STYLED_PINS,
+          subjectStage: true, kineticEngine: false, kineticLed: false, motionGraphics: false, libraryOnlyGraphics: true, motionTemplates: false, explainerSkill: false, textualMg: false,
+        },
       };
   }
 }
@@ -81,6 +98,8 @@ export function resolveStyleRun(input: {
   envProfile: ProductEditProfile;
   env: EffectiveFlagsEnv;
   envGeminiMaxRequests: number;
+  /** V1_KINETIC_RELEASE: see config/env.ts. Absent / false = the behaviour of every earlier phase. */
+  release?: boolean;
 }): StyleRun {
   const def = EDIT_STYLES[input.style];
   if (!input.engineFlags) {
@@ -96,9 +115,11 @@ export function resolveStyleRun(input: {
       flags: effectiveFlagsFromEnv(input.env, profile),
       styleKey: '',
       plannedReasons: def.needsEngineFlags ? [ENGINE_FLAGS_OFF_REASON] : [],
+      pipeline: EDIT_STYLES[appliedAs].pipeline ?? 'none',
     };
   }
-  const {profile, flags} = styledFlags(input.style, input.env);
+  const release = Boolean(input.release);
+  const {profile, flags} = styledFlags(input.style, input.env, release);
   return {
     style: input.style,
     engineFlags: true,
@@ -107,8 +128,10 @@ export function resolveStyleRun(input: {
     flags,
     geminiMaxRequests: styleGeminiCap(input.style, input.envGeminiMaxRequests),
     geminiPlan: profile === 'polish' ? STYLED_POLISH_BUDGET_PLAN : CUTS_BUDGET_PLAN,
-    styleKey: `style:${input.style}:${STYLE_FLAGS_VERSION}`,
+    // Kinetic engine v2 changes the produced blueprint, so it must not share a cache key with the template path; with the flag off the key is exactly what it was.
+    styleKey: `style:${input.style}:${STYLE_FLAGS_VERSION}${input.style === 'kinetic_typography' && flags.kineticEngine ? `:engine${flags.kineticEngineThreeD ? '3d' : ''}${flags.kineticEngineAdaptive ? 'a' : ''}${flags.kineticEngineMotion ? 'm' : ''}${flags.kineticEngineMatte ? 'r' : ''}${flags.matchCutShutter ? 's' : ''}` : ''}`,
     plannedReasons: [],
+    pipeline: def.pipeline ?? 'none',
   };
 }
 
@@ -158,8 +181,45 @@ export function styleOutcome(input: {
       }
     }
     if (style === 'explainer' && has('polish_explainer_mounted:skipped:no_layouts')) reasons.push('explainer_layout_a_only');
+    if (style === 'subject_stage' && !has('polish_subject_stage:on')) {
+      // the stage did not run (no matte, too long, empty plan ...): the job is a plain polish edit with its ordinary captions, and says so
+      const skipped = input.warnings.find(warning => warning.startsWith('polish_subject_stage:skipped:'));
+      reasons.push(`subject_stage_skipped:${skipped ? skipped.slice('polish_subject_stage:skipped:'.length) : 'not_run'}`);
+    }
+    // AI planning that did not happen is not a complete AI edit: the render can be technically fine while the editorial / typography plan was the deterministic fallback
+    // (no provider key, a refused budget, a provider error). Distinct reasons so the app can tell "rendered" from "AI-planned".
+    const editorial = input.warnings.find(warning => warning.startsWith('director_v2:fallback:'));
+    if (editorial && (style === 'kinetic_typography' || style === 'explainer' || style === 'subject_stage')) reasons.push(`ai_director_fallback:${editorial.slice('director_v2:fallback:'.length)}`);
+    const typography = input.warnings.find(warning => warning.startsWith('kinetic_engine_fallback_plan:'));
+    if (typography && style === 'kinetic_typography') reasons.push(`kinetic_plan_fallback:${typography.slice('kinetic_engine_fallback_plan:'.length).split(':')[0]!.slice(0, 40)}`);
     for (const label of input.refusedLabels ?? []) reasons.push(`gemini_cap_reached:${geminiStageName(label, input.run.geminiPlan)}`);
   }
   const unique = [...new Set(reasons)];
   return {degraded: unique.length > 0, degradedReasons: unique, styleNotes: [...new Set(notes)]};
+}
+
+/**
+ * V1 release mode, fail closed. A Kinetic Typography job (`failClosed` style) is only successful when the Kinetic V2 engine really wrote `blueprint.kinetic`.
+ * Anything else (the engine skipped the footage, produced no spec, or errored inside) is a failed job with a retryable code, never a silently different edit.
+ * Pure. Null = the style was produced. `detail` is for logs and the job record, not for the end user (the message is).
+ */
+export function kineticFailClosed(input: {
+  release: boolean;
+  run: Pick<StyleRun, 'style' | 'engineFlags'>;
+  warnings: readonly string[];
+  /** The blueprint carries `kinetic` (the V2 engine's spec). */
+  hasKineticSpec: boolean;
+}): {code: 'kinetic_unavailable' | 'footage_unsupported'; message: string; detail: string} | null {
+  if (!EDIT_STYLES[input.run.style].failClosed) return null;
+  // Gate OFF: a Kinetic job that reached analysis anyway (an old job, or the gate flipped after the request) is never run as another pipeline and reported as Kinetic.
+  if (!input.release) return {code: 'kinetic_unavailable', message: 'Kinetic Typography is not available right now. Please try again later.', detail: 'v1_release_off'};
+  if (input.hasKineticSpec && input.run.engineFlags) return null;
+  const footage = input.warnings.find(warning => warning.startsWith('kinetic_engine:skipped_footage:'));
+  if (footage) {
+    return {code: 'footage_unsupported', message: 'This video cannot be edited in Kinetic Typography. Use a video recorded with your camera.', detail: footage};
+  }
+  const detail = !input.run.engineFlags
+    ? ENGINE_FLAGS_OFF_REASON
+    : input.warnings.find(warning => warning.startsWith('kinetic_engine') && /fail|error|skipped|no_spec/.test(warning)) ?? 'kinetic_engine:no_spec';
+  return {code: 'kinetic_unavailable', message: 'We could not finish your Kinetic Typography edit. Please try again.', detail: detail.slice(0, 160)};
 }

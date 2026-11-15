@@ -59,12 +59,23 @@ export async function fileSha256(filePath: string): Promise<string> {
   return hash.digest('hex');
 }
 
+/**
+ * Cache-key schema. Post-integration fix: the key used to be audio hash + model + language only, so a change to what we ASK Groq for (response format, timestamp
+ * granularities) or to how the audio is extracted could silently reuse an incompatible entry. Bump TRANSCRIPT_CACHE_SCHEMA, or change the signature, on any such change.
+ */
+export const TRANSCRIPT_CACHE_SCHEMA = 'v2';
+/** The request this module sends (see transcribeAudio) and the extraction profile of media/ffmpeg.ts extractSpeechAudio. Part of every key. */
+export const TRANSCRIPT_REQUEST_SIGNATURE = 'verbose_json;word+segment;opus-16k-mono-24k-voip-bitexact';
+
 export function transcriptCacheId(
   fileHash: string,
   model: string,
   language: string,
+  /** Extra key part for audio that is not the plain speech track (Groq pre-compaction). Omitted = the original key, unchanged. */
+  variant?: string,
 ): string {
-  return `${fileHash}:${model}:${language}`;
+  const base = `${TRANSCRIPT_CACHE_SCHEMA}:${fileHash}:${model}:${language}:${TRANSCRIPT_REQUEST_SIGNATURE}`;
+  return variant ? `${base}:${variant}` : base;
 }
 
 export function defaultTranscriptCacheDir(): string {
@@ -76,6 +87,18 @@ function cacheFilePath(cacheDir: string, id: string): string {
   return path.join(cacheDir, `${safe}.json`);
 }
 
+/** What a cache file holds: the full key it was written under, so a file is only ever used for exactly that key. */
+type TranscriptCacheEnvelope = {schema: string; id: string; result: TranscriptionResult};
+
+const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+
+/** A cached result is usable only with a transcript string and words that all carry finite, ordered times. */
+function validResult(result: unknown): result is TranscriptionResult {
+  const r = result as Partial<TranscriptionResult> | null;
+  return Boolean(r) && typeof r!.transcript === 'string' && Array.isArray(r!.words) && r!.words.every(w => typeof w?.text === 'string' && finite(w.start) && finite(w.end) && w.end >= w.start);
+}
+
+/** The cached result for `id`, or null: a missing, unreadable, older-schema, other-key or malformed file is a miss (invalidation), never a partial reuse. */
 export function readCachedTranscription(
   cacheDir: string,
   id: string,
@@ -85,11 +108,11 @@ export function readCachedTranscription(
     return null;
   }
   try {
-    const parsed = JSON.parse(readFileSync(file, 'utf8')) as TranscriptionResult;
-    if (!parsed || !Array.isArray(parsed.words) || typeof parsed.transcript !== 'string') {
+    const parsed = JSON.parse(readFileSync(file, 'utf8')) as Partial<TranscriptCacheEnvelope>;
+    if (!parsed || parsed.schema !== TRANSCRIPT_CACHE_SCHEMA || parsed.id !== id || !validResult(parsed.result)) {
       return null;
     }
-    return parsed;
+    return parsed.result;
   } catch {
     return null;
   }
@@ -101,7 +124,8 @@ export function writeCachedTranscription(
   result: TranscriptionResult,
 ): void {
   mkdirSync(cacheDir, {recursive: true});
-  writeFileSync(cacheFilePath(cacheDir, id), JSON.stringify(result));
+  const envelope: TranscriptCacheEnvelope = {schema: TRANSCRIPT_CACHE_SCHEMA, id, result};
+  writeFileSync(cacheFilePath(cacheDir, id), JSON.stringify(envelope));
 }
 
 export function transcriptionConfigured(): boolean {
@@ -114,10 +138,12 @@ export async function transcribeAudio(input: {
   languageCode: LanguageCode | 'auto';
   durationSec: number;
   cacheDir?: string;
+  /** See transcriptCacheId. Set only by stages/transcribe/precompact.ts; the cached result is on the compacted clock. */
+  cacheVariant?: string;
 }): Promise<TranscriptionResult> {
   const cacheDir = input.cacheDir ?? defaultTranscriptCacheDir();
   const fileHash = await fileSha256(input.audioPath);
-  const cacheId = transcriptCacheId(fileHash, env.GROQ_MODEL, String(input.languageCode));
+  const cacheId = transcriptCacheId(fileHash, env.GROQ_MODEL, String(input.languageCode), input.cacheVariant);
   const cached = readCachedTranscription(cacheDir, cacheId);
   observe(() => ({type: 'transcription_cache', hit: Boolean(cached), audioSha256: fileHash, model: env.GROQ_MODEL}));
   if (cached) {

@@ -11,6 +11,7 @@ import type {SubjectStage, SubjectStageAccent, SubjectStageSpan, ZoomTrigger} fr
 import {fontFamily} from '../../motion/fonts';
 import {ZoomFrame} from '../ZoomFrame';
 import {StageAsset, stageAssetContentHeightPx} from './StageAsset';
+import {EditorialSet, SourceCard} from './EditorialTreatments';
 import {
   S2_PLACEMENT_DEFAULT,
   STAGE_BEHIND_OPACITY,
@@ -29,12 +30,22 @@ import {
 
 type Props = {
   stage?: SubjectStage;
+  /** Phase 5.23: whether the stage's person foreground is drawn on this frame (ShortVideo, stageForegroundAt). False = nothing is drawn: a behind-layer element without the person over it would cover her. */
+  foregroundOn?: boolean;
   zoomTriggers?: ZoomTrigger[];
   zoomEnabled?: boolean;
 };
 
-const BehindSpan: React.FC<{span: SubjectStageSpan; localSec: number; width: number; height: number}> = ({span, localSec, width, height}) => {
+const BehindSpan: React.FC<{span: SubjectStageSpan; localSec: number; width: number; height: number; stage: SubjectStage; fps: number}> = ({span, localSec, width, height, stage, fps}) => {
   const stageSec = span.end - span.start;
+  // Phase 5.24: a DESIGNED span draws its own treatment (behind parts only; front parts are SubjectStageFront's); a restrained span draws nothing (the original footage)
+  if (span.design) {
+    const frame = Math.round(localSec * fps);
+    const total = Math.round(stageSec * fps);
+    if (span.design.kind === 'set' && span.design.mode === 'set') return <EditorialSet design={span.design} look={stage.look} subject={stage.subject} frame={frame} total={total} />;
+    if (span.design.kind === 'source_card' && span.design.layer === 'behind') return <SourceCard design={span.design} look={stage.look} t={span.start + localSec} frame={frame} total={total} />;
+    return null;
+  }
   const baseOpacity = span.opacity ?? STAGE_BEHIND_OPACITY[span.stage];
   if (span.stage === 'S4' || span.stage === 'S5' || baseOpacity <= 0) return null;
 
@@ -129,17 +140,17 @@ const AccentView: React.FC<{accent: SubjectStageAccent; t: number; width: number
   );
 };
 
-export const SubjectStageTrack: React.FC<Props> = ({stage, zoomTriggers, zoomEnabled}) => {
+export const SubjectStageTrack: React.FC<Props> = ({stage, foregroundOn = false, zoomTriggers, zoomEnabled}) => {
   const frame = useCurrentFrame();
   const {fps, width, height} = useVideoConfig();
-  if (!stage) return null;
+  if (!stage || !foregroundOn) return null;
   const t = frame / fps;
   const span = stageSpanAt(stage.spans, t);
   const accents = stage.accents.filter(accent => t >= accent.start && t < accent.end);
   if (!span && accents.length === 0) return null;
   const layer = (
     <AbsoluteFill style={{pointerEvents: 'none'}}>
-      {span ? <BehindSpan span={span} localSec={t - span.start} width={width} height={height} /> : null}
+      {span ? <BehindSpan span={span} localSec={t - span.start} width={width} height={height} stage={stage} fps={fps} /> : null}
       {accents.map((accent, i) => (
         <AccentView key={`${accent.start}-${i}`} accent={accent} t={t - accent.start} width={width} height={height} />
       ))}

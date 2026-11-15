@@ -32,6 +32,8 @@ import {logMixCheck} from '../music/mixCheck.ts';
 import {logMusicSummary} from '../music/musicSummary.ts';
 import {runMixMeasure} from '../music/mixMeasure.ts';
 import {prefetchBlueprintMedia} from './prefetchAssets.ts';
+import {assertBedLoudnessRenderable, withRenderableGeneratedSfx} from './renderSafety.ts';
+import {correctRemotionAudioLatency} from './remotionAudioSync.ts';
 
 const log = stageLogger('stage-e-local');
 
@@ -69,6 +71,14 @@ export async function renderLocally(input: {
    */
   sweepStaleScratch?: boolean;
 }): Promise<{outputUrl: string}> {
+  // Phase SFX-3H: before any workspace, prefetch or Remotion process: an unverified generated-bed loudness never renders (stages/render/renderSafety.ts).
+  assertBedLoudnessRenderable(input.blueprint, 'renderLocally');
+  // Completion Sprint 1: a generated SFX file missing from remotion/public is dropped (never a failed render); everything else is unchanged.
+  const sfxCheck = withRenderableGeneratedSfx(input.blueprint, {kind: 'local', publicRoot: path.join(remotionRoot, 'public'), exists: existsSync});
+  if (sfxCheck.removed.length > 0) {
+    log.warn({renderJobId: input.renderJobId, removed: sfxCheck.removed}, 'sfx.generated_asset_missing');
+    input = {...input, blueprint: sfxCheck.blueprint};
+  }
   if (!localRenderAvailable()) {
     throw new EngineError('not_configured', 'Remotion project is missing');
   }
@@ -138,6 +148,13 @@ export async function renderLocally(input: {
       durationSec: input.style.trimEnabled ? blueprint.outputDurationSec : blueprint.sourceDurationSec,
       expectAudio,
     });
+    // Post-integration fix: remove Remotion's measured output audio latency (remotionAudioSync.ts) BEFORE mastering. A failure keeps the file as rendered and never fails the render.
+    try {
+      const synced = await correctRemotionAudioLatency(uploadPath);
+      log.info({renderJobId: input.renderJobId, ...synced}, 'render.audio_sync');
+    } catch (error) {
+      log.warn({renderJobId: input.renderJobId, reason: error instanceof Error ? error.message.slice(0, 300) : 'audio_sync'}, 'render.audio_sync_failed');
+    }
     // Default on (MUSIC_MASTER_PASS=0 turns it off): two-pass loudnorm on the final audio, video copied. A failure keeps the unmastered file and never fails the render.
     let masterResult: Awaited<ReturnType<typeof masterPass>> | null = null;
     if (masterPassEnabled()) {

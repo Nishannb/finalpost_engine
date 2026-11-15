@@ -9,15 +9,22 @@
 import {createHash, randomUUID} from 'node:crypto';
 
 import {
-  OUTPUT_FPS,
   OUTPUT_HEIGHT,
   OUTPUT_WIDTH,
   env,
 } from '../config/env.ts';
 import {captionMuteRanges, mergeMuteRanges, type MuteRange} from '../lib/captionMute.ts';
+import type {RenderSpec} from '../stages/kinetic/schema.ts';
+import {FULLSCREEN_OBJECT_POSITION, kineticFinalTextGuard, kineticOwnedComposition, kineticOwnedLanes, kineticOwnedOpening, kineticOwnedOverlays, kineticOwnedText, ledgerDropOwnedText, planKineticForeground, runKineticEngineStage, stillnessInsetsAllowed} from './kineticEngineStage.ts';
+import {prepareKineticMatte, type KineticMatteOutcome} from './kineticMatteStage.ts';
+import {kineticEngineAllowedFor, resolveFootageKind, type FootageKind} from '../lib/footageKind.ts';
+import {applyMatchCutShutter, matchCutShutterHits} from '../stages/kinetic/matchCutShutter.ts';
+import {measureVoiceLufs} from '../stages/kinetic/voiceLoudness.ts';
+import {parseOutputFpsMode, resolveOutputFps} from '../lib/outputFps.ts';
+import {editingPipelineWarning, pipelineFlagOverrides, pipelineOwns, resolveEditingPipeline, type EditingPipelineSelection} from '../lib/editingPipeline.ts';
 import {densityTransitionClip, ensurePolishTransitionDensity, sentenceStartsOf} from '../stages/broll/transitionDensity.ts';
 import {schedulePolishSfxHits} from '../lib/polishSfx.ts';
-import {applyCatalogToHits, loadSfxCatalog, sfxVoiceOffsetLu} from '../lib/sfxCatalog.ts';
+import {loadSfxCatalog, sfxVoiceOffsetLu} from '../lib/sfxCatalog.ts';
 import type {MusicBrief, MusicFamily} from '../stages/music/musicBrief.ts';
 import {buildBedLoudnessTrack, loudnessCorrectionRange} from '../stages/music/bedLoudness.ts';
 import type {DuckEnvelope} from '../stages/music/duckEnvelope.ts';
@@ -32,7 +39,13 @@ import {personalizeEnabled, resolveBedSource, resolveDuckPreset, resolveDuckRele
 import {resolveMusicBed} from '../stages/music/resolveMusicBed.ts';
 import {agentsDir as musicAgentsDir, awaitMusicPlan} from '../stages/music/musicSpecialist.ts';
 import {measureVoLufs} from '../stages/music/measureVoLufs.ts';
-import {VO_LUFS_ASSUMED} from '../stages/music/duckEnvelope.ts';
+import type {VoiceLoudnessState} from '../stages/music/bgmFailSafe.ts';
+import {levelProductionSfx, productionGeneratedBed, productionTranscriptState, resolveHitChannels, voiceTrackFromProbe} from '../stages/music/productionAudioSafety.ts';
+import {resolveBgmPolicy} from '../stages/music/bgmPolicy.ts';
+import {attachEventSfx, createEventSfxTransport, eventSfxEnabled, eventSfxHostingEnabled, eventSfxLiveOptions, eventSfxMaxUsd, eventSfxPublicRoot, resolveSfxDesign, resolveSfxPlacementPolicy, resolveSfxUnderSpeech} from '../stages/audioDirector/production/eventSfx.ts';
+import {measureVoiceActivity} from '../stages/audioDirector/production/voiceActivityProbe.ts';
+import {r2SfxObjectStore} from '../stages/audioDirector/production/sfxAssetHost.ts';
+import {renderConfigured as lambdaRenderConfigured} from '../stages/render/remotionLambda.ts';
 import {playbackFromPlan, toAudioDesign} from '../stages/music/toAudioDesign.ts';
 import {ctaWindowsOf, moneyWindowsOf, planVoCutGrammar} from '../stages/broll/voCutGrammar.ts';
 import {LOOK_CAPTION_TYPE, pickShortFormLookId, preferVideoEditLook} from '../lib/shortFormLook.ts';
@@ -80,7 +93,11 @@ import {heroBeatsOutsideCoverage, resolveKineticSubject, type KineticForeground}
 import {extractSubjectMatte, subjectMatteConfigured} from '../media/personMatte.ts';
 import {probeMeanAlpha} from '../media/alphaProbe.ts';
 import {collectMatteNeeds, obtainPersonMatte, reconcileDirectorElements} from './personMatteStage.ts';
-import {applySubjectStageExclusions, kineticInputsUnderStage, runSubjectStage} from './subjectStageStage.ts';
+import {applySubjectStageExclusions, kineticInputsUnderStage, runSubjectStage, subjectStageDirectorRequested, subjectStageDrawnWindows, subjectStagePictureOwnership, subjectStageTextOwnership} from './subjectStageStage.ts';
+import {subjectStageDirectionFromDirector} from '../stages/subjectStage/directorChapters.ts';
+import {plateFromRgb} from '../stages/kinetic/plate.ts';
+import {sampleStillGrid} from '../media/ffmpeg.ts';
+import {decodeMatteAlphaGrid} from '../media/alphaGrid.ts';
 import type {SubjectStageBlueprint} from '../stages/subjectStage/planSubjectStage.ts';
 import type {MatteCoverage} from '../stages/broll/kineticSubject.ts';
 import {stat as statFile} from 'node:fs/promises';
@@ -144,7 +161,7 @@ import {
 } from '../stages/filters/scriptRetakeTrim.ts';
 import {buildCaptionWords, dropUnmeasuredZoomFocus, resolveDirectedZooms, splitSentences} from '../stages/filters/autoZoom.ts';
 import {buildTimeline, round} from '../stages/filters/timeline.ts';
-import {transcribeAudio} from '../stages/transcribe/groqTranscribe.ts';
+import {transcribeWithPrecompact} from '../stages/transcribe/precompact.ts';
 import {uploadSourceVideo} from '../storage/r2.ts';
 import {applyProvidedCutout, normalizeProvidedCutoutUrl} from '../lib/providedCutout.ts';
 import type {
@@ -162,6 +179,7 @@ import {
 } from '../types/captionStyleGuide.ts';
 import {lockCaptionTemplate, defaultRequestedEdits, isCaptionsOnlyEdits, polishRequestedEdits, visualToolkitsRequested} from '../lib/editToolkits.ts';
 import {observe} from '../lib/runObserver.ts';
+import {resolveKineticIdentity} from '../lib/kineticIdentity.ts';
 import {summarizeEditOutcomes} from '../lib/cutawayOutcomes.ts';
 
 const log = stageLogger('pipeline');
@@ -274,6 +292,16 @@ export type AnalyzeInput = {
    * concurrently. Its `profile` wins over `editProfile` (basicCaptions still forces legacy). Absent = exactly what env says (effectiveFlagsFromEnv).
    */
   effectiveFlags?: EffectiveFlags;
+  /**
+   * What the caller says the main video is (lib/footageKind.ts): 'camera' | 'screen_recording' | 'unknown'; absent = 'unknown'. Kinetic V2 (POLISH_KINETIC_ENGINE) runs only for
+   * explicit 'camera' footage; everything else takes the template path. Read nowhere else, so with the engine flag off it changes nothing.
+   */
+  footageKind?: FootageKind;
+  /**
+   * Phase 5.23: the editing pipeline a styled job selected (lib/editingPipeline.ts): 'kinetic_v2' | 'subject_stage' | 'none'. Authoritative for the whole run. Absent (unstyled job) = the
+   * env flags decide, at most one pipeline. Any other value fails the job before any stage runs.
+   */
+  editingPipeline?: EditingPipelineSelection;
 };
 
 /** Coarse stage reporting so the app can show real progress, not a spinner. */
@@ -354,6 +382,14 @@ async function analyzeVideoUnguarded(
   const speechCutsOn = input.editProfile === 'cuts' || input.editProfile === 'polish';
   const cutsOnlyVisualsOff = input.editProfile === 'cuts';
   const polishPath = input.editProfile === 'polish';
+  // Phase 5.23: ONE editing pipeline owns this job (lib/editingPipeline.ts), resolved here, before any stage runs. A styled job's pipeline is authoritative; an unstyled job keeps the
+  // env path, with at most one pipeline. The owner forces the other pipeline's flags off for the whole run, so neither pipeline can start from a flag. Unknown value = the job fails here.
+  const editingPipeline = resolveEditingPipeline({selected: input.editingPipeline, polishPath, flags});
+  Object.assign(flags, pipelineFlagOverrides(editingPipeline, flags));
+  {
+    const pipelineWarning = editingPipelineWarning(editingPipeline);
+    if (pipelineWarning) warnings.push(pipelineWarning);
+  }
   const mvpLike = input.editProfile === 'mvp' || input.editProfile === 'polish';
   // A client-provided transparent cutout (RVM matting job). '' = not provided: every cutout / matte path below is then exactly as before.
   const providedCutoutUrl = normalizeProvidedCutoutUrl(input.subjectCutoutUrl);
@@ -388,6 +424,10 @@ async function analyzeVideoUnguarded(
     mark = Date.now();
     const originalProbe = await probeMedia(sourcePath);
     timings.probe = Date.now() - mark;
+    // Post-integration fix: the edit keeps the source frame rate (lib/outputFps.ts) instead of always resampling to 30 fps.
+    const fpsDecision = resolveOutputFps(originalProbe.fps, parseOutputFpsMode(env.OUTPUT_FPS_MODE));
+    const outputFps = fpsDecision.fps;
+    warnings.push(`output_fps:${outputFps}:${fpsDecision.reason}`);
 
     if (originalProbe.durationSec > env.MAX_SOURCE_DURATION_SEC) {
       throw new EngineError(
@@ -408,11 +448,13 @@ async function analyzeVideoUnguarded(
     timings.audioExtract = Date.now() - mark;
 
     mark = Date.now();
-    const transcription = await transcribeAudio({
+    // GROQ_PRECOMPACT off (default): identical to transcribeAudio. On: Groq gets speech.groq.ogg with long silences shortened; words come back on the speech.ogg clock.
+    const transcription = await transcribeWithPrecompact({
       audioPath: audio.path,
       audioBytes: audio.bytes,
       languageCode: input.languageCode,
       durationSec: originalProbe.durationSec,
+      compactPath: workspace.file('speech.groq.ogg'),
     });
     timings.transcribe = Date.now() - mark;
     observe(() => ({type: 'transcript', transcript: transcription.transcript, wordCount: transcription.words.length, detectedLanguage: transcription.detectedLanguage}));
@@ -499,7 +541,7 @@ async function analyzeVideoUnguarded(
               map: delivery.timeRemap,
               ops: delivery.ops,
               preset: delivery.preset,
-              fps: OUTPUT_FPS,
+              fps: outputFps,
             });
             const uploaded = await uploadSourceVideo(shapedPath, '.mp4');
             activeSourcePath = shapedPath;
@@ -1012,6 +1054,8 @@ async function analyzeVideoUnguarded(
         northStar,
         directorVideo,
         openingDirection: Boolean(input.openingDirection && directorVideo),
+        // Phase 5.29C: the Director v2 story analyst also proposes Subject Stage chapters (spoken titles) and quote cards, only when the Subject Stage can own this run
+        ...(subjectStageDirectorRequested({polishPath, flag: flags.subjectStage, owned: pipelineOwns(editingPipeline, 'subject_stage')}) ? {subjectStageDirection: true} : {}),
         userBrollOnly: input.userBrollOnly,
         captureProvenance: Boolean(input.strictAiDirection && input.strictProvenance),
         sourcePath: activeSourcePath,
@@ -1030,6 +1074,11 @@ async function analyzeVideoUnguarded(
       assertStrictDirectorDeliverables(input.strictAiDirection, {openingRequested: Boolean(input.openingDirection && directorVideo), openingPlanPresent: Boolean(broll.openingRaw?.openingPlan), fallbackSubstitutions: broll.fallbackSubstitutions});
       assertStrictProvenance(Boolean(input.strictAiDirection && input.strictProvenance), broll.directorProvenance, {openingRequested: Boolean(input.openingDirection && directorVideo)});
       warnings.push(...broll.warnings);
+      // The editorial Director v2 fell back to its deterministic plan (no key, refused budget, provider error): say so, so a styled job is not reported as a complete AI edit (lib/styleRun.ts styleOutcome).
+      if (broll.directorReport?.source === 'fallback') {
+        const failure = broll.directorReport.violations?.[0];
+        warnings.push(`director_v2:fallback:${String(failure?.code ?? 'unknown').slice(0, 40)}`);
+      }
       ledger = broll.ledger ?? ledger;
       if (broll.openingRaw) {
         const parsedColors = colorDirectionSchema.safeParse(broll.openingRaw.colorDirection);
@@ -1207,6 +1256,91 @@ async function analyzeVideoUnguarded(
       if (providedCutoutUrl) warnings.push('speaker_cutout_provided');
     }
 
+    // --- Kinetic engine v2 (flag-gated; the template Kinetic-Led path below is its fallback) ---
+    // The standalone typography engine writes `blueprint.kinetic` from the edit's own words, speaker box and zoom. It runs BEFORE the motion stage so that, when it succeeds, the template Kinetic-Led
+    // planning, motion templates and generated graphics (other text systems) are switched off for this job: one text system owns the screen. On any failure nothing changes.
+    let kineticEngineSpec: RenderSpec | null = null;
+    /** Phase 5: the person foreground of a matte-informed kinetic spec (only when it has behind lines) */
+    let kineticEngineForeground: {videoUrl: string; spans: Array<{start: number; end: number}>} | undefined;
+    // Final freeze: only footage the caller identified as 'camera' may enter the engine (screen recordings carry burned-in app UI the engine cannot see; unknown is never assumed to be camera).
+    const kineticFootageOk = kineticEngineAllowedFor(input.footageKind);
+    if (polishPath && flags.kineticEngine && flags.kineticLed && captionWords.length > 0 && !kineticFootageOk) warnings.push(`kinetic_engine:skipped_footage:${resolveFootageKind(input.footageKind)}`);
+    // Phase 5.23: only the Kinetic V2 owner reaches here with kineticEngine on (pipelineFlagOverrides turned it off for every other owner, above); the line itself is unchanged.
+    if (polishPath && flags.kineticEngine && flags.kineticLed && captionWords.length > 0 && kineticFootageOk) {
+      const kineticIdentity = resolveKineticIdentity(input.captionPreset, warnings);
+      const engineInput = {
+        captionWords: captionWords.map(w => ({text: w.text, start: w.start, end: w.end})),
+        fps: outputFps, width: OUTPUT_WIDTH, height: OUTPUT_HEIGHT, durationSec: timeline.outputDurationSec,
+        speaker: {box: occupancy.speaker, source: occupancy.source === 'vision' ? 'vision' as const : 'fallback' as const, ...(flags.kineticEngineMotion && broll.speakerSamples?.length ? {samples: broll.speakerSamples, cutFrames: timeline.keepSegments.map(k => Math.round(k.outputStart * outputFps))} : {})},
+        sourceSize: {width: originalProbe.width, height: originalProbe.height},
+        zoomTriggers, zoomEnabled: true,
+        stillPath: occupancyStill, allowThreeD: flags.kineticEngineThreeD, adaptive: flags.kineticEngineAdaptive,
+        // V1: with the shutter treatment on, an eligible Match Cut is kept instead of being dropped for owning words it does not draw (stages/kinetic/productionStage.ts keepSwallowingMatchCuts).
+        ...(flags.matchCutShutter ? {placementPolicy: {keepSwallowingMatchCuts: true}} : {}),
+        // V1: the selected caption preset becomes Kinetic's visual identity (fonts, colours, case, outline, shadow); motion, layout and timing stay Kinetic's.
+        ...(kineticIdentity ? {identity: kineticIdentity} : {}),
+      };
+      // Phase 5 (POLISH_KINETIC_ENGINE_MATTE, default off): an RVM person matte for camera footage (this branch is camera-only), so the solver may place type BEHIND the speaker. Any failure = no matte
+      // = the front-only engine exactly as before. A behind line never ships without its foreground: no foreground -> the engine runs again without the matte.
+      let kineticMatte: KineticMatteOutcome | null = null;
+      if (flags.kineticEngineMatte) {
+        if (occupancy.source !== 'vision') warnings.push('kinetic_engine:matte_skipped:no_measured_speaker_box');
+        else if (!subjectMatteConfigured()) warnings.push('kinetic_engine:matte_skipped:not_configured');
+        else {
+          kineticMatte = await prepareKineticMatte({
+            sourcePath: activeSourcePath, workDir: workspace.file('kinetic-matte'), keepSegments: timeline.keepSegments, fps: outputFps, outW: OUTPUT_WIDTH, outH: OUTPUT_HEIGHT,
+            srcW: originalProbe.width, srcH: originalProbe.height, objectPosition: FULLSCREEN_OBJECT_POSITION, zoomTriggers, zoomEnabled: true,
+            durationFrames: Math.ceil(timeline.outputDurationSec * outputFps),
+          });
+          warnings.push(...kineticMatte.warnings);
+        }
+      }
+      let engine = await runKineticEngineStage({...engineInput, ...(kineticMatte?.ok ? {matte: kineticMatte.matte} : {})});
+      warnings.push(...engine.warnings);
+      if (engine.spec && kineticMatte?.ok) {
+        const fg = planKineticForeground(engine.spec, outputFps, Math.ceil(timeline.outputDurationSec * outputFps));
+        if (fg.behindEvents === 0) warnings.push('kinetic_engine:matte_unused:no_behind_events');
+        else {
+          let url = '';
+          if (!fg.ok) warnings.push('kinetic_engine:foreground_spans_incomplete');
+          else {
+            try {
+              url = (await uploadSourceVideo(kineticMatte.foregroundPath, '.webm')).publicUrl;
+            } catch (error) {
+              warnings.push(`kinetic_engine:foreground_upload_failed:${(error instanceof Error ? error.message : String(error)).slice(0, 80)}`);
+            }
+          }
+          if (url) {
+            kineticEngineForeground = {videoUrl: url, spans: fg.spans};
+            warnings.push(`kinetic_engine:behind:${fg.behindEvents}_events,${fg.spans.length}_spans`);
+          } else {
+            warnings.push('kinetic_engine:matte_fallback_front_only');
+            engine = await runKineticEngineStage(engineInput);
+            warnings.push(...engine.warnings);
+          }
+        }
+      }
+      if (engine.spec) {
+        // V1: the accepted Match Cut (if any) gets the camera-shutter treatment. Eligibility was decided by the engine; this only marks the event (matchCutShutter.ts).
+        kineticEngineSpec = flags.matchCutShutter ? applyMatchCutShutter(engine.spec) : engine.spec;
+        flags.kineticLed = false;
+        flags.motionTemplates = false;
+        flags.motionGraphics = false;
+        // Phase 5.14: the engine takes precedence over the Skill B explainer lane. Its per-job flag is turned off HERE, before any of its readers (Subject Stage skill flags, the Skill A
+        // resolution, the polish skill lane / WP42 mount), so the lane never runs and never partially runs: the rest of the job is exactly the explainer-off job. Logged; the lane writes no ledger
+        // entries on any path, so there is no ledger element to drop (see the Phase 5.14 report).
+        const lanes = kineticOwnedLanes({explainerSkill: flags.explainerSkill});
+        if (lanes.suppressExplainer) flags.explainerSkill = false;
+        warnings.push(...lanes.warnings);
+        // Phase 5.13: the removal is recorded in the edit ledger like every other Kinetic V2 text removal
+        if (broll.hookTitle) {
+          ledgerDropOwnedText(ledger, {hookTitle: true});
+          warnings.push('kinetic_engine:hook_title_removed');
+        }
+        broll.hookTitle = ''; // the engine's opening lockup is the opening: the stack hook would paint over it
+      }
+    }
+
     // --- Stage C2: generated motion graphics (opt-in) -------------------------
     // Runs over the finished edit; existing B-roll/overlays/hook take priority.
     // Footage measurement for text legibility (opt-in stages only). Output time -> source time through the keep segments.
@@ -1237,7 +1371,9 @@ async function analyzeVideoUnguarded(
       : null;
     if (voGrammar) warnings.push(...voGrammar.warnings);
     let motion: MotionGraphicsStageResult | null = null;
-    if (motionGraphicsOn) {
+    if (kineticEngineSpec) {
+      // the kinetic engine owns the screen's text: no template motion stage / generated graphics for this job
+    } else if (motionGraphicsOn) {
       mark = Date.now();
       // WP1: when a per-edit bound applies, EVERY Claude call of this edit (first generation and repairs, across concurrent graphics) goes through one budget.
       let boundedClaude: ReturnType<typeof createBoundedClaudeGenerator<{system: string; user: string}, Awaited<ReturnType<ReturnType<typeof anthropicGenerator>>>>> | null = null;
@@ -1461,10 +1597,15 @@ async function analyzeVideoUnguarded(
     // for <= 45 s); without a usable matte it stays OFF and every field below is exactly what it was. When it runs it owns "behind the speaker": text-behind, depth overlays, inset reveals and the cutout layout are
     // cleared, and kinetic-led is forced off for the run (no hero behind her, no competing subjectForeground). Warnings: polish_subject_stage:on | off | skipped:<reason>.
     let subjectStagePayload: SubjectStageBlueprint | undefined;
+    const subjectStageDirection = subjectStageDirectionFromDirector(broll.subjectStageRaw);
+    if (broll.subjectStageRaw !== undefined) warnings.push(`subject_stage:director_direction:${subjectStageDirection ? 'given' : 'none'}`);
+    let subjectStageRequestedCutaways: NonNullable<Awaited<ReturnType<typeof runSubjectStage>>['requestedCutaways']> = [];
     {
       const stage = await runSubjectStage({
         flag: flags.subjectStage,
         polishPath,
+        owned: pipelineOwns(editingPipeline, 'subject_stage'), // Phase 5.23: only the owning pipeline may run the stage
+        selected: editingPipeline.source === 'selected' && pipelineOwns(editingPipeline, 'subject_stage'),
         motionTemplates: flags.motionTemplates,
         motionPresent: Boolean(motion),
         skillFlags: {faceless: flags.facelessDoc, explainer: flags.explainerSkill, newsroom: flags.newsroomMg},
@@ -1489,10 +1630,27 @@ async function analyzeVideoUnguarded(
           upload: (localPath, extension) => uploadSourceVideo(localPath, extension),
           extractRvm: extractSubjectMatte,
         },
+        // Phase 5.24: the editorial design inputs, only for the Subject Stage owner (the measured occupancy box mapped like the Kinetic V2 scene; the plate sampled like the Kinetic V2 engine)
+        ...(pipelineOwns(editingPipeline, 'subject_stage')
+          ? {
+              design: {
+                speaker: {box: occupancy.speaker, source: occupancy.source === 'vision' ? ('vision' as const) : ('fallback' as const)},
+                srcW: originalProbe.width, srcH: originalProbe.height, outW: OUTPUT_WIDTH, outH: OUTPUT_HEIGHT, objectPosition: FULLSCREEN_OBJECT_POSITION,
+                plate: await sampleStillGrid(occupancyStill, 16).then(plateFromRgb).catch(() => null),
+                // Phase 5.25: the cutout in composition space (speaker protection, measured area, reliable intervals)
+                decodeAlpha: decodeMatteAlphaGrid, zoomTriggers, fps: outputFps,
+                // Phase 5.29C: the Director's chapters / quotes (Director v2 `subject_stage`, word ids -> caption-word indices), validated inside the stage. No Director answer =
+                // no direction: the validated deterministic quotes only, exactly as before.
+                ...(subjectStageDirection ? {direction: subjectStageDirection} : {}),
+              },
+            }
+          : {}),
       });
       warnings.push(...stage.warnings);
+      if (!stage.active) personMatteSec += stage.matteSec; // Phase 5.27C: a stage that stepped aside after matting (nothing_placed) still spent the matte time
       if (stage.active && stage.payload) {
         subjectStagePayload = stage.payload;
+        subjectStageRequestedCutaways = stage.requestedCutaways ?? [];
         personMatteSec += stage.matteSec;
         if (flags.kineticLed) warnings.push('polish_subject_stage:kinetic_led_yielded');
         const cleared = applySubjectStageExclusions({behind: behindForFinalize, opening: openingBehindSubject ?? null, depth: broll.depthOverlays ?? [], insetReveals: broll.insetReveals ?? [], overlays: broll.overlays});
@@ -1623,7 +1781,7 @@ async function analyzeVideoUnguarded(
       // The shared palette step (finalizeEdits) may recolour text, so the contrast guarantees are re-applied to its result. Recolouring never changes an edit's count or timing.
       broll.caption = legibleCaption(broll.caption).caption;
       legibility = {...legibility, captions: captionSplitSpec(broll.caption)}; // the palette step may have changed the highlight colour
-      const hold = captionSplitHold(OUTPUT_FPS);
+      const hold = captionSplitHold(outputFps);
       if ('frames' in hold) {
         legibility = {...legibility, captions: {...legibility.captions, splitHoldFrames: hold.frames}};
       } else {
@@ -1643,6 +1801,41 @@ async function analyzeVideoUnguarded(
     }
     broll.frameInsets = finalized.frameInsets;
     broll.mediaContainers = finalized.mediaContainers;
+    if (kineticEngineSpec) {
+      // The engine places type in composition space against the speaker's FULL-FRAME box (plus the punch-in zoom it models). Two tracks move the SPEAKER ALONE (MediaContainerFrame, InsetRevealTrack wrap
+      // only the speaker layer), so the type would stay put while the person moves: they are dropped while the engine owns the edit (recorded; the template path keeps them).
+      // Final freeze (Kinetic V2 visual sign-off, E1/E2): a frame inset is ALSO dropped. FrameInsetFrame (remotion FrameInsetTrack.tsx) is a smaller crop window (overflow hidden): the picture's
+      // AbsoluteFill layers shrink into it, but the kinetic track keeps its absolute full-frame pixel positions (KineticTrack.tsx), so type near an edge is clipped ("chase" lost its "e") and the
+      // face keep-out the engine solved no longer lines up with the shrunken speaker. The template path keeps every inset; the stillness insets added later are skipped for the same reason.
+      const owned = kineticOwnedComposition({mediaContainers: broll.mediaContainers, insetReveals: broll.insetReveals, frameInsets: broll.frameInsets});
+      if (owned.dropSpeakerTransforms) {
+        broll.mediaContainers = [];
+        broll.insetReveals = [];
+      }
+      if (owned.dropFrameInsets) broll.frameInsets = [];
+      warnings.push(...owned.warnings);
+      // Phase 5.12 (G0): one text system owns the screen. Stage-2 text cards and semantic emphasis were the two text systems still reaching the blueprint next to the engine (emphasis draws
+      // ABOVE the kinetic type, neither is known to the engine's solver). Every removal is recorded in the ledger, the same way the other text removals above are.
+      const ownedText = kineticOwnedText({motionGraphics: broll.motionGraphics, semanticEmphasis: broll.semanticEmphasis});
+      ledgerDropOwnedText(ledger, {items: [...(ownedText.dropMotionGraphics ? broll.motionGraphics ?? [] : []), ...(ownedText.dropSemanticEmphasis ? broll.semanticEmphasis ?? [] : [])]});
+      if (ownedText.dropMotionGraphics) broll.motionGraphics = [];
+      if (ownedText.dropSemanticEmphasis) broll.semanticEmphasis = [];
+      warnings.push(...ownedText.warnings);
+      // Phase 5.13: the remaining stage-2 text that survived finalizeEdits. Text overlays (lockup / stat / banner / chip / bubble, text plates) go, picture overlays stay untouched; the art-directed
+      // opening lockup and the behind-subject text go (it is the opening's behind-subject variant here: the motion stage did not run). Same ledger mechanism as above; the opening has no ledger
+      // type of its own (it is logged). Runs AFTER the shared validator, so every non-text element keeps exactly the decision it had before this phase.
+      const ownedOverlays = kineticOwnedOverlays(broll.overlays);
+      ledgerDropOwnedText(ledger, {items: ownedOverlays.dropped});
+      if (ownedOverlays.dropped.length > 0) broll.overlays = ownedOverlays.kept;
+      warnings.push(...ownedOverlays.warnings);
+      const ownedOpening = kineticOwnedOpening({openingTreatment: openingSpec, behindSubjectTexts: finalized.behindSubjectTexts});
+      if (ownedOpening.dropBehindSubjectTexts) {
+        ledgerDropOwnedText(ledger, {behindSubjectTexts: finalized.behindSubjectTexts});
+        finalized.behindSubjectTexts = [];
+      }
+      if (ownedOpening.dropOpening) openingSpec = null;
+      warnings.push(...ownedOpening.warnings);
+    }
     if (motion) {
       motion = {...motion, generatedGraphics: finalized.generatedGraphics};
     }
@@ -1752,6 +1945,13 @@ async function analyzeVideoUnguarded(
     }
     // WP35: the Metromedia impact FX (polish only, POLISH_IMPACT_FX; needs the WP33 plan for the cuts / holds): hook / reveal flash, name saturation pop, money punch-in, emotional B&W spans. Pure plan; the renderer paints it.
     const impactFx = polishPath && flags.impactFx && voGrammar ? planImpactFx({words: captionWords, plan: voGrammar, durationSec: timeline.outputDurationSec}) : null;
+    // The overexposure flash is designed to land ON a hard cut and hide it. Kinetic V2 does not render the grammar cuts, so under it a flash is only an isolated white frame at an arbitrary moment
+    // (it read as a rendering glitch at 0.07 s): the Kinetic edit carries no flash. Black-and-white spans are narrative-gated in planBwSpansWithReasons; saturation pops and punch-ins are unchanged.
+    if (impactFx && kineticEngineSpec && impactFx.fx.flashes.length > 0) {
+      impactFx.warnings.push(`polish_impact:flash_dropped:kinetic_v2:${impactFx.fx.flashes.length}`);
+      impactFx.fx.flashes = [];
+      impactFx.stats.flashes = 0;
+    }
     if (impactFx) warnings.push(...impactFx.warnings);
     // WP13B: grade-flip face beats survive only where the talking head is what is on screen (no cutaway, split, overlay cover, media container or full / split plate over them).
     const gradeBeats = polishPath
@@ -2063,7 +2263,9 @@ async function analyzeVideoUnguarded(
       });
       if (filler.overlays.length > 0) {
         broll.overlays = [...broll.overlays, ...filler.overlays];
-        if (filler.motionGraphics.length > 0) broll.motionGraphics = [...(broll.motionGraphics ?? []), ...filler.motionGraphics];
+        // Phase 5.12 (G0): the filler clip (a picture) is kept, its centred word is not while the kinetic engine owns the screen's text (the same rule as kineticOwnedText above)
+        if (filler.motionGraphics.length > 0 && kineticEngineSpec) warnings.push(`kinetic_engine:filler_words_removed:${filler.motionGraphics.length}`);
+        else if (filler.motionGraphics.length > 0) broll.motionGraphics = [...(broll.motionGraphics ?? []), ...filler.motionGraphics];
         warnings.push(...fillerWarnings(filler));
       }
     }
@@ -2100,7 +2302,11 @@ async function analyzeVideoUnguarded(
         forcedCuts: [...flashCardEnds, ...imageRunCuts].concat(editorialRunWindows.map(window => window.start).filter(start => start >= 0.5)).concat(chapterCardStarts), // WP33: a PLACED chapter card's start is a cut (its end is already a flashCardEnds cut)
         ...(voGrammar ? {voCutTimes: voGrammar.cuts, preferHardCut: true} : {}), // WP33: the grammar's cut times are preferred anchors; the picker leans to hard cuts
         avoidWindows: zoomTriggers.map(zoom => ({start: zoom.start, end: zoom.end})),
+        // Post-integration fix: when Kinetic V2 owns the typography, a transition must mark a real picture change. No pace floor (target 0): only the forced cuts above
+        // (flash-card ends, image runs, chapter cards) are added, never a flash on a bare sentence start or a gap fill in an uncut take (2.mp4: 17 flashes, no cut).
+        ...(kineticEngineSpec ? {target: 0} : {}),
       });
+      if (kineticEngineSpec) warnings.push('kinetic_engine:transitions:picture_changes_only');
       if (density.added.length > 0) {
         broll.transitions = [...(broll.transitions ?? []), ...density.added.map((item, index) => densityTransitionClip(item, (broll.transitions ?? []).length + index))].sort((a, b) => a.at - b.at);
         warnings.push(`polish_pace:transitions:${density.added.length}`);
@@ -2450,7 +2656,9 @@ async function analyzeVideoUnguarded(
       warnings.push(...paletteRepeats((motion?.generatedGraphics ?? []).filter(graphic => graphic.placement.mode === 'full_screen').map(graphic => ({id: graphic.id, start: graphic.start, end: graphic.end, style: (motion?.worker?.provenance ?? []).find(item => item.id === graphic.id)?.compositionId ?? 'unknown'}))));
     }
     // WP49: stillness → frame_inset. When the picture sits open (no opaque graphic / cutaway) for too long, retract then restore so the edit stays interactive.
-    if (polishPath) {
+    // Final freeze: no stillness frame insets while the kinetic engine owns the edit (an inset crops the kinetic type; see the frame-inset note after finalizeEdits).
+    if (polishPath && !stillnessInsetsAllowed(Boolean(kineticEngineSpec))) warnings.push('kinetic_engine:stillness_insets_skipped');
+    if (polishPath && stillnessInsetsAllowed(Boolean(kineticEngineSpec))) {
       const stillnessBlocked = [
         ...(broll.frameInsets ?? []).map(inset => ({start: inset.start, end: inset.end})),
         ...broll.clips.map(clip => ({start: clip.start, end: clip.end})),
@@ -2492,12 +2700,18 @@ async function analyzeVideoUnguarded(
           ],
         })
       : [];
-    const muteRanges = textualMgMute.length > 0 || motionTemplateMute.length > 0 || visualBackendMute.length > 0 ? mergeMuteRanges([...muteRangesWp11a, ...textualMgMute, ...motionTemplateMute, ...visualBackendMute]) : muteRangesWp11a;
+    // Kinetic engine v2: the typography track owns every spoken word (a coverage fill guarantees it), so ordinary subtitles are muted for the whole edit; other editing modes keep their captions.
+    // Phase 5.23: an ACTIVE Subject Stage owns its text too (subjectStageTextOwnership below): ordinary captions are muted for the whole run.
+    // Phase 5.27C: an active Subject Stage mutes the ordinary captions only where it DRAWS (its other text lanes are cleared by the ownership below); the legacy planner path keeps the whole run
+    const stageDrawn = subjectStagePayload ? subjectStageDrawnWindows(subjectStagePayload) : null;
+    const muteRanges: MuteRange[] = subjectStagePayload ? (stageDrawn ? mergeMuteRanges(stageDrawn.map(w => ({startSec: w.start, endSec: w.end}))) : [{startSec: 0, endSec: timeline.outputDurationSec}]) : kineticEngineSpec ? [{startSec: 0, endSec: timeline.outputDurationSec}] : textualMgMute.length > 0 || motionTemplateMute.length > 0 || visualBackendMute.length > 0 ? mergeMuteRanges([...muteRangesWp11a, ...textualMgMute, ...motionTemplateMute, ...visualBackendMute]) : muteRangesWp11a;
     if (muteRanges.length > 0) warnings.push(`polish_captions:muted_for_graphics:${muteRanges.length}`);
     // WP12D + WP27: local SFX hits on polish explain; optional music bed from POLISH_MUSIC_BED_URL (licensed URL only — never scraped).
     let audioDesign = broll.audioDesign;
     let placementForSfx: Placement | null = null; // set when the bed was placed; the SFX snapper needs its beat grid
     let placedBrief: MusicBrief | null = null;
+    // Phase SFX-3E: the voice state the bed step established (null = not measured: no generated `talking` bed). The SFX step reuses it.
+    let productionVoice: VoiceLoudnessState | null = null;
     if (polishPath && motion) {
       const framedWindows = (broll.mediaContainers ?? [])
         .filter(container => (container as {canvasStyle?: string}).canvasStyle === 'blur_self' || container.mode === 'rounded_window')
@@ -2534,28 +2748,51 @@ async function analyzeVideoUnguarded(
       const bedUrl = (env.POLISH_MUSIC_BED_URL ?? '').trim();
       // Await the specialist here (before the blueprint is built). Times out fail-open without killing the paid child.
       const musicPlan = broll.musicPending ? await awaitMusicPlan(broll.musicPending) : null;
-      const resolved = resolveMusicBed({
+      let resolved = resolveMusicBed({
         licensed: bedUrl ? {url: bedUrl} : audioDesign?.musicUrl ? {url: audioDesign.musicUrl} : null,
         generated: musicPlan?.url
           ? {url: musicPlan.url, bpm: musicPlan.bpm, key: musicPlan.musicalKey, seed: musicPlan.seed, cacheKey: musicPlan.cacheKey, integratedLufs: musicPlan.integratedLufs, costUsd: musicPlan.costUsd}
           : null,
         source: resolveBedSource(),
       });
-      if (resolved) {
-        let voLufs: number | undefined;
-        let duck: ReturnType<typeof buildDuckEnvelope> | null = null;
-        if (resolved.source === 'generated') {
-          const preset = resolveDuckPreset();
-          if (preset === 'talking') {
-            const measured = await measureVoLufs({audioPath: audio.path, words: captionWords, segments: timeline.keepSegments, agentsDir: musicAgentsDir()});
-            if (measured === null) {
-              log.warn({assumed: VO_LUFS_ASSUMED}, 'music.vo_lufs_assumed');
-              warnings.push('music:vo_lufs_assumed');
-            }
-            voLufs = measured ?? VO_LUFS_ASSUMED;
-          }
-          duck = buildDuckEnvelope({words: captionWords, durationSec: timeline.outputDurationSec, preset, voLufs, bedLufs: resolved.integratedLufs, releaseSec: resolveDuckReleaseSec()});
+      // Phase SFX-3E: the generated bed's level comes from explicit transcript and voice states (stages/music/productionAudioSafety.ts -> bgmFailSafe.ts).
+      // No assumed voice level: a failed or invalid measurement mutes the bed; unknown speech timing holds it at the speech level (never pause or open).
+      // Valid speech + a measured voice gives exactly the previous buildDuckEnvelope result.
+      let bedDuck: ReturnType<typeof buildDuckEnvelope> | null = null;
+      let bedVoLufs: number | undefined;
+      let bedLoudnessProvenance: {status: 'measured'; lufs: number} | undefined;
+      const bgmPolicyName = resolveBgmPolicy();
+      if (resolved?.source === 'generated') {
+        const preset = resolveDuckPreset();
+        const measured = preset === 'talking' ? await measureVoLufs({audioPath: audio.path, words: captionWords, segments: timeline.keepSegments, agentsDir: musicAgentsDir()}) : undefined;
+        const bed = productionGeneratedBed({
+          preset,
+          // The transcription succeeded (a failure throws above); transcription.words is its raw result.
+          transcript: productionTranscriptState({transcriptionSucceeded: true, rawWordCount: transcription.words.length, captionWords, durationSec: timeline.outputDurationSec}),
+          sourceHasAudio: originalProbe.hasAudio,
+          measuredVoLufs: measured,
+          words: captionWords,
+          durationSec: timeline.outputDurationSec,
+          // Phase SFX-3G: passed as received; a missing or invalid loudness withholds the bed (never the assumed -16).
+          bedLufs: resolved.integratedLufs,
+          releaseSec: resolveDuckReleaseSec(),
+          // Generated-BGM level policy: voice_first_v2 (-24 / -15 / -10) by default, MUSIC_BED_POLICY=v1 restores -18 / -9 / -4 (stages/music/bgmPolicy.ts).
+          policy: bgmPolicyName,
+        });
+        productionVoice = bed.voice;
+        warnings.push(...bed.warnings);
+        if (bed.action === 'mute') {
+          log.warn({videoId: musicVideoId, reason: bed.reason}, 'music.bed_muted_fail_safe');
+          resolved = null;
+        } else {
+          bedDuck = bed.duck;
+          bedVoLufs = bed.voLufs;
+          bedLoudnessProvenance = bed.bedLoudness;
         }
+      }
+      if (resolved) {
+        const voLufs = bedVoLufs;
+        const duck = bedDuck;
         audioDesign = toAudioDesign({existing: audioDesign, resolved, duck, mood: musicPlan?.mood, voLufs, ...playbackFromPlan(musicPlan)});
         audioDesign = {
           ...audioDesign,
@@ -2565,6 +2802,8 @@ async function analyzeVideoUnguarded(
             costUsd: resolved.source === 'licensed' ? 0 : musicPlan?.costUsd ?? 0,
             ...(musicPlan?.cacheKey ? {cacheKey: musicPlan.cacheKey} : {}),
             ...(musicPlan?.fallbackReason ? {fallbackReason: musicPlan.fallbackReason} : {}),
+            // Phase SFX-3H: the bed loudness the duck uses was measured (renderSafety.ts trusts only a recorded provenance).
+            ...(bedLoudnessProvenance ? {bedLoudness: bedLoudnessProvenance, bgmPolicy: bgmPolicyName} : {}),
           },
         };
         // Lambda fetches these over the network: a local path or non-HTTPS URL would render silence. Drop the bed instead.
@@ -2661,18 +2900,70 @@ async function analyzeVideoUnguarded(
         };
         log.info({videoId: musicVideoId, ...snapped.stats}, 'sfx.beat_snap');
       }
-      if (audioDesign.hits?.length && catalog.entries.length > 0) {
-        const voLufs = audioDesign.voLufs ?? VO_LUFS_ASSUMED;
-        const applied = applyCatalogToHits(audioDesign.hits, {
-          entries: catalog.entries,
+      // Phase SFX-3E: voice-relative SFX levels only from a measured voice (stages/music/productionAudioSafety.ts). A failed or invalid measurement drops
+      // the SFX; built-in hits keep their fixed volumes. Then each hit gets sourceChannels when its file's channel count is known (the renderer compensates
+      // a mono source once, remotion/src/lib/sfxPlaybackVolume.ts). Selection, timing, masks and levels are otherwise unchanged.
+      if (audioDesign.hits?.length) {
+        const leveled = await levelProductionSfx({
+          hits: audioDesign.hits,
+          catalogEntries: catalog.entries,
           videoId: musicVideoId,
-          voLufs,
           offsetLu: sfxVoiceOffsetLu(),
           wordOnsetsSec,
+          voice: productionVoice,
+          voiceTrack: voiceTrackFromProbe(originalProbe.hasAudio),
+          measureVoice: () => measureVoLufs({audioPath: audio.path, words: captionWords, segments: timeline.keepSegments, agentsDir: musicAgentsDir()}),
         });
-        audioDesign = {...audioDesign, hits: applied.hits};
-        log.info({videoId: musicVideoId, ...applied.stats, voLufsAssumed: audioDesign.voLufs === undefined}, 'sfx.catalog_applied');
+        warnings.push(...leveled.warnings);
+        if (leveled.catalogStats) log.info({videoId: musicVideoId, ...leveled.catalogStats, voiceSource: leveled.voice?.status ?? 'not_measured'}, 'sfx.catalog_applied');
+        audioDesign = {...audioDesign, hits: await resolveHitChannels(leveled.hits)};
       }
+    }
+    // V1 Match Cut shutter sound: one hit per Match Cut event, at its first frame, and nothing when there is no Match Cut. Leveled from the measured voice at the SFX policy offset;
+    // dropped (never played unleveled) when the voice cannot be measured. The log line is the number that proves the voice-first rule (peak vs voice, overlap with word onsets).
+    if (kineticEngineSpec && flags.matchCutShutter && kineticEngineSpec.events.some(e => e.matchCut?.shutter)) {
+      const voLufs = await measureVoiceLufs(audio.path, env.FFMPEG_PATH);
+      const shutter = matchCutShutterHits(kineticEngineSpec, {voLufs, wordOnsetsSec: captionWords.map(word => word.start), wordSpansSec: captionWords.map(word => [word.start, word.end] as const)});
+      log.info({videoId: musicVideoId, ...shutter.report}, 'match_cut.audio');
+      warnings.push(shutter.report.dropped ? `match_cut:audio_dropped:${shutter.report.dropped}` : `match_cut:shutter:cuts=${shutter.report.matchCuts},hits=${shutter.report.hits},omitted_for_speech=${shutter.report.omittedForSpeech},peak_vs_voice_lu=${shutter.report.peakVsVoiceLu}`);
+      if (shutter.hits.length > 0) {
+        audioDesign = {...audioDesign, ducking: audioDesign?.ducking ?? true, sfx: audioDesign?.sfx ?? [], hits: [...(audioDesign?.hits ?? []), ...shutter.hits].sort((a, b) => a.at - b.at)};
+      }
+    }
+    let stageCutaways: NonNullable<SubjectStageBlueprint['cutaways']> = [];
+    if (kineticEngineSpec) {
+      // Phase 5.13: last line of defence, after every stage that can append text and immediately before the blueprint is assembled. A correct run changes nothing here; anything removed was added
+      // after the edit ledger was summarised and is reported as kinetic_engine:late_text_removed:*. Pictures are kept.
+      const guard = kineticFinalTextGuard({hookTitle: broll.hookTitle, openingTreatment: openingSpec, motionGraphics: broll.motionGraphics, semanticEmphasis: broll.semanticEmphasis, behindSubjectTexts: finalized.behindSubjectTexts, overlays: broll.overlays, explainerLane: Boolean(explainerMount)});
+      broll.hookTitle = guard.hookTitle;
+      openingSpec = guard.openingTreatment;
+      broll.motionGraphics = guard.motionGraphics;
+      broll.semanticEmphasis = guard.semanticEmphasis;
+      finalized.behindSubjectTexts = guard.behindSubjectTexts;
+      broll.overlays = guard.overlays;
+      if (guard.dropExplainerLane) explainerMount = null;
+      warnings.push(...guard.warnings);
+    } else if (subjectStagePayload) {
+      // Phase 5.23: the Subject Stage pipeline owns every word on screen (its stage text is in the payload); the other text lanes are cleared here, immediately before assembly.
+      // Phase 5.27C: captions are muted only where the stage actually draws (the legacy planner path keeps the whole-run ownership)
+      const drawnWindows = subjectStageDrawnWindows(subjectStagePayload);
+      const owned = subjectStageTextOwnership({durationSec: timeline.outputDurationSec, hookTitle: broll.hookTitle, openingTreatment: openingSpec, motionGraphics: broll.motionGraphics, semanticEmphasis: broll.semanticEmphasis, behindSubjectTexts: finalized.behindSubjectTexts, overlays: broll.overlays, drawnWindows});
+      broll.hookTitle = owned.hookTitle;
+      openingSpec = owned.openingTreatment;
+      broll.motionGraphics = owned.motionGraphics;
+      broll.semanticEmphasis = owned.semanticEmphasis;
+      finalized.behindSubjectTexts = owned.behindSubjectTexts;
+      broll.overlays = owned.overlays;
+      warnings.push(...owned.warnings);
+      // Phase 5.24: the stage owns its pictures too: only cutaways it adopts into its own plan are drawn; unrequested B-roll never covers the person
+      const pictures = subjectStagePictureOwnership({spans: subjectStagePayload.spans, clips: broll.clips, overlays: broll.overlays, mediaContainers: broll.mediaContainers, frameInsets: broll.frameInsets, words: captionWords, requested: subjectStageRequestedCutaways, drawnWindows});
+      stageCutaways = pictures.cutaways; // merged into the stage payload at assembly (the payload itself is never touched here)
+      broll.clips = pictures.clips;
+      broll.overlays = pictures.overlays;
+      // speaker-reshaping layers would break the matte's registration with her: REMOVED in place (nothing is ever added here)
+      broll.mediaContainers?.splice(0);
+      broll.frameInsets?.splice(0, broll.frameInsets.length, ...pictures.frameInsets); // Phase 5.27C: insets clear of every drawn window are kept
+      warnings.push(...pictures.warnings);
     }
     const blueprint: TimelineBlueprint = {
       schemaVersion: visualDirectorV2 || northStar ? 2 : 1,
@@ -2682,7 +2973,7 @@ async function analyzeVideoUnguarded(
       originalVideoUrl: deliveryShaping ? publicVideoUrl : undefined,
       languageCode: resolvedLanguage,
       detectedLanguage: transcription.detectedLanguage,
-      fps: OUTPUT_FPS,
+      fps: outputFps,
       width: OUTPUT_WIDTH,
       height: OUTPUT_HEIGHT,
       sourceDurationSec: round(activeDurationSec),
@@ -2739,9 +3030,13 @@ async function analyzeVideoUnguarded(
       ...(openingSpec ? {openingTreatment: openingSpec} : {}),
       speakerCutout: resolvedCutout,
       // WP55 phase 2: the cut-aware person foreground drawn above kinetic environmental type (separate from speakerCutout: a range-limited matte must not drive the full-length depth / behind-subject tracks)
+      ...(kineticEngineSpec ? {kinetic: kineticEngineSpec} : {}),
       ...(kineticForeground ? {subjectForeground: {videoUrl: kineticForeground.videoUrl, spans: kineticForeground.spans}} : {}),
+      ...(!kineticForeground && kineticEngineSpec && kineticEngineForeground ? {subjectForeground: kineticEngineForeground} : {}), // Phase 5: the Kinetic V2 matte foreground (the template path above never runs when the engine owns the edit)
       // SUBJECT STAGE (only when POLISH_SUBJECT_STAGE ran with a usable matte; absent otherwise)
       ...(subjectStagePayload ? {subjectStage: subjectStagePayload} : {}),
+      // Phase 5.24: the full-screen cutaways the Subject Stage adopted into its own plan (subjectStagePictureOwnership)
+      ...(subjectStagePayload && stageCutaways.length > 0 ? {subjectStage: {...subjectStagePayload, cutaways: stageCutaways}} : {}),
       captionDirection: broll.caption,
       ...(legibility ? {legibility} : {}),
       ...(mvpLike && broll.evidence ? {evidence: broll.evidence} : {}),
@@ -2883,6 +3178,40 @@ async function analyzeVideoUnguarded(
         ...(cutsAiDebug ? {aiKeepPlan: cutsAiDebug} : {}),
       });
       if (dumped) log.info({cutsDebugDump: dumped}, 'cuts debug dump written');
+    }
+
+    // Event-specific generated SFX (stages/audioDirector/production/eventSfx.ts): OFF unless AUDIO_DIRECTOR_SFX=1. Runs on the finished edit; the
+    // generation transport is the AudioDirector one (createTransport: disabled unless enabled, never live in this build).
+    if (eventSfxEnabled()) {
+      const eventSfx = await attachEventSfx({
+        blueprint,
+        voice: productionVoice,
+        voiceTrack: voiceTrackFromProbe(originalProbe.hasAudio),
+        measureVoice: () => measureVoLufs({audioPath: audio.path, words: captionWords, segments: timeline.keepSegments, agentsDir: musicAgentsDir()}),
+        videoId: musicVideoId,
+        transport: () => createEventSfxTransport(process.env),
+        publicRoot: eventSfxPublicRoot(),
+        workDir: workspace.file('event-sfx'),
+        lambdaRender: lambdaRenderConfigured(),
+        maxUsd: eventSfxMaxUsd(process.env),
+        live: eventSfxLiveOptions(process.env, musicVideoId),
+        // Completion Sprint 1: AUDIO_DIRECTOR_SFX_PLACEMENT=pause_preonset places sounds only in measured pauses / before measured onsets (OFF by default).
+        // Visual Event Sound Design: AUDIO_DIRECTOR_SFX_DESIGN=visual (implies pause_preonset), AUDIO_DIRECTOR_SFX_UNDER_SPEECH=onset_accent (both OFF by default).
+        ...(resolveSfxPlacementPolicy(process.env) === 'speech_pause_preonset' || resolveSfxDesign(process.env) === 'visual'
+          ? {
+              placement: {
+                policy: 'speech_pause_preonset' as const,
+                measureVoiceActivity: () => measureVoiceActivity({audioPath: audio.path, segments: timeline.keepSegments, outputDurationSec: blueprint.outputDurationSec}),
+                underSpeech: resolveSfxUnderSpeech(process.env),
+                ...(resolveSfxDesign(process.env) === 'visual' ? {design: 'visual' as const} : {}),
+              },
+            }
+          : {}),
+        ...(eventSfxHostingEnabled(process.env) ? {lambdaStore: () => r2SfxObjectStore()} : {}),
+      });
+      warnings.push(...eventSfx.warnings);
+      if (eventSfx.audioDesign) blueprint.audioDesign = eventSfx.audioDesign;
+      if (eventSfx.report) log.info({videoId: musicVideoId, ...eventSfx.report, placements: eventSfx.report.placements.length}, 'sfx.event_generated');
     }
 
     observe(() => ({type: 'blueprint', blueprint}));

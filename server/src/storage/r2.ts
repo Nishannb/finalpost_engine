@@ -8,6 +8,7 @@ import {getSignedUrl} from '@aws-sdk/s3-request-presigner';
 import {env} from '../config/env.ts';
 import {EngineError} from '../lib/errors.ts';
 import {logger} from '../lib/logger.ts';
+import {localObjectExists, localPublicUrlFor, localPutFile, localStorageActive} from './localStorage.ts';
 
 let client: S3Client | null = null;
 
@@ -17,6 +18,10 @@ const sleep = (ms: number) =>
   });
 
 export function r2Configured(): boolean {
+  // Development-only local store (STORAGE_BACKEND=local) stands in for R2; it throws in production.
+  if (localStorageActive()) {
+    return true;
+  }
   return Boolean(
     env.R2_ACCOUNT_ID &&
       env.R2_ACCESS_KEY_ID &&
@@ -52,6 +57,10 @@ export async function presignSourceVideo(input: {
   const key =
     `ai-video/source/${new Date().toISOString().slice(0, 10)}/` +
     `${randomUUID()}${extension}`;
+  if (localStorageActive()) {
+    const url = localPublicUrlFor(key);
+    return {uploadUrl: url, publicUrl: url, key};
+  }
   const command = new PutObjectCommand({
     Bucket: env.R2_BUCKET_NAME,
     Key: key,
@@ -71,6 +80,9 @@ function publicUrlFor(key: string): string {
 
 /** True when the presigned PUT has landed (phone may have left the app). */
 export async function sourceObjectExists(key: string): Promise<boolean> {
+  if (localStorageActive()) {
+    return key.trim() ? localObjectExists(key) : false;
+  }
   if (!r2Configured() || !key.trim()) {
     return false;
   }
@@ -175,6 +187,10 @@ export async function uploadPublicFile(
     throw new EngineError('render_failed', 'File to upload was empty');
   }
 
+  if (localStorageActive()) {
+    return localPutFile(filePath, key);
+  }
+
   if (verificationPolicy.noOverwrite) {
     const exists = await getClient()
       .send(new HeadObjectCommand({Bucket: env.R2_BUCKET_NAME, Key: key}))
@@ -257,4 +273,14 @@ function normalizeExtension(raw?: string): string {
   ].includes(extension)
     ? extension
     : '.mp4';
+}
+
+/**
+ * Phase 1.7.4: the existing R2 client and bucket for the Music Specialist's per-video generation ledger (stages/music/generationLedger.ts), which
+ * needs one conditional PutObject (If-None-Match: *) and GetObject. Null when R2 is not configured or the development local store is active (it
+ * has no conditional create), so the ledger fails closed. Read-only accessor: it creates nothing and changes no other storage behaviour.
+ */
+export function r2LedgerClient(): {client: S3Client; bucket: string} | null {
+  if (localStorageActive() || !r2Configured()) return null;
+  return {client: getClient(), bucket: env.R2_BUCKET_NAME};
 }

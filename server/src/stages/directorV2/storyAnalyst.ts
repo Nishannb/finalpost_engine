@@ -6,16 +6,23 @@ import {
 } from './promptLoader.ts';
 import {BEAT_ROLES, CONTENT_TYPES, CTA_ACTIONS, PACING_TARGETS, SPEAKER_PRESENCE, STAGE1_RESPONSE_SCHEMA, VISUAL_POTENTIAL} from './schemas.ts';
 import type {BeatRole, PerceptionPack, StoryAnalysis, StoryBeat} from './types.ts';
+import {SUBJECT_STAGE_DIRECTOR_DIRECTIVE, SUBJECT_STAGE_DIRECTOR_SCHEMA} from '../subjectStage/directorChapters.ts';
 import {formatAudioFacts, formatFrameLabels, formatWordIdTranscript, frameSendLimit, framesSentToDirector} from './perception.ts';
 
-export async function analyzeStory(pack: PerceptionPack): Promise<StoryAnalysis> {
+/**
+ * Phase 5.29C `subjectStage`: when the Subject Stage owns the run, the same call ALSO asks for the `subject_stage` field (chapters with spoken titles, quote cards; directorChapters.ts).
+ * Absent / false = the request and the result are byte-for-byte what they were. The field is returned untouched as `subjectStageRaw` (validated later by the Subject Stage).
+ */
+export async function analyzeStory(pack: PerceptionPack, opts: {subjectStage?: boolean} = {}): Promise<StoryAnalysis> {
   const frames = await frameParts(framesSentToDirector(pack).map(frame => frame.path), frameSendLimit(pack));
   const system = loadPromptFile(STAGE1_PROMPT_VERSION);
-  const user = fillStage1User(pack);
+  const user = opts.subjectStage ? `${fillStage1User(pack)}\n\n${SUBJECT_STAGE_DIRECTOR_DIRECTIVE}` : fillStage1User(pack);
+  const responseSchema = opts.subjectStage ? stage1SchemaWithSubjectStage() : STAGE1_RESPONSE_SCHEMA;
+  const withRaw = (story: StoryAnalysis, json: unknown): StoryAnalysis => (opts.subjectStage ? {...story, subjectStageRaw: subjectStageFieldOf(json)} : story);
   const first = await callDirectorModel({
     system,
     label: 'Director v2 story analyst',
-    responseSchema: STAGE1_RESPONSE_SCHEMA,
+    responseSchema,
     temperature: 0.3,
     thinkingBudget: 4096,
     parts: [...frames, {text: user}],
@@ -26,13 +33,13 @@ export async function analyzeStory(pack: PerceptionPack): Promise<StoryAnalysis>
   });
   const errors = beatCoverageErrors(story.beats, pack);
   if (errors.length === 0) {
-    return story;
+    return withRaw(story, first.json);
   }
 
   const repaired = await callDirectorModel({
     system,
     label: 'Director v2 story analyst repair',
-    responseSchema: STAGE1_RESPONSE_SCHEMA,
+    responseSchema,
     temperature: 0.2,
     thinkingBudget: 2048,
     parts: [
@@ -49,12 +56,21 @@ export async function analyzeStory(pack: PerceptionPack): Promise<StoryAnalysis>
     inputHash: first.inputHash,
   });
   if (beatCoverageErrors(story.beats, pack).length === 0) {
-    return story;
+    return withRaw(story, repaired.json);
   }
-  return {
+  return withRaw({
     ...story,
     beats: sentenceBeats(pack),
-  };
+  }, repaired.json);
+}
+
+/** Phase 5.29C: the Stage 1 schema plus the optional `subject_stage` property (a copy; STAGE1_RESPONSE_SCHEMA itself is unchanged). */
+export function stage1SchemaWithSubjectStage(): Record<string, unknown> {
+  return {...STAGE1_RESPONSE_SCHEMA, properties: {...STAGE1_RESPONSE_SCHEMA.properties, subject_stage: SUBJECT_STAGE_DIRECTOR_SCHEMA}};
+}
+/** The `subject_stage` value exactly as the Director returned it; null when absent. */
+export function subjectStageFieldOf(json: unknown): unknown {
+  return json && typeof json === 'object' && !Array.isArray(json) ? ((json as Record<string, unknown>).subject_stage ?? null) : null;
 }
 
 export function fillStage1User(pack: PerceptionPack, template?: string): string {

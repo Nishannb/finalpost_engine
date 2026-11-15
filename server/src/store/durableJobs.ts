@@ -22,6 +22,8 @@ export type DurableJobStore = {
   get(editJobId: string): Promise<DurableJob | null>;
   /** awaiting_upload / analyzing / rendering jobs idle for `idleMs` whose lease is free or expired (never awaiting_assets). */
   listRecoverable(opts: {idleMs: number; limit: number}): Promise<string[]>;
+  /** Jobs (any status, finished ones included) whose `job.callbacksPending` marker is true: completion callbacks still owed to the Creators API. Boot-time scan; no schema change (a jsonb filter). */
+  listPendingCallbacks(opts: {limit: number}): Promise<string[]>;
   /** Atomic: true only if this caller now holds the lease. */
   claimLease(editJobId: string, owner: string, leaseMs: number): Promise<boolean>;
   releaseLease(editJobId: string, owner: string): Promise<void>;
@@ -124,6 +126,13 @@ export function createPostgrestJobStore(
       );
       return ((await response.json()) as Array<{edit_job_id: string}>).map(row => row.edit_job_id);
     },
+    async listPendingCallbacks({limit}) {
+      const response = await call(
+        `/creator_edit_jobs?select=edit_job_id&${encodeURIComponent('job->>callbacksPending')}=eq.true&order=updated_at.asc&limit=${limit}`,
+        {method: 'GET', headers: headers()},
+      );
+      return ((await response.json()) as Array<{edit_job_id: string}>).map(row => row.edit_job_id);
+    },
     async claimLease(editJobId, owner, leaseMs) {
       const now = new Date().toISOString();
       const until = new Date(Date.now() + leaseMs).toISOString();
@@ -190,6 +199,13 @@ export function createMemoryJobStore(now: () => number = Date.now): DurableJobSt
             Date.parse(row.job.updatedAt) < now() - idleMs &&
             row.leaseUntil < now(),
         )
+        .sort((a, b) => Date.parse(a.job.updatedAt) - Date.parse(b.job.updatedAt))
+        .slice(0, limit)
+        .map(row => row.job.editJobId);
+    },
+    async listPendingCallbacks({limit}) {
+      return [...rows.values()]
+        .filter(row => row.job.callbacksPending === true)
         .sort((a, b) => Date.parse(a.job.updatedAt) - Date.parse(b.job.updatedAt))
         .slice(0, limit)
         .map(row => row.job.editJobId);

@@ -1,6 +1,6 @@
 """Command line entry used by the Node engine (server/src/media/rvmMatte.ts).
 
-    python -m human_matting.cli <input_video> <output.webm> <result.json> [--quality high|fast] [--ranges a-b,c-d] [--max-side N] [--max-frames N]
+    python -m human_matting.cli <input_video> <output.webm> <result.json> [--quality high|fast] [--ranges a-b,c-d] [--max-side N] [--max-frames N] [--stroke-px N] [--pocket-passes N] [--alpha-only] [--skip-fgr-download] [--reuse-pack-buffer]
 
 Run with cwd = subjectmatte/ so the package imports resolve. The device comes from the RVM_DEVICE env var
 (auto|cuda|mps|cpu). Progress is printed to stdout as ``PROGRESS <done> <total|0>`` lines; everything else
@@ -43,6 +43,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--ranges", default=None, help="source seconds to matte, e.g. 3.2-6.0,12-15.5 (default: the whole video)")
     parser.add_argument("--max-side", type=int, default=None, help="cap the longest side of the processed frames (aspect kept)")
     parser.add_argument("--max-frames", type=int, default=None, help="TEST HOOK ONLY; never used in production")
+    parser.add_argument("--stroke-px", type=float, default=None, help="white sticker stroke around the person (default 4.0 = unchanged); 0 = none (behind-text mattes)")
+    parser.add_argument("--pocket-passes", type=int, default=None, help="colour-palette pocket clearing passes (default 1 = unchanged); 0 = skip (~10x faster refine; behind-text mattes)")
+    parser.add_argument("--skip-fgr-download", action="store_true", help="with --alpha-only: do not copy RVM's colour off the device (output byte-identical; Phase 5.6, opt-in)")
+    parser.add_argument("--reuse-pack-buffer", action="store_true", help="with --alpha-only: reuse one RGBA frame buffer (output byte-identical; Phase 5.6, opt-in)")
+    parser.add_argument("--alpha-only", action="store_true", help="skip foreground colour reconstruction (alpha identical; the colour planes are written black). For callers that use only the alpha (Kinetic V2)")
     args = parser.parse_args(argv)
     result_path = Path(args.result_json)
 
@@ -51,6 +56,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     from .processing.video_encoder import EncoderError, ensure_vp9_alpha_encoder
     from .services.matting_service import parse_ranges, process_video
 
+    if (args.skip_fgr_download or args.reuse_pack_buffer) and not args.alpha_only:
+        parser.error("--skip-fgr-download / --reuse-pack-buffer require --alpha-only")  # exits 2 (usage)
     try:
         ranges = parse_ranges(args.ranges)
     except ValueError as exc:
@@ -78,6 +85,11 @@ def main(argv: Optional[List[str]] = None) -> int:
             on_progress=on_progress,
             ranges=ranges,
             max_side=args.max_side,
+            **({"stroke_px": args.stroke_px} if args.stroke_px is not None else {}),
+            **({"pocket_passes": args.pocket_passes} if args.pocket_passes is not None else {}),
+            **({"alpha_only": True} if args.alpha_only else {}),
+            **({"skip_fgr_download": True} if args.skip_fgr_download else {}),
+            **({"reuse_pack_buffer": True} if args.reuse_pack_buffer else {}),
         )
     except BaseException as exc:  # noqa: BLE001 - report every failure through the result file and exit code
         traceback.print_exc(file=sys.stderr)

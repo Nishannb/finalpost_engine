@@ -9,7 +9,7 @@
  * only reached under conditions that depend on model output.
  */
 
-export type Provider = 'gemini' | 'groq' | 'anthropic' | 'openrouter' | 'stock' | 'internal';
+export type Provider = 'gemini' | 'groq' | 'anthropic' | 'openrouter' | 'runware' | 'stock' | 'internal';
 export type Countability =
   | 'counted_by_test'              // a fetch-level test in callInventory.test.ts reproduces the stated attempts
   | 'counted_by_code_reading'      // bounded by constants visible in the code, not reproduced by a test
@@ -213,6 +213,14 @@ export const CALL_INVENTORY: CallSite[] = [
     id: 'seedance_edit', file: 'stages/templates/seedanceEdit.ts', provider: 'openrouter', modelBacked: true,
     trigger: 'Seedance video-edit endpoint (not analyzeVideo): submit, poll, download.', flags: ['seedance request'], logicalCalls: '1 submit + repeated polls + 1 download', maxHttpAttemptsPerLogicalCall: null,
     attemptsBasis: 'submit retries:1 (images: 0), poll retries:1 per poll; the number of polls is not bounded by a constant', extraRequestPaths: 'polling loop', fallback: 'Error to the caller.', consumes: 'video + prompt', produces: 'edited video', countability: 'content_dependent',
+  },
+  {
+    // Phase 1.6 AI Music Director supervised BGM runner; the Music Specialist's own Runware calls are in Python (agents/music_specialist), not here.
+    id: 'audio_director_runware_bgm', file: 'stages/audioDirector/generation/fetchTransport.ts', provider: 'runware', modelBacked: true,
+    trigger: 'Supervised first-BGM runner only (listeningTest/generateFirstBgm.ts --live --approve <call id> --max-usd), run by a human; never reached by a job: createTransport() refuses live and AUDIO_DIRECTOR_GENERATION is off.', flags: ['generateFirstBgm.ts --live with an approved call id', 'RUNWARE_API_KEY', 'per-video BGM ledger (Phase 1.7.1)'],
+    logicalCalls: '1 audioInference POST per edited video (ledger-enforced), getResponse polls only while Runware reports processing (at most 20), 1 audio download', maxHttpAttemptsPerLogicalCall: 1,
+    attemptsBasis: 'FetchRunwareTransport.post makes one fetch per call with no retry; runGenerationJob never retries the generation POST', extraRequestPaths: 'getResponse polling (max 20) and one unauthenticated download of the returned audio URL', fallback: 'A failed manifest entry; no blueprint; the video stays consumed.',
+    consumes: 'BGM request (caption, settings, seed)', produces: 'generated WAV', countability: 'counted_by_code_reading',
   },
   {
     id: 'motion_worker_script', file: 'scripts/mgE2E.ts', provider: 'anthropic', modelBacked: true,

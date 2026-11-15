@@ -6,6 +6,7 @@ import React from 'react';
 import {AbsoluteFill, Audio, Sequence, staticFile, useVideoConfig} from 'remotion';
 
 import {resolveMediaSrc} from '../lib/mediaSrc';
+import {sfxPlaybackVolume} from '../lib/sfxPlaybackVolume';
 import {framesBetween, secToFrame} from '../lib/timeline';
 
 const FILES: Record<string, string> = {
@@ -21,6 +22,8 @@ export type SfxHit = {
   src?: string;
   /** Catalog hits only. Absent → the built-in 0.45 s. */
   durationSec?: number;
+  /** Phase SFX-3D: channels of the source file. 1 = mono: compensated for the renderer's -3.01 dB mono-to-stereo upmix. Absent = no compensation (unchanged). */
+  sourceChannels?: 1 | 2;
 };
 
 export const SfxTrack: React.FC<{hits?: SfxHit[]}> = ({hits}) => {
@@ -41,7 +44,7 @@ export const SfxTrack: React.FC<{hits?: SfxHit[]}> = ({hits}) => {
             key={`sfx-${hit.kind}-${hit.at}-${index}`}
             from={secToFrame(Math.max(0, hit.at), fps)}
             durationInFrames={Math.max(1, framesBetween(0, hit.durationSec && hit.durationSec > 0 ? hit.durationSec : 0.45, fps))}>
-            <Audio src={custom ? resolveMediaSrc(custom) : staticFile(file as string)} volume={hit.volume ?? 0.12} />
+            <Audio src={custom ? resolveMediaSrc(custom) : staticFile(file as string)} volume={sfxPlaybackVolume(hit)} />
           </Sequence>
         );
       })}

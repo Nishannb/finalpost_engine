@@ -5,7 +5,7 @@
  *   flash_overexpose     1-2 frames: on the HOOK word (the first caption group) and on a MAJOR REVEAL (a headline hold, else the first money hold). Lands exactly on the cut frame so the flash hides the cut.
  *   saturation_glow_pop  2-4 frames (3): on a NAME REVEAL: the first capitalised word of a proper-name run that is not a sentence start ("... founder Alex Chen" -> "Alex").
  *   punch_in             scale 1.10 over 7 frames (grammar 6-8), held for the whole MONEY hold ("six billion dollars"), reset by the next cut.
- *   bw_grade             a hard black-and-white flip on EMOTIONAL / PAST shots (collapse, fired, lost, ... and year tokens): whole shots of the cut plan, ~15 % of the runtime at most, never over a money hold or a
+ *   bw_grade             a black-and-white flip, ONLY with a stated narrative reason (a past reference, or a sustained serious passage of >= 2 emotional words): the whole sentence, <= 2 spans, <= 10 % of the runtime (see planBwSpansWithReasons); the original colour is the default
  *                        chapter card. Strong emotional words are taken before a bare year token.
  *
  * Spacing keeps it impact, not strobe: flashes >= 3 s apart (<= 1 per 6 s), sat pops >= 2.5 s apart (<= 1 per 7 s) and never within 0.4 s of a flash.
@@ -17,8 +17,6 @@ export const IMPACT_FLASH_FRAMES = 2;
 export const IMPACT_SAT_POP_FRAMES = 3;
 export const IMPACT_PUNCH_RAMP_FRAMES = 7;
 export const IMPACT_PUNCH_SCALE = 1.1;
-export const IMPACT_BW_SHARE_TARGET = 0.15;
-export const IMPACT_BW_MIN_SPAN_SEC = 0.8;
 export const IMPACT_FLASH_MIN_GAP_SEC = 3;
 export const IMPACT_FLASH_PER_SEC = 6;
 export const IMPACT_SAT_MIN_GAP_SEC = 2.5;
@@ -39,9 +37,10 @@ const endsSentence = (text: string) => /[.!?\u2026]["')\u201d\u2019]*$/.test(tex
 
 /** Words that mark an emotional / past beat (score 2). */
 const EMOTIONAL: ReadonlySet<string> = new Set([
-  'collapsed', 'collapse', 'fired', 'lost', 'failed', 'failure', 'bankrupt', 'broke', 'alone', 'lonely', 'empty', 'cold', 'cried', 'crying', 'died', 'death', 'divorce', 'divorced', 'homeless', 'rejected', 'quit', 'betrayed',
+  'collapsed', 'collapse', 'fired', 'lost', 'failed', 'failure', 'bankrupt', 'lonely', 'cried', 'crying', 'died', 'death', 'divorce', 'divorced', 'homeless', 'rejected', 'betrayed',
   'destroyed', 'ruined', 'heartbroken', 'regret', 'regretted', 'grief', 'funeral', 'abandoned', 'shattered', 'humiliated',
 ]);
+// NOT in the list on purpose: 'alone' ("using X alone" = "by itself"), 'cold', 'empty', 'quit', 'broke': they are ordinary words more often than emotional beats, and one of them used to grey a whole shot.
 const YEAR = /^(1[5-9]\d\d|20\d\d)$/;
 /** Capitalised words that are not names. */
 const NOT_NAMES: ReadonlySet<string> = new Set([
@@ -78,39 +77,70 @@ function emotionalBeats(words: readonly VoWord[]): Beat[] {
 /** The share of `durationSec` covered by the (non-overlapping, sorted) spans. */
 const shareOf = (spans: readonly ImpactBwSpan[], durationSec: number) => (durationSec > 0 ? round(spans.reduce((sum, span) => sum + (span.endSec - span.startSec), 0) / durationSec) : 0);
 
-export function planBwSpans(words: readonly VoWord[], plan: Pick<VoCutPlan, 'shots' | 'holds' | 'chapterCards'>, durationSec: number): ImpactBwSpan[] {
+/** Monochrome is a deliberate decision, never a default or a lexical reflex (V1 visual-quality correction). */
+export const IMPACT_BW_MIN_SPAN_SEC = 1.2;
+/** the renderer grammar's ceiling (remotion/src/lib/impactFx.ts BW_SHARE_TARGET); this planner's own cap is stricter, IMPACT_BW_SHARE_MAX */
+export const IMPACT_BW_SHARE_TARGET = 0.15;
+export const IMPACT_BW_MAX_SPANS = 2;
+export const IMPACT_BW_SHARE_MAX = 0.1;
+export const IMPACT_BW_MIN_GAP_SEC = 12;
+export const IMPACT_BW_EDGE_SEC = 3;
+export type ImpactBwReason = {startSec: number; endSec: number; reason: string};
+const PAST_RE = /\b(?:back in|used to|remember when|years? ago|decades? ago|in the (?:\d0s|nineties|eighties|seventies|sixties)|once upon|at the time)\b/i;
+
+/**
+ * Black-and-white spans, each with the reason that justifies it. A single emotional word is NOT a reason. Allowed only for:
+ *   past_reference       a sentence that places the story in the past ("years ago", "back in", a year such as 1999)
+ *   serious_passage      a sentence (or two neighbouring ones, <= 8 s) with at least TWO distinct strongly emotional words: a sustained serious / reflective stretch
+ * The span is the WHOLE sentence (never a sliver or a single frame), >= 1.2 s, never in the first or last 3 s, at most 2 per video, <= 10 % of the runtime, >= 12 s apart, never over a money hold or a
+ * chapter card. No qualifying sentence = the video keeps its original colour from first frame to last.
+ */
+export function planBwSpansWithReasons(words: readonly VoWord[], plan: Pick<VoCutPlan, 'shots' | 'holds' | 'chapterCards'>, durationSec: number): {spans: ImpactBwSpan[]; reasons: ImpactBwReason[]} {
   const blocked = [
     ...plan.holds.filter(hold => hold.reason === 'money').map(hold => ({start: hold.start, end: hold.end})),
     ...plan.chapterCards.map(card => ({start: card.at, end: round(card.at + card.duration)})),
   ];
   const free = (start: number, end: number) => !blocked.some(span => start < span.end - 1e-6 && end > span.start + 1e-6);
-  const budget = durationSec * IMPACT_BW_SHARE_TARGET;
-  const chosen: ImpactBwSpan[] = [];
-  const used = () => chosen.reduce((sum, span) => sum + (span.endSec - span.startSec), 0);
-  const ranked = emotionalBeats(words).sort((a, b) => b.score - a.score || a.at - b.at);
-  for (const beat of ranked) {
-    const index = plan.shots.findIndex(shot => beat.at >= shot.start - 1e-6 && beat.at < shot.end - 1e-6);
-    if (index < 0) continue;
-    let start = plan.shots[index]!.start;
-    let end = plan.shots[index]!.end;
-    // a sliver of a shot is not a grade beat: take the next shot with it
-    const next = plan.shots[index + 1];
-    if (end - start < IMPACT_BW_MIN_SPAN_SEC && next && next.kind !== 'card') end = next.end;
-    if (!free(start, end) || end <= start) continue;
-    if (chosen.some(span => start < span.endSec + 1e-6 && end > span.startSec - 1e-6)) continue;
-    if (used() + (end - start) > budget + 1e-6) continue;
-    chosen.push({startSec: round(start), endSec: round(Math.min(end, durationSec))});
+  const sentences: VoWord[][] = [];
+  let cur: VoWord[] = [];
+  for (const word of words) {
+    cur.push(word);
+    if (endsSentence(word.text)) { sentences.push(cur); cur = []; }
   }
-  // adjacent spans are one flip
-  const sorted = chosen.sort((a, b) => a.startSec - b.startSec);
-  const merged: ImpactBwSpan[] = [];
-  for (const span of sorted) {
-    const last = merged[merged.length - 1];
-    if (last && span.startSec <= last.endSec + 1e-6) last.endSec = Math.max(last.endSec, span.endSec);
-    else merged.push({...span});
+  if (cur.length > 0) sentences.push(cur);
+  const emotionalIn = (sent: readonly VoWord[]) => new Set(sent.map(w => norm(w.text)).filter(t => EMOTIONAL.has(t)));
+  type Candidate = {start: number; end: number; reason: string; score: number};
+  const candidates: Candidate[] = [];
+  sentences.forEach((sent, i) => {
+    const start = sent[0]!.start;
+    const end = sent[sent.length - 1]!.end;
+    const text = sent.map(w => w.text).join(' ');
+    const past = PAST_RE.test(text) || sent.some(w => YEAR.test(norm(w.text)));
+    if (past) candidates.push({start, end, reason: 'past_reference', score: 2});
+    const own = emotionalIn(sent);
+    const neighbours = [sentences[i - 1], sentences[i + 1]].filter((n): n is VoWord[] => Boolean(n) && Math.abs(n![0]!.start - start) <= 8);
+    const merged = new Set([...own, ...neighbours.flatMap(n => [...emotionalIn(n)])]);
+    if (own.size >= 1 && merged.size >= 2) candidates.push({start, end, reason: `serious_passage:${[...merged].sort().join('+')}`, score: 3});
+  });
+  const chosen: Candidate[] = [];
+  const used = () => chosen.reduce((sum, c) => sum + (c.end - c.start), 0);
+  for (const c of candidates.sort((a, b) => b.score - a.score || a.start - b.start)) {
+    if (chosen.length >= IMPACT_BW_MAX_SPANS) break;
+    if (c.end - c.start < IMPACT_BW_MIN_SPAN_SEC) continue;
+    if (c.start < IMPACT_BW_EDGE_SEC || c.end > durationSec - IMPACT_BW_EDGE_SEC) continue;
+    if (!free(c.start, c.end)) continue;
+    if (chosen.some(o => c.start < o.end + IMPACT_BW_MIN_GAP_SEC && c.end > o.start - IMPACT_BW_MIN_GAP_SEC)) continue;
+    if (used() + (c.end - c.start) > durationSec * IMPACT_BW_SHARE_MAX + 1e-6) continue;
+    chosen.push(c);
   }
-  return merged;
+  chosen.sort((a, b) => a.start - b.start);
+  return {
+    spans: chosen.map(c => ({startSec: round(c.start), endSec: round(Math.min(c.end, durationSec))})),
+    reasons: chosen.map(c => ({startSec: round(c.start), endSec: round(Math.min(c.end, durationSec)), reason: c.reason})),
+  };
 }
+
+export const planBwSpans = (words: readonly VoWord[], plan: Pick<VoCutPlan, 'shots' | 'holds' | 'chapterCards'>, durationSec: number): ImpactBwSpan[] => planBwSpansWithReasons(words, plan, durationSec).spans;
 
 export function planImpactFx(input: {words: readonly VoWord[]; plan: Pick<VoCutPlan, 'cuts' | 'groups' | 'holds' | 'shots' | 'chapterCards'>; durationSec: number}): PolishImpactFxResult {
   const {words, plan, durationSec} = input;
@@ -149,12 +179,13 @@ export function planImpactFx(input: {words: readonly VoWord[]; plan: Pick<VoCutP
     .filter(hold => hold.reason === 'money')
     .map(hold => ({startSec: round(hold.start), endSec: round(hold.end), rampFrames: IMPACT_PUNCH_RAMP_FRAMES, scale: IMPACT_PUNCH_SCALE}));
 
-  const bwSpans = planBwSpans(words, plan, durationSec);
+  const bw = planBwSpansWithReasons(words, plan, durationSec);
+  const bwSpans = bw.spans;
   const bwShare = shareOf(bwSpans, durationSec);
   const fx: ImpactFxPlan = {flashes, satPops, punchIns, bwSpans};
   return {
     fx,
-    warnings: [`polish_impact:flash:${flashes.length}`, `polish_impact:sat_pop:${satPops.length}`, `polish_impact:punch_in:${punchIns.length}`, `polish_impact:bw:${bwSpans.length}:${bwShare.toFixed(2)}`],
+    warnings: [...bw.reasons.map(r => `polish_impact:bw_reason:${r.startSec}-${r.endSec}:${r.reason}`), `polish_impact:flash:${flashes.length}`, `polish_impact:sat_pop:${satPops.length}`, `polish_impact:punch_in:${punchIns.length}`, `polish_impact:bw:${bwSpans.length}:${bwShare.toFixed(2)}`],
     stats: {flashes: flashes.length, satPops: satPops.length, punchIns: punchIns.length, bwSpans: bwSpans.length, bwShare},
   };
 }

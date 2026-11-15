@@ -15,7 +15,19 @@
 import type {EffectiveFlags} from './effectiveFlags.ts';
 
 export const EDIT_STYLE_IDS = ['basic_captions', 'ai_clean_cut', 'kinetic_typography', 'explainer'] as const;
-export type EditStyleId = (typeof EDIT_STYLE_IDS)[number];
+/**
+ * Phase 5.23: styles a job may request that are NOT in the picker catalog (GET /v1/edit-styles is built from EDIT_STYLE_IDS only, so the app's picker is
+ * unchanged). `subject_stage` selects the Subject Stage editing pipeline (lib/editingPipeline.ts). It is unavailable by default: it can only be started
+ * when the server lists it in EDIT_STYLES_AVAILABLE.
+ */
+export const ENGINE_ONLY_STYLE_IDS = ['subject_stage'] as const;
+export const REQUESTABLE_STYLE_IDS = [...EDIT_STYLE_IDS, ...ENGINE_ONLY_STYLE_IDS] as const;
+export type EditStyleId = (typeof REQUESTABLE_STYLE_IDS)[number];
+/**
+ * Phase 5.23: request aliases. The engine-level pipeline names may be sent as the `style`: `kinetic_v2` IS the `kinetic_typography` style (one style, one
+ * pipeline, one cache key). `subject_stage` is already a style id. Nothing else is aliased.
+ */
+export const STYLE_ALIASES: Readonly<Record<string, EditStyleId>> = {kinetic_v2: 'kinetic_typography'};
 export type EditStyleTier = 'free' | 'pro';
 /** The existing `CaptionsEditJob.mode` values a style can run as. */
 export type EditStyleJobMode = 'basic_captions' | 'full_edit';
@@ -50,6 +62,13 @@ export type EditStyleDefinition = {
    * the env defaults; the style's own essentials, e.g. Kinetic-Led on, win over them). Speech-cut tuning and deployment settings stay on env.
    */
   pins?: Partial<EffectiveFlags>;
+  /** Phase 5.23: the editing pipeline this style selects (lib/editingPipeline.ts). Absent = no editing pipeline (the style's own lanes only). */
+  pipeline?: 'kinetic_v2' | 'subject_stage';
+  /**
+   * V1 release mode (env V1_KINETIC_RELEASE): the style must be produced by its own pipeline or the job fails (retryable `kinetic_unavailable`); it never degrades to `degradesTo`.
+   * Ignored while the release switch is off, so the Phase 1 / Phase 2 behaviour is exactly what it was.
+   */
+  failClosed?: boolean;
 };
 
 /**
@@ -119,6 +138,8 @@ export const EDIT_STYLES: Readonly<Record<EditStyleId, EditStyleDefinition>> = {
     matte: 'optional', // front-only kinetic type is the shipped baseline while RVM is not on the server
     // type-led: no editorial stock stills (verification render: a still search pulled a copyrighted character into the opening and a template)
     pins: {...POLISH_STYLE_PINS, editorialStills: false},
+    pipeline: 'kinetic_v2',
+    failClosed: true,
   },
   explainer: {
     id: 'explainer',
@@ -134,10 +155,27 @@ export const EDIT_STYLES: Readonly<Record<EditStyleId, EditStyleDefinition>> = {
     geminiMaxRequests: 12, // the polish plan reserves 6 (keep plan, story, creative, motion director, occupancy, content profile); the rest covers perception, repairs, retries
     pins: POLISH_STYLE_PINS,
   },
+  subject_stage: {
+    id: 'subject_stage',
+    name: 'Subject Stage',
+    description: 'You stay in front while plates, quote cards and keyword accents are staged behind you.',
+    tier: 'pro',
+    // Phase 5.23: engine-only and OFF by default (not in the picker; EDIT_STYLES_AVAILABLE must list it to start a job)
+    available: false,
+    sortOrder: 50,
+    previewAsset: 'subject_stage',
+    mode: 'full_edit',
+    needsEngineFlags: true,
+    degradesTo: 'ai_clean_cut',
+    geminiMaxRequests: 12, // the polish plan's reserved stages; the Subject Stage planner itself is deterministic (no model call)
+    matte: 'required', // the style is the person cut out over a stage: without a whole-run matte it does not run (degraded, never half-on)
+    pins: {...POLISH_STYLE_PINS, editorialStills: false},
+    pipeline: 'subject_stage',
+  },
 };
 
 export function isEditStyleId(value: unknown): value is EditStyleId {
-  return typeof value === 'string' && (EDIT_STYLE_IDS as readonly string[]).includes(value);
+  return typeof value === 'string' && (REQUESTABLE_STYLE_IDS as readonly string[]).includes(value);
 }
 
 /** Config the server reads from env (passed in; this module never imports env). */
@@ -236,13 +274,14 @@ export function resolveRequestedStyle(raw: unknown, config: EditStyleConfig): Re
   if (!config.enabled || raw === undefined || raw === null || raw === '') {
     return null;
   }
-  if (!isEditStyleId(raw)) {
+  const id = typeof raw === 'string' && Object.prototype.hasOwnProperty.call(STYLE_ALIASES, raw) ? STYLE_ALIASES[raw]! : raw;
+  if (!isEditStyleId(id)) {
     return {error: 'unknown_style', style: String(raw).slice(0, 60)};
   }
-  if (!isStyleAvailable(raw, config)) {
-    return {error: 'style_unavailable', style: raw};
+  if (!isStyleAvailable(id, config)) {
+    return {error: 'style_unavailable', style: id};
   }
-  const def = EDIT_STYLES[raw];
+  const def = EDIT_STYLES[id];
   // What is known at request time; the analysis replaces it with what the pipeline really produced (lib/styleRun.ts styleOutcome).
   const flagsOff = def.needsEngineFlags && !config.engineFlags;
   return {
@@ -257,4 +296,48 @@ export function resolveRequestedStyle(raw: unknown, config: EditStyleConfig): Re
 
 export function styleTier(id: EditStyleId | undefined): EditStyleTier | undefined {
   return id ? EDIT_STYLES[id]?.tier : undefined;
+}
+
+// ---------------------------------------------------------------------------------------------------------------- V1 release mode (env V1_KINETIC_RELEASE)
+
+/** The only styles a V1 release exposes: Free = Basic Captions, Pro = Kinetic Typography (cleanup runs inside it). Every other style stays in the registry for later versions. */
+export const V1_RELEASE_STYLES = ['basic_captions', 'kinetic_typography'] as const satisfies readonly EditStyleId[];
+
+export type V1ReleaseViolation = {code: 'bad_request' | 'footage_unsupported' | 'kinetic_unavailable'; message: string; details: {reason: string}};
+
+/**
+ * V1 release gate for POST /v1/edits/captions, evaluated after the request's style was resolved. Pure. Null = the request may proceed.
+ *   no style, mode other than basic_captions   style_required      (an older app, or a direct API call, must not reach any other pipeline through `mode`)
+ *   kinetic_typography without camera footage  footage_unsupported (screen recordings carry app UI the engine cannot see; "unknown" is never assumed to be camera)
+ *   kinetic_typography with engine flags off   kinetic_unavailable (it would otherwise run as AI Clean Cut: a different edit)
+ * basic_captions (style or mode) is never blocked: the Free path is unchanged.
+ */
+export const V1_GATE_OFF_REASON = 'v1_release_off';
+
+export function v1ReleaseViolation(input: {
+  release: boolean;
+  /** The resolved style, or null when the request carried none (or styles are off). */
+  style: EditStyleId | null;
+  mode: string | undefined;
+  footageKind: string | null | undefined;
+  engineFlags: boolean;
+}): V1ReleaseViolation | null {
+  // Gate OFF: Kinetic Typography is not offered at all. It would otherwise run as the older template path (a different edit reported as Kinetic), so it is refused up front, retryable once the gate is on.
+  if (!input.release) {
+    return input.style === 'kinetic_typography'
+      ? {code: 'kinetic_unavailable', message: 'Kinetic Typography is not available right now. Please try again later.', details: {reason: V1_GATE_OFF_REASON}}
+      : null;
+  }
+  if (input.style === null) {
+    if (input.mode === 'basic_captions') return null;
+    return {code: 'bad_request', message: 'Update FinalPost to continue: this edit needs the latest app version.', details: {reason: 'style_required'}};
+  }
+  if (input.style !== 'kinetic_typography') return null;
+  if (input.footageKind !== 'camera') {
+    return {code: 'footage_unsupported', message: 'This video cannot be edited in Kinetic Typography. Use a video recorded with your camera.', details: {reason: `footage_${input.footageKind ?? 'unknown'}`}};
+  }
+  if (!input.engineFlags) {
+    return {code: 'kinetic_unavailable', message: 'Kinetic Typography is not available right now. Please try again later.', details: {reason: ENGINE_FLAGS_OFF_REASON}};
+  }
+  return null;
 }

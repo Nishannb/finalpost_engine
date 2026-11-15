@@ -59,6 +59,13 @@ export function loadCaptionKitPresets(): CaptionKitPresetMeta[] {
   return cached;
 }
 
+/** One preset's full definition (presets.json is the source of truth), or null for an unknown id. */
+export function loadCaptionKitPresetDefinition(id: string): import('../stages/kinetic/presetIdentity.ts').PresetLike | null {
+  const {presets} = captionKitPaths();
+  const raw = JSON.parse(fs.readFileSync(presets, 'utf8')) as {presets?: Array<import('../stages/kinetic/presetIdentity.ts').PresetLike>};
+  return (raw.presets ?? []).find(p => p.id === id.trim()) ?? null;
+}
+
 export function captionKitPresetIds(): Set<string> {
   return new Set(loadCaptionKitPresets().map(item => item.id));
 }

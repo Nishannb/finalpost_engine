@@ -6,26 +6,23 @@
  * here — each stage reports `not_configured` so the app can degrade gracefully.
  */
 
-import {existsSync} from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
-import dotenv from 'dotenv';
 import {z} from 'zod';
 
+import {loadDotenvFiles} from './dotenvLoader.ts';
+
 const here = path.dirname(fileURLToPath(import.meta.url));
-for (const candidate of [
+// Offline tests (vitest) load none of these files (config/dotenvLoader.ts); development and production are unchanged.
+loadDotenvFiles([
   // Reuse shared infrastructure credentials (R2, local AI keys) from the
   // existing Kinmel server during development. The engine's own .env is loaded
   // last and therefore remains the explicit override.
   path.resolve(here, '../../../../server/.env'),
   path.resolve(here, '../../../.env'),
   path.resolve(here, '../../.env'),
-]) {
-  if (existsSync(candidate)) {
-    dotenv.config({path: candidate, quiet: true, override: true});
-  }
-}
+]);
 
 const bool = (fallback: boolean) =>
   z
@@ -84,6 +81,15 @@ const schema = z.object({
    */
   EDIT_STYLES_ENGINE_FLAGS: bool(true),
   /**
+   * V1 RELEASE MODE (default OFF: nothing below changes while it is off). One switch for the first commercial release, "Free = Basic Captions, Pro = Kinetic Typography only":
+   *  - the Kinetic Typography style always runs the Kinetic V2 engine plus the Match Cut shutter treatment (it no longer depends on POLISH_KINETIC_ENGINE);
+   *  - it FAILS CLOSED: if Kinetic V2 did not produce the edit the job fails with a retryable `kinetic_unavailable`, never a different edit;
+   *  - footage that is not explicit camera footage is refused with `footage_unsupported` before any upload;
+   *  - only basic_captions and kinetic_typography are listed / startable; a request with no style and a non-basic mode is refused (`style_required`).
+   * It forces the style system on (the style field must be honoured, or a request could reach another pipeline through `mode`) and overrides EDIT_STYLES_AVAILABLE / _ORDER. Every other style and pipeline stays in the code for later versions.
+   */
+  V1_KINETIC_RELEASE: bool(false),
+  /**
    * Creators Supabase project URL — required in production for ES256/RS256
    * access tokens (JWKS at `/auth/v1/.well-known/jwks.json`).
    * Example: https://mmyprzatmrfdtodsqaia.supabase.co
@@ -114,10 +120,26 @@ const schema = z.object({
    * renders when R2 upload fails). Example: http://192.168.1.35:8090
    */
   ENGINE_PUBLIC_BASE_URL: str(),
+  /**
+   * DEVELOPMENT ONLY. `local` keeps source uploads and outputs on this machine's disk (LOCAL_STORAGE_DIR) instead of Cloudflare R2; the engine
+   * serves them at <LOCAL_STORAGE_PUBLIC_BASE_URL>/dev-storage/<key> (GET, and a one-time PUT for the presigned source upload). Default `r2`
+   * (unchanged behaviour). Refused when NODE_ENV=production (storage/localStorage.ts). Exists so a development stack never touches the
+   * production bucket.
+   */
+  /** Kinetic V2 Director request bounds (stages/kinetic/director.ts). 0 / empty (default) = the previous request exactly; set to cap output tokens (thinking included) and the thinking level. */
+  KINETIC_DIRECTOR_MAX_OUTPUT_TOKENS: num(0),
+  KINETIC_DIRECTOR_THINKING_LEVEL: str(''),
+  /** Output frame rate of new edits (lib/outputFps.ts): `source` (default) keeps an ordinary source rate (23.5..30.5 fps); `fixed30` is the previous always-30 behaviour. */
+  OUTPUT_FPS_MODE: str('source'),
+  STORAGE_BACKEND: str('r2'),
+  LOCAL_STORAGE_DIR: str(''),
+  LOCAL_STORAGE_PUBLIC_BASE_URL: str(''),
 
   GROQ_API_KEY: str(),
   GROQ_MODEL: str('whisper-large-v3-turbo'),
   GROQ_MAX_UPLOAD_MB: num(24),
+  /** Send Groq a copy of speech.ogg with long silences shortened (stages/transcribe/precompact.ts), then map word times back to the original clock. Off = today's upload. */
+  GROQ_PRECOMPACT: bool(false),
   FFMPEG_PATH: str('ffmpeg'),
   FFPROBE_PATH: str('ffprobe'),
 
@@ -218,6 +240,27 @@ const schema = z.object({
    */
   POLISH_KINETIC_LED: bool(false),
   /**
+   * Kinetic engine v2 (stages/kinetic/productionStage.ts): the standalone typography engine produces `blueprint.kinetic` for a Kinetic-Typography-style job (needs POLISH_KINETIC_LED, which
+   * the style pins). Default OFF — nothing changes. When it fails for any reason the template Kinetic-Led path runs exactly as before.
+   */
+  POLISH_KINETIC_ENGINE: bool(false),
+  /** Kinetic engine v2: allow 3D extruded presets. OFF until the Lambda render path is verified for them (the engine renders them locally). */
+  POLISH_KINETIC_ENGINE_3D: bool(false),
+  /** Kinetic engine v2, Phase 4 Director-solver integration (spatial contract in the Director prompt, evidence-based emphasis validation, bounded size adaptation, hero-collision demotion). Default OFF = the Phase 3 engine behaviour. */
+  POLISH_KINETIC_ENGINE_ADAPTIVE: bool(false),
+  /** Phase 4.5 (default off): the kinetic engine reads the director's timestamped speaker boxes (speakerMotion.ts policy) instead of the one static box */
+  POLISH_KINETIC_ENGINE_MOTION: bool(false),
+  /**
+   * Phase 5 (default OFF): the kinetic engine gets an RVM person matte for CAMERA footage (pipeline/kineticMatteStage.ts): the solver may then place type BEHIND the speaker, and the blueprint carries the
+   * matching person foreground (source RGB + RVM alpha) as `subjectForeground`. Needs RVM configured (RVM_PYTHON / .venv-rvm + weights). Any failure = no matte = the Phase 4.9 front-only engine.
+   */
+  POLISH_KINETIC_ENGINE_MATTE: bool(false),
+  /**
+   * Default OFF. The Match Cut gets the camera-shutter treatment: scene cuts on the 100 ms click grid of remotion/public/sfx/matchcut.mp3, fast directional motion blur on the moving text only, a crisp landing, and the shutter
+   * sound as an audio hit at the cut. Match Cut ELIGIBILITY (four moments, one per plan, 20 s apart) is untouched. V1_KINETIC_RELEASE pins it on for the Kinetic Typography style.
+   */
+  POLISH_KINETIC_MATCHCUT_SHUTTER: bool(false),
+  /**
    * SUBJECT STAGE edit style (style_id subject_stage): the RVM speaker is a fixed identity layer and all editing happens on stages BEHIND her (full plate / opaque card / ghost scroll / neutral accents) or, once,
    * in FRONT of her (S5). Default OFF — existing polish is unchanged. Only on PRODUCT_EDIT_PROFILE=polish with the motion-graphics path, like POLISH_KINETIC_LED. Needs a usable RVM matte over the whole run
    * (mps / cuda, or CPU for <= 45 s of video); without one the style stays off (fail closed). When on it wins over POLISH_KINETIC_LED and is disabled under the faceless / explainer / newsroom skills.
@@ -231,6 +274,8 @@ const schema = z.object({
    * Production needs the RVM venv + weights provisioned on the host (the Docker image does not ship them).
    */
   RVM_PYTHON: str(),
+  /** Optional path of an existing RVM checkpoint (passed to the python process); empty = subjectmatte/weights/rvm_mobilenetv3.pth as before. */
+  RVM_WEIGHTS_PATH: str(),
   RVM_DEVICE: str('auto'),
   MATTING_MAX_CONCURRENT: num(1),
   MATTING_MAX_DURATION_SEC: num(90),
@@ -369,6 +414,11 @@ const schema = z.object({
    * closed (no Gemini request at all). Server environment only; no HTTP field can set it. There is deliberately no dollar cap: see lib/geminiEditBudget.ts.
    */
   GEMINI_EDIT_MAX_REQUESTS: num(0),
+  /** Completion callbacks to the Creators API (http/notifyCreator.ts): bounded delivery attempts, exponential backoff base / cap, per-attempt timeout. */
+  CALLBACK_MAX_ATTEMPTS: num(5),
+  CALLBACK_BACKOFF_BASE_MS: num(1000),
+  CALLBACK_BACKOFF_MAX_MS: num(30000),
+  CALLBACK_TIMEOUT_MS: num(12000),
 
   REMOTION_AWS_REGION: str('us-east-1'),
   REMOTION_FUNCTION_NAME: str(),

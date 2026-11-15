@@ -29,6 +29,8 @@ export type DirectorV2Result = {
    * the rest of analyze. Resolved at blueprint finalization — not awaited here.
    */
   musicPending: Promise<MusicPlan | null>;
+  /** Phase 5.29C: the story analyst's `subject_stage` answer as returned (null = not given); present only when `subjectStage` was requested. */
+  subjectStageRaw?: unknown;
 };
 
 export async function runDirectorV2(input: {
@@ -61,6 +63,8 @@ export async function runDirectorV2(input: {
   videoId?: string;
   /** WP55 phase 2: offer the KINETIC_TYPE_STORYTELLING family (prompt block from formatKineticTypeForDirector). Absent = byte-for-byte the previous request / compile. */
   kineticType?: {prompt: string};
+  /** Phase 5.29C: also ask the story analyst for the Subject Stage field (only when the Subject Stage owns the run). Absent = byte-for-byte the previous request. */
+  subjectStage?: boolean;
 }): Promise<DirectorV2Result> {
   const ms = (sec: number) => Math.round(sec * 1000);
   // Personalised music (MUSIC_PERSONALIZE, default on): the brief is built from this video's own data. Real cuts and zooms do not exist yet (music starts
@@ -112,7 +116,7 @@ export async function runDirectorV2(input: {
 
   try {
     mark = Date.now();
-    const story = await analyzeStory(pack);
+    const story = await analyzeStory(pack, input.subjectStage ? {subjectStage: true} : {});
     timings.story = Date.now() - mark;
     costs.story = story.estimatedCostUsd;
 
@@ -175,6 +179,7 @@ export async function runDirectorV2(input: {
       plan: compiled.plan,
       report: compiled.report,
       musicPending,
+      ...(story.subjectStageRaw !== undefined ? {subjectStageRaw: story.subjectStageRaw} : {}),
     };
   } catch (error) {
     log.warn({error}, 'director v2 failed; using deterministic fallback');

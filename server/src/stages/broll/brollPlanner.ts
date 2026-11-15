@@ -138,6 +138,8 @@ export type VisualPlan = {
   ledger?: EditLedger;
   /** What the Director was shown (VISUAL_CONTEXT_V2 only). */
   visualContext?: import('../directorV2/visualContext.ts').VisualContext;
+  /** Phase 4.5: the speaker boxes the Director's perception pack measured (output-timeline seconds; source 'vision' = detected, 'fallback' = the default guess). Present only when Director v2 ran. */
+  speakerSamples?: Array<{atSec: number; box: {x: number; y: number; w: number; h: number}; source: string}>;
   hookTitle: string;
   hookSubtitle: string;
   hookStyle: HookStyle;
@@ -171,6 +173,8 @@ export type VisualPlan = {
   directorReport?: DirectorRunReport;
   /** Opt-in (Phase 35): the Director's opening plan + colour direction, as returned. */
   openingRaw?: {openingPlan: unknown; colorDirection: unknown; videoObservations: unknown};
+  /** Opt-in (Phase 5.29C, `subjectStageDirection`): the Director v2 story analyst's `subject_stage` answer as returned (null = not given). Validated later by the Subject Stage. */
+  subjectStageRaw?: unknown;
   cta?: import('../../types/blueprint.ts').BlueprintCta;
   audioDesign?: import('../../types/blueprint.ts').AudioDesign;
   /** In-flight generated bed. Awaited when the blueprint is finalized. */
@@ -254,6 +258,8 @@ export async function planBRoll(input: {
   directorVideo?: {mimeType: string; data: string; bytes?: number};
   /** Opt-in (Phase 35, needs directorVideo): ask the Director for the opening plan and colour direction. */
   openingDirection?: boolean;
+  /** Phase 5.29C: ask the Director v2 story analyst for the Subject Stage field (chapters with spoken titles, quote cards). Only when the Subject Stage owns the run; absent = unchanged. */
+  subjectStageDirection?: boolean;
   /** Opt-in (Phase 36I): record per-field provenance of the Director's answer. */
   captureProvenance?: boolean;
   sourcePath?: string;
@@ -319,6 +325,8 @@ export async function planBRoll(input: {
 
   let estimatedCostUsd = 0;
   const northStar = Boolean(input.northStar) && !input.userBrollOnly;
+  /** Phase 5.29C: the Director v2 `subject_stage` answer (only when asked for) */
+  let subjectStageRaw: unknown;
   let direction: VisualDirection = fallbackVisualDirection({
     transcript: input.transcript,
     sourceDurationSec: input.sourceDurationSec,
@@ -371,8 +379,10 @@ export async function planBRoll(input: {
         lookBias: input.lookBias,
         videoId: input.videoId,
         kineticType: input.kineticType,
+        ...(input.subjectStageDirection ? {subjectStage: true} : {}),
       });
       direction = v2.direction;
+      if (v2.subjectStageRaw !== undefined) subjectStageRaw = v2.subjectStageRaw;
       editThesis = v2.plan?.editThesis ?? '';
       editThesisParts = v2.plan?.editThesisParts;
       northStarPack = v2.pack;
@@ -1066,12 +1076,14 @@ export async function planBRoll(input: {
     ...(proposedDirection.fallbackSubstitutions?.length ? {fallbackSubstitutions: proposedDirection.fallbackSubstitutions} : {}),
     ...(proposedDirection.fallbackReason ? {directorFallbackReason: proposedDirection.fallbackReason} : {}),
     ...(proposedDirection.openingRaw ? {openingRaw: proposedDirection.openingRaw} : {}),
+    ...(subjectStageRaw !== undefined ? {subjectStageRaw} : {}),
     ...(proposedDirection.directorProvenance ? {directorProvenance: proposedDirection.directorProvenance} : {}),
     ...(cutawaySchedule ? {cutawaySchedule} : {}),
     // WP3B: recording only, and only under the creator-B-roll-only (mvp) contract: the gap the gate enforced and the hook policy in effect.
     ...(input.userBrollOnly
       ? {evidence: {version: 1 as const, plannerMinGapSec: cutawayMinGapSec(cutawayListMode), plannerMinGapAppliesTo: 'cutaway_clips' as const, hookTitlePolicy: jobFlag('hookTitlePolicy', env.HOOK_TITLE_POLICY)}}
       : {}),
+    ...(northStarPack?.occupancyMeasured?.length ? {speakerSamples: northStarPack.occupancyMeasured.map(s => ({atSec: s.atSec, box: s.occupancy.speaker, source: s.occupancy.source}))} : {}),
     ...(input.visualContext || northStarPack?.visualContext ? {visualContext: input.visualContext ?? northStarPack?.visualContext} : {}),
     estimatedCostUsd,
     editThesis,

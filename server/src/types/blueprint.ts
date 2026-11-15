@@ -842,6 +842,14 @@ export type AudioDesign = {
     placementReason?: string;
     sfxSnapped?: number;
     sfxDropped?: number;
+    /**
+     * Phase SFX-3H: where the duck's bed loudness came from. 'measured' = written by the pipeline when it attached a bed with a valid measured
+     * integrated loudness; 'operator_attested' = supplied explicitly for a replay (render-blueprint --bed-lufs). Absent on every blueprint written
+     * before SFX-3H: such a value is unverified and a generated `talking` bed is not rendered (stages/render/renderSafety.ts).
+     */
+    bedLoudness?: {status: 'measured' | 'operator_attested'; lufs: number};
+    /** The generated-BGM level policy the duck was built with (stages/music/bgmPolicy.ts). Absent on older blueprints (v1 offsets). */
+    bgmPolicy?: 'v1_talking' | 'voice_first_v2';
     /** Phase 3.1: lowest and highest dB the loudness-aware duck added to the static gain over the video. Absent when the bed had no loudness map. */
     loudnessDuck?: {minDb: number; maxDb: number};
   };
@@ -875,6 +883,8 @@ export type AudioDesign = {
     src?: string;
     /** Catalog hits: the file's length in seconds, so the Sequence is not cut at the built-in 0.45 s. */
     durationSec?: number;
+    /** Phase SFX-3D: channels of the source file; 1 = mono, compensated by the renderer for its -3.01 dB upmix (remotion/src/lib/sfxPlaybackVolume.ts). */
+    sourceChannels?: 1 | 2;
   }>;
 };
 
@@ -1127,8 +1137,20 @@ export type TimelineBlueprint = {
       placement?: {xPct: number; yPct: number; wPct: number; hPct?: number};
       enter: 'hard_cut' | 'flash_cut' | 'slide_up_front';
       wash?: 'warm' | 'none';
+      /** Phase 5.24: the designed editorial treatment of an S1 / S2 span (stages/subjectStage/stageDesign.ts). Absent = the Phase 3 placeholder rendering, unchanged. */
+      design?: import('../stages/subjectStage/stageDesign.ts').SpanDesign;
     }>;
     accents: Array<{start: number; end: number; kind: 'pop_in' | 'drop_in_tilt' | 'text_stack'; lines?: string[]; lineStarts?: number[]; slot: number}>;
+    /** Phase 5.24: the video's look (palette + type roles), derived from the plate. */
+    look?: import('../stages/subjectStage/stageDesign.ts').StageLook;
+    /** Phase 5.24: the measured subject geometry the design used (composition fractions; the Kinetic V2 coordinate system). */
+    subject?: {box: {x: number; y: number; w: number; h: number}; faceKeepOut: {x: number; y: number; w: number; h: number}; alphaAreaFrac: number | null};
+    /** Phase 5.24: full-screen B-roll the Subject Stage itself adopted (the ONLY cutaways drawn in a Subject Stage edit). */
+    cutaways?: Array<import('../stages/subjectStage/stageDesign.ts').StageCutaway>;
+    /** Phase 5.24: set by the render prefetch when the person cutout could not be fetched: the render degrades to the original footage + matte-independent elements. */
+    matteMissing?: boolean;
+    /** Phase 5.25: output-second intervals where the matte is present and continuous; the person layer and matte-dependent elements draw only inside them. Absent = the whole stage spans. */
+    matteIntervals?: Array<{start: number; end: number}>;
   };
   /** Art-directed opening (replaces the standard hook title). Opt-in; see stages/openingPlan. */
   openingTreatment?: import('../stages/openingPlan/openingPlan.ts').OpeningTreatmentSpec;
@@ -1266,6 +1288,28 @@ export type RenderJob = {
   warnings?: string[];
 };
 
+export type CallbackDeliveryRecord = {
+  type: string;
+  status: 'pending' | 'delivered' | 'rejected' | 'exhausted';
+  attempts: number;
+  /** HTTP status of the last attempt, or 0 for a connection failure / timeout. */
+  lastCode: number;
+  lastError?: string;
+  firstAt: string;
+  lastAt: string;
+  /** What the receiver reported for the push (a separate fact from `status`): sent | failed | partial | skipped | no_tokens | invalid. */
+  pushStatus?: string;
+  /** The receiver recognised the event as already processed. */
+  duplicate?: boolean;
+  ignored?: string;
+  /** The complete callback body (outbox): a pending event is re-sent from this after a restart. Holds no secret (the key is added at send time). */
+  payload?: Record<string, unknown>;
+  /** When the next attempt is due (pending events only). */
+  nextAttemptAt?: string;
+  /** How many times an operator re-drove this event after it ended `exhausted` / `rejected` (each cycle gets a fresh attempt budget). */
+  cycles?: number;
+};
+
 export type CaptionsEditStatus =
   | 'awaiting_upload'
   | 'analyzing'
@@ -1307,6 +1351,8 @@ export type CaptionsEditJob = {
   styleNotes?: string[];
   /** Teleprompter script for retake detection (teleprompter_clean). */
   scriptText?: string;
+  /** What the app says the video is (server lib/footageKind.ts): 'camera' | 'screen_recording' | 'unknown'; absent = 'unknown'. Only 'camera' may enter Kinetic V2. */
+  footageKind?: 'camera' | 'screen_recording' | 'unknown';
   createdAt: string;
   updatedAt: string;
   analysisJobId?: string;
@@ -1329,6 +1375,12 @@ export type CaptionsEditJob = {
   };
   /** Notification types already sent for this job (dedupe: each fires at most once). */
   notified?: string[];
+  /** Times the creator retried this job (`POST /retry`). Part of the completion callback event id, so a second failure after a retry is a new event. */
+  retryCount?: number;
+  /** Completion-callback delivery record per event id (diagnostics: attempts, last response, whether Flask acknowledged, what the push did). */
+  callbacks?: Record<string, CallbackDeliveryRecord>;
+  /** True while any `callbacks` entry is `pending`: the boot-time scan of the durable store finds jobs by this marker (`job->>callbacksPending`). */
+  callbacksPending?: boolean;
   /** `full_edit`: the creator's answer started a fresh analysis (so a resume must not start another or reuse the old plan). */
   assetsAnalysisStarted?: boolean;
 };
