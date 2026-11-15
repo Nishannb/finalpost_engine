@@ -296,8 +296,10 @@ describe('analyzeVideo wiring (source)', () => {
     expect(phaseCNeeds).toBeLessThan(finalize);
   });
   it('the flag is read once, only through the gate inputs; the gate itself requires the polish profile', () => {
-    expect(src.match(/flags\.subjectStage/g)).toHaveLength(1);
+    // Phase 5.29C: exactly one more read, and only as the input of the Director request gate (ask the Director for chapters only when the stage can own the run)
+    expect(src.match(/flags\.subjectStage/g)).toHaveLength(2);
     expect(src).toContain('flag: flags.subjectStage,\n        polishPath,');
+    expect(src).toContain("subjectStageDirectorRequested({polishPath, flag: flags.subjectStage, owned: pipelineOwns(editingPipeline, 'subject_stage')})");
     expect(readFileSync(join(here, 'subjectStageStage.ts'), 'utf8')).toMatch(/if \(!input\.polishPath\) return \{state: 'not_applicable'/);
   });
   it('the exclusions are applied ONLY inside the active branch (skipped / off leave every list alone)', () => {
@@ -320,8 +322,8 @@ describe('analyzeVideo wiring (source)', () => {
     expect(src).toContain('segmentationConfigured: kineticYield.segmentationConfigured,');
     expect(src).toContain('...(subjectStagePayload ? {subjectStage: subjectStagePayload} : {}),');
   });
-  it('the existing kinetic subjectForeground path is untouched and still wins over the stage foreground (Remotion mounts the stage matte only when it is absent)', () => {
+  it('the existing kinetic subjectForeground path is untouched and owns the person layer: Remotion ignores a Subject Stage payload next to a kinetic blueprint (Phase 5.23)', () => {
     expect(src).toContain('...(kineticForeground ? {subjectForeground: {videoUrl: kineticForeground.videoUrl, spans: kineticForeground.spans}} : {}),');
-    expect(readFileSync(join(here, '../../../remotion/src/ShortVideo.tsx'), 'utf8')).toContain('{!blueprint.subjectForeground && subjectStageForeground ? (');
+    expect(readFileSync(join(here, '../../../remotion/src/ShortVideo.tsx'), 'utf8')).toContain('const subjectStage = blueprint.kinetic || blueprint.subjectForeground ? undefined : blueprint.subjectStage;');
   });
 });

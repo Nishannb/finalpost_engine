@@ -39,6 +39,7 @@ import {
 import {env} from '../../config/env.ts';
 import {
   IMPACT_BW_SHARE_TARGET,
+  planBwSpansWithReasons,
   IMPACT_FLASH_FRAMES,
   IMPACT_FLASH_MIN_GAP_SEC,
   IMPACT_PUNCH_RAMP_FRAMES,
@@ -188,29 +189,42 @@ describe('WP35 2) planner on the faceless fixture', () => {
     expect(money.length).toBeGreaterThan(0);
   });
 
-  it('B&W is denser than the old 1-per-20 s grade (<= 2 beats) yet never over 15 %, a money hold or a chapter card', () => {
-    const spans = result.fx.bwSpans;
-    expect(spans.length).toBeGreaterThanOrEqual(2);
-    expect(bwShare(spans, fixture.durationSec)).toBeLessThanOrEqual(0.15 + 1e-6);
-    expect(bwShare(spans, fixture.durationSec)).toBeGreaterThan(0.08);
+  it('B&W is selective: only with a stated narrative reason, whole sentences, never over a money hold or a chapter card, within the 10 % cap', () => {
+    const {spans, reasons} = planBwSpansWithReasons(fixture.words, plan, fixture.durationSec);
+    expect(spans.length).toBeLessThanOrEqual(2);
+    expect(bwShare(spans, fixture.durationSec)).toBeLessThanOrEqual(0.1 + 1e-6);
+    expect(reasons).toHaveLength(spans.length);
+    for (const r of reasons) expect(r.reason).toMatch(/^(past_reference|serious_passage:)/);
     for (const span of spans) {
       for (const hold of plan.holds.filter(item => item.reason === 'money')) expect(span.startSec < hold.end && span.endSec > hold.start).toBe(false);
       for (const card of plan.chapterCards) expect(span.startSec < card.at + card.duration && span.endSec > card.at).toBe(false);
-      expect(span.endSec - span.startSec).toBeGreaterThanOrEqual(0.7);
+      expect(span.endSec - span.startSec).toBeGreaterThanOrEqual(1.2);
+      expect(span.startSec).toBeGreaterThanOrEqual(3);
     }
-    // sorted, non-overlapping, on shot edges
-    const edges = new Set(plan.shots.flatMap(shot => [shot.start, shot.end]));
-    spans.forEach((span, index) => {
-      if (index > 0) expect(span.startSec).toBeGreaterThanOrEqual(spans[index - 1]!.endSec);
-      expect(edges.has(span.startSec)).toBe(true);
-    });
+    spans.forEach((span, index) => { if (index > 0) expect(span.startSec - spans[index - 1]!.endSec).toBeGreaterThanOrEqual(12); });
   });
 
-  it('strong emotional words (collapsed / cold / fired) are taken before a bare year token', () => {
-    const emotional = ['cold', 'collapsed'].map(text => fixture.words.find(word => word.text.toLowerCase().startsWith(text))!);
-    for (const word of emotional) expect(result.fx.bwSpans.some(span => word.start >= span.startSec && word.start < span.endSec)).toBe(true);
-    const tight = planBwSpans(fixture.words, plan, 5); // a 5 s budget (0.75 s) fits no 0.8 s span: nothing is taken
-    expect(bwShare(tight, 5)).toBeLessThanOrEqual(0.15 + 1e-6);
+  it('one emotional word is NOT a reason: a lone "alone" / "lost" / "fired" keeps the original colour; two emotional words in a serious passage, or a past reference, justify it', () => {
+    const mk = (text: string, t0: number): VoWord[] => text.split(' ').map((w, i) => ({text: w, start: t0 + i * 0.4, end: t0 + i * 0.4 + 0.35}));
+    const noPlan = {shots: [], holds: [], chapterCards: []};
+    const lone = [...mk('I was using this tool alone.', 4), ...mk('It took one afternoon to set up.', 9), ...mk('Then I got fired.', 14), ...mk('The next week was fine again.', 20)];
+    expect(planBwSpansWithReasons(lone, noPlan, 40).spans).toEqual([]);
+    const serious = [...mk('Intro words for the story here.', 0), ...mk('The company collapsed and I was fired.', 6), ...mk('Nothing else happened that week.', 12)];
+    const s1 = planBwSpansWithReasons(serious, noPlan, 40);
+    expect(s1.spans).toHaveLength(1);
+    expect(s1.reasons[0]!.reason).toBe('serious_passage:collapsed+fired');
+    const past = [...mk('Some intro words come first.', 0), ...mk('Back in 1999 nobody had a phone.', 6), ...mk('Today everything is different.', 12)];
+    expect(planBwSpansWithReasons(past, noPlan, 40).reasons[0]!.reason).toBe('past_reference');
+  });
+
+  it('never in the first or last 3 s, never a sliver, never more than 2 spans, and plain speech keeps full colour', () => {
+    const mk = (text: string, t0: number): VoWord[] => text.split(' ').map((w, i) => ({text: w, start: t0 + i * 0.4, end: t0 + i * 0.4 + 0.35}));
+    const noPlan = {shots: [], holds: [], chapterCards: []};
+    expect(planBwSpansWithReasons(mk('The company collapsed and I was fired.', 0), noPlan, 30).spans).toEqual([]);
+    expect(planBwSpansWithReasons(mk('The company collapsed and I was fired.', 26), noPlan, 30).spans).toEqual([]);
+    expect(planBwSpansWithReasons(mk('We talk about editing tips and cuts and pacing for creators today.', 5), noPlan, 30).spans).toEqual([]);
+    const many = [0, 14, 28, 42].flatMap(t => mk('The company collapsed and I was fired.', 5 + t));
+    expect(planBwSpansWithReasons(many, noPlan, 80).spans.length).toBeLessThanOrEqual(2);
   });
 
   it('is deterministic, reports warnings, and an unusable input draws nothing', () => {

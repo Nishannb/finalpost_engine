@@ -132,6 +132,7 @@ type Arm = {record: RunRecord; blueprint: any; net: NetCall[]};
 
 /** Run the real analyzeVideo inside the capture (and, optionally, an explicit replay). */
 async function runArm(options: {replay?: ReturnType<typeof occupancyReplaySource>; directorV2?: boolean; flags?: Record<string, unknown>} = {}): Promise<Arm> {
+  process.env.TMPDIR = mkdtempSync(join(work, 'tmp-arm-')); // every pipeline run gets its own ASR cache (extraction is byte-deterministic, so a shared cache would turn the next arm into a cache hit)
   baseEnv();
   setEnv(options.flags ?? {});
   net.calls.length = 0;
@@ -202,6 +203,10 @@ describe('the network is closed', () => {
 describe('capture is connected to the real execution path (live run)', () => {
   let live: Arm;
   beforeAll(async () => {
+    // A fresh ASR cache for this live run: speech-audio extraction is now byte-deterministic (media/ffmpeg.ts, bitexact), so an earlier arm of this file would otherwise
+    // already have cached the same synthetic clip and this run would (correctly) hit the cache instead of exercising the transcription request it asserts on.
+    process.env.TMPDIR = join(work, 'tmp-live');
+    mkdirSync(process.env.TMPDIR, {recursive: true});
     live = await runArm();
   }, 120_000);
 
@@ -253,6 +258,7 @@ describe('capture is connected to the real execution path (live run)', () => {
 
   it('a detached capture (hooks not attached to the run) sees nothing, which the count check exposes and which blocks comparability', async () => {
     baseEnv();
+    process.env.TMPDIR = mkdtempSync(join(work, 'tmp-detached-')); // a fresh ASR cache, like the live run it is compared with
     const detached = new RunCapture(clock);
     const {analyzeVideo} = await import('../pipeline/analyzeVideo.ts');
     const blueprint = await analyzeVideo({videoUrl: video, languageCode: 'en', userId: 'synthetic', requestedEdits: ['hook_title', 'zoom', 'cutaway']}); // NOT inside withObserver

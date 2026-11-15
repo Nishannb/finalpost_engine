@@ -107,20 +107,24 @@ describe('env flag', () => {
     expect(read('../../config/env.ts')).toMatch(/POLISH_SUBJECT_STAGE: bool\(false\)/);
     expect(read('../../../../.env.example')).toContain('# POLISH_SUBJECT_STAGE=0');
     expect(read('../../../../.env.production.example')).toContain('# POLISH_SUBJECT_STAGE=0');
-    expect(read('../../pipeline/analyzeVideo.ts').match(/flags\.subjectStage/g)).toHaveLength(1);
+    // Phase 5.29C: the second read is the Director request gate (same gate inputs: polish path, the flag, pipeline ownership); nothing else reads it
+    expect(read('../../pipeline/analyzeVideo.ts').match(/flags\.subjectStage/g)).toHaveLength(2);
+    expect(read('../../pipeline/analyzeVideo.ts')).toContain("subjectStageDirectorRequested({polishPath, flag: flags.subjectStage, owned: pipelineOwns(editingPipeline, 'subject_stage')})");
   });
 });
 
 describe('ShortVideo mount: absent subjectStage is a no-op, z-order matches the grammar', () => {
   const src = read('../../../../remotion/src/ShortVideo.tsx');
-  it('every stage mount is guarded by the optional field', () => {
-    expect(src).toMatch(/\{blueprint\.subjectStage \? \(\s*(\/\/[^\n]*\n\s*)?<SubjectStageTrack/);
-    expect(src).toMatch(/\{blueprint\.subjectStage \? \(\s*(\/\/[^\n]*\n\s*)?<SubjectStageFront/);
-    expect(src).toContain('{!blueprint.subjectForeground && subjectStageForeground ? (');
-    expect(src).toContain('foregroundFromStage(blueprint.subjectStage)');
+  it('every stage mount is guarded by the ACTIVE stage (Phase 5.23: a usable matte + valid spans, and no kinetic owner of the person layer)', () => {
+    expect(src).toMatch(/\{activeStage \? \(\s*(\/\/[^\n]*\n\s*)*<SubjectStageTrack/);
+    expect(src).toMatch(/\{activeStage \? \(\s*(\/\/[^\n]*\n\s*)*<SubjectStageFront/);
+    expect(src).toContain('{subjectStageForeground ? (');
+    expect(src).toContain('const subjectStage = blueprint.kinetic || blueprint.subjectForeground ? undefined : blueprint.subjectStage;');
+    expect(src).toContain('const stageComp = stageCompositing(subjectStage);');
+    expect(src).toContain('<SubjectStageTrack stage={activeStage} foregroundOn={stageOnNow}');
   });
   it('room treatment is dim-only (never CSS blur); no eraser / black oval anywhere', () => {
-    expect(src).toContain('grade={combineFilters(gradeFilterAt(blueprint.gradeBeats, timeSec), stageBackdropFilterAt(blueprint.subjectStage, timeSec))}');
+    expect(src).toContain('grade={combineFilters(gradeFilterAt(blueprint.gradeBeats, timeSec), stageOnNow ? stageBackdropFilterAt(activeStage, timeSec) : undefined)}');
     expect(src).not.toContain('SubjectStagePersonEraser');
     expect(src).not.toContain('SubjectStagePunchedRoom');
     expect(M.stageBackdropFilterAt(undefined, 3)).toBeUndefined();
@@ -132,11 +136,10 @@ describe('ShortVideo mount: absent subjectStage is a no-op, z-order matches the 
     for (const grade of [undefined, 'grayscale(0.5) contrast(1.09)']) expect(M.combineFilters(grade, M.stageBackdropFilterAt(undefined, 1))).toBe(grade);
     expect(existsSync(join(here, '../../../../remotion/src/components/SubjectStage/SubjectStagePersonEraser.tsx'))).toBe(false);
   });
-  it('base talking-head is hidden (opacity 0, still mounted for audio) under the matte only when stage + foreground are on', () => {
-    expect(src).toContain('const hideBaseUnderMatte = Boolean(blueprint.subjectStage && (blueprint.subjectForeground || subjectStageForeground));');
-    expect(src).toContain('hideBaseUnderMatte ? <AbsoluteFill style={{opacity: 0}}>{baseVideo}</AbsoluteFill> : baseVideo');
-    expect(src).toContain('the behind-layer (SubjectStageTrack) is what sits behind the cutout');
-    expect(src).toContain('the base talking-head body is NOT shown under the matte');
+  it('Phase 5.23: the original footage is NEVER hidden by the stage (the pre-5.23 whole-video opacity-0 base is gone; a missing / invalid matte cannot make the person disappear)', () => {
+    expect(src).not.toContain('hideBaseUnderMatte');
+    expect(src).not.toContain('<AbsoluteFill style={{opacity: 0}}>{baseVideo}</AbsoluteFill>');
+    expect(src).toMatch(/\n\s*\{baseVideo\}\n/);
   });
   it('z-order: speaker footage < stage behind-layer < kinetic subjectForeground / stage person < stage front < emphasis / captions', () => {
     const at = (needle: string) => {

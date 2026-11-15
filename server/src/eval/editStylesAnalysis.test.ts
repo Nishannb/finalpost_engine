@@ -11,6 +11,8 @@ const state = vi.hoisted(() => ({
   /** What the stand-in does inside the job's budget scope. Returns the blueprint warnings. */
   behave: (async () => []) as (input: Record<string, unknown>) => Promise<string[]>,
   matteConfigured: false,
+  usage: [] as unknown[],
+  noKineticSpec: false,
 }));
 
 vi.mock('../config/env.ts', async importOriginal => {
@@ -18,7 +20,7 @@ vi.mock('../config/env.ts', async importOriginal => {
   state.env = {...actual.env, REDIS_URL: '', GEMINI_EDIT_MAX_REQUESTS: 0, PRODUCT_EDIT_PROFILE: 'cuts', EDIT_STYLES_ENGINE_FLAGS: true, CLAUDE_EDIT_BUDGET_USD: 5};
   return {...actual, env: state.env};
 });
-vi.mock('../stages/render/renderBudget.ts', () => ({assertAnalysisAllowed: async () => {}, recordAnalysis: async () => {}}));
+vi.mock('../stages/render/renderBudget.ts', () => ({assertAnalysisAllowed: async () => {}, recordAnalysis: async (...args: unknown[]) => { state.usage.push(args); }}));
 vi.mock('../media/personMatte.ts', () => ({subjectMatteConfigured: () => state.matteConfigured}));
 vi.mock('../pipeline/analyzeVideo.ts', async () => {
   const budget = await import('../lib/geminiEditBudget.ts');
@@ -27,7 +29,7 @@ vi.mock('../pipeline/analyzeVideo.ts', async () => {
       const scope = budget.currentGeminiBudget();
       state.calls.push({input, budget: scope ? scope.report() : null});
       const warnings = await state.behave(input);
-      return {blueprintId: `bp_${state.calls.length}`, createdAt: new Date().toISOString(), stats: {warnings}, captionWords: [], outputDurationSec: 10};
+      return {blueprintId: `bp_${state.calls.length}`, createdAt: new Date().toISOString(), stats: {warnings}, captionWords: [], outputDurationSec: 10, ...((input.effectiveFlags as {kineticEngine?: boolean} | undefined)?.kineticEngine && !state.noKineticSpec ? {kinetic: {events: []}} : {})};
     },
   };
 });
@@ -79,9 +81,11 @@ const RESET = {POLISH_FACELESS_DOC: false, POLISH_NEWSROOM_MG: false, POLISH_SUB
 
 beforeEach(() => {
   state.calls = [];
+  state.usage = [];
+  state.noKineticSpec = false;
   state.behave = async () => [];
   state.matteConfigured = false;
-  Object.assign(state.env, RESET, {GEMINI_EDIT_MAX_REQUESTS: 0, PRODUCT_EDIT_PROFILE: 'cuts', EDIT_STYLES_ENGINE_FLAGS: true, CLAUDE_EDIT_BUDGET_USD: 5});
+  Object.assign(state.env, RESET, {GEMINI_EDIT_MAX_REQUESTS: 0, PRODUCT_EDIT_PROFILE: 'cuts', EDIT_STYLES_ENGINE_FLAGS: true, CLAUDE_EDIT_BUDGET_USD: 5, V1_KINETIC_RELEASE: false});
 });
 
 describe('requests with no style are unchanged', () => {
@@ -160,28 +164,31 @@ describe('AI Clean Cut is the cuts profile no matter what (PRODUCT_EDIT_PROFILE=
     expect((input.effectiveFlags as {profile: string}).profile).toBe('cuts');
     expect(done).toMatchObject({editProfile: 'cuts', style: 'ai_clean_cut', styleApplied: 'ai_clean_cut', degraded: false, degradedReasons: []});
   });
-  it('a Kinetic job falling back to Clean Cut (flags off) is cuts too, on a polish server', async () => {
+  it('a Kinetic job with the engine flags off never falls back to Clean Cut: it fails closed (retryable kinetic_unavailable)', async () => {
     Object.assign(state.env, {PRODUCT_EDIT_PROFILE: 'polish', EDIT_STYLES_ENGINE_FLAGS: false});
     const done = await finished(await analyze('kinetic_typography'));
-    expect(state.calls[0]!.input.editProfile).toBe('cuts');
-    expect(done).toMatchObject({styleApplied: 'ai_clean_cut', degraded: true, degradedReasons: ['engine_flags_off']});
+    expect(done).toMatchObject({status: 'failed', errorCode: 'kinetic_unavailable'});
+    expect(done).not.toHaveProperty('blueprint');
   });
 });
 
 describe('the engine kill switch off: Phase 1 behaviour', () => {
-  it('Kinetic runs on the env profile and env flags with the env budget, degraded engine_flags_off', async () => {
+  it('Kinetic is never run on the env profile as another edit: the job fails closed; another flag-dependent style keeps the Phase 1 behaviour', async () => {
     Object.assign(state.env, {EDIT_STYLES_ENGINE_FLAGS: false, PRODUCT_EDIT_PROFILE: 'cuts', POLISH_FACELESS_DOC: true});
-    const done = await finished(await analyze('kinetic_typography'));
+    expect(await finished(await analyze('kinetic_typography'))).toMatchObject({status: 'failed', errorCode: 'kinetic_unavailable'});
+    state.calls = [];
+    const done = await finished(await analyze('explainer'));
     const {input, budget} = state.calls[0]!;
     expect(input.editProfile).toBe('cuts');
     expect(input.effectiveFlags).toEqual(effectiveFlagsFromEnv(state.env as unknown as EffectiveFlagsEnv, 'cuts'));
     expect(budget).toBeNull();
-    expect(done).toMatchObject({style: 'kinetic_typography', styleApplied: 'ai_clean_cut', degraded: true, degradedReasons: ['engine_flags_off']});
+    expect(done).toMatchObject({style: 'explainer', styleApplied: 'ai_clean_cut', degraded: true, degradedReasons: ['engine_flags_off']});
   });
 });
 
 describe('hitting the Gemini cap mid-run never fails the job', () => {
   it('today: a refusal is thrown to the stage before any request leaves; the stage falls back and the job completes. Styled jobs report which stage', async () => {
+    state.env.V1_KINETIC_RELEASE = true; // Kinetic is only startable with the V1 gate on
     // 14 attempts against a cap of 12: the 6 reserved stages get theirs, the pool (6) takes the first 6 others, then the rest are refused.
     state.behave = async () => {
       for (const label of ['cuts ai keep plan', 'Director v2 story analyst', 'Director v2 creative director', 'motion graphics director', 'Gemini speaker occupancy', 'content profile']) stage(label);
@@ -210,6 +217,7 @@ describe('hitting the Gemini cap mid-run never fails the job', () => {
   });
 
   it('Kinetic with no matte backend (no RVM) completes front-only: honoured (matte optional), with the note', async () => {
+    state.env.V1_KINETIC_RELEASE = true; // Kinetic is only startable with the V1 gate on
     state.matteConfigured = false;
     state.behave = async () => ['polish_kinetic_led:on'];
     const done = await finished(await analyze('kinetic_typography'));
@@ -235,6 +243,7 @@ describe('hitting the Gemini cap mid-run never fails the job', () => {
 
 describe('cache keys and isolation', () => {
   it('each style has its own key, distinct from the unstyled key; the same style hits its own entry', async () => {
+    state.env.V1_KINETIC_RELEASE = true; // Kinetic is only startable with the V1 gate on
     const url = video();
     for (const style of [undefined, ...EDIT_STYLE_IDS]) await finished(await analyze(style, url));
     expect(state.calls).toHaveLength(1 + EDIT_STYLE_IDS.length); // no cross-style hit
@@ -251,6 +260,7 @@ describe('cache keys and isolation', () => {
   });
 
   it('two concurrent styled analyses each get their own flags and budget', async () => {
+    state.env.V1_KINETIC_RELEASE = true; // Kinetic is only startable with the V1 gate on
     let release!: () => void;
     const gate = new Promise<void>(resolve => (release = resolve));
     state.behave = async input => {
@@ -268,5 +278,35 @@ describe('cache keys and isolation', () => {
     expect(byStyle.explainer!.effectiveFlags).toMatchObject({kineticLed: false, explainerSkill: true});
     expect(k.degradedReasons).toEqual(['gemini_cap_reached:director_story']);
     expect(e.degradedReasons).toEqual(['gemini_cap_reached:content_profile']);
+  });
+});
+
+describe('V1: a failed Kinetic job is not cached and does not consume usage', () => {
+  it('the engine produced no Kinetic spec: the job fails (kinetic_unavailable), nothing is recorded as used, and the same request runs again instead of hitting a cache', async () => {
+    state.env.V1_KINETIC_RELEASE = true;
+    state.noKineticSpec = true;
+    state.behave = async () => ['kinetic_engine_failed:no_spec'];
+    const url = video();
+    const first = await finished(await analyze('kinetic_typography', url, {footageKind: 'camera'}));
+    expect(first).toMatchObject({status: 'failed', errorCode: 'kinetic_unavailable'});
+    expect(first).not.toHaveProperty('blueprint');
+    expect(state.usage).toHaveLength(0);
+    state.noKineticSpec = false;
+    const second = await finished(await analyze('kinetic_typography', url, {footageKind: 'camera'}));
+    expect(second.status).toBe('done');
+    expect(second.cached).not.toBe(true);
+    expect(state.calls).toHaveLength(2);
+    expect(state.usage).toHaveLength(1);
+  });
+  it('a successful Kinetic job runs the Kinetic V2 pipeline flags, is recorded once, and the identical request is then a cache hit', async () => {
+    state.env.V1_KINETIC_RELEASE = true;
+    const url = video();
+    const first = await finished(await analyze('kinetic_typography', url, {footageKind: 'camera'}));
+    expect(first.status).toBe('done');
+    expect(state.calls[0]!.input.effectiveFlags).toMatchObject({kineticEngine: true, matchCutShutter: true, kineticEngineMatte: false, subjectStage: false});
+    expect(state.usage).toHaveLength(1);
+    const second = await finished(await analyze('kinetic_typography', url, {footageKind: 'camera'}));
+    expect(second.cached).toBe(true);
+    expect(state.calls).toHaveLength(1);
   });
 });

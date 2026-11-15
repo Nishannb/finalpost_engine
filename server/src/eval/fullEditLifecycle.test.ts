@@ -36,7 +36,7 @@ vi.mock('../pipeline/renderRunner.ts', () => ({
   loadRenderJob: (...a: unknown[]) => mocks.loadRenderJob(...a),
   refreshRenderJob: async (job: unknown) => job,
 }));
-vi.mock('../http/notifyCreator.ts', () => ({notifyCreatorEditDone: (...a: unknown[]) => mocks.notify(...a)}));
+vi.mock('../http/notifyCreator.ts', async importOriginal => ({...(await importOriginal<typeof import('../http/notifyCreator.ts')>()), notifyCreatorEditDone: (...a: unknown[]) => mocks.notify(...a)}));
 vi.mock('../pipeline/captionKitBurn.ts', () => ({burnCaptionKitVideo: (...a: unknown[]) => mocks.burn(...a)}));
 vi.mock('../storage/r2.ts', () => ({
   presignSourceVideo: async () => ({key: 'k', publicUrl: 'https://cdn/src.mp4', uploadUrl: 'https://up'}),
@@ -282,7 +282,7 @@ describe('captions jobs keep their behavior (regression)', () => {
     });
     await markCaptionsSourceUploaded(job.editJobId, 'u1');
     await settled(job.editJobId, 'failed');
-    expect(sent()).toEqual([{userId: 'u1', editJobId: job.editJobId, status: 'failed', errorMessage: 'No speech'}]);
+    expect(sent()).toEqual([{userId: 'u1', editJobId: job.editJobId, status: 'failed', errorMessage: 'No speech', eventId: `captions_failed:${job.editJobId}:0`, occurredAt: expect.any(String)}]); // + the idempotency identity (the receiver deduplicates by it)
     expect(sent()[0]).not.toHaveProperty('type');
   });
 
@@ -299,7 +299,7 @@ describe('captions jobs keep their behavior (regression)', () => {
     });
     await markCaptionsSourceUploaded(job.editJobId, 'u1');
     await settled(job.editJobId, 'done');
-    expect(sent()).toEqual([{userId: 'u1', editJobId: job.editJobId, status: 'done', outputUrl: 'https://cdn/out.mp4'}]);
+    expect(sent()).toEqual([{userId: 'u1', editJobId: job.editJobId, status: 'done', outputUrl: 'https://cdn/out.mp4', eventId: `edit_done:${job.editJobId}:0`, occurredAt: expect.any(String)}]);
   });
 
   it('asset submission is refused for a captions job', async () => {
@@ -313,5 +313,32 @@ describe('captions jobs keep their behavior (regression)', () => {
     await expect(submitFullEditAssets({editJobId: job.editJobId, userId: 'u1', skipAll: true})).rejects.toMatchObject({
       code: 'bad_request',
     });
+  });
+});
+
+describe('V1: the selected caption preset travels with the Pro job into the analysis (and so into Kinetic)', () => {
+  it('create -> upload -> analysis is started WITH captionPreset, style and footageKind; the render then starts for the same blueprint', async () => {
+    const bp = blueprint('bpk', []);
+    db.blueprints.set('bpk', bp);
+    analysisDone('an_1', bp);
+    const {job} = await createCaptionsEditJob({
+      userId: 'u1', contentType: 'video/mp4', languageCode: 'en' as never, captionTemplate: 'basic' as never, captionPreset: 'couture',
+      mode: 'full_edit', style: 'kinetic_typography' as never, footageKind: 'camera' as never,
+      fullEdit: {renderFlags: {brollEnabled: true, zoomEnabled: true, trimEnabled: true}},
+    });
+    await markCaptionsSourceUploaded(job.editJobId, 'u1');
+    await settled(job.editJobId, 'done');
+    expect(mocks.startAnalysis).toHaveBeenCalledTimes(1);
+    expect(mocks.startAnalysis.mock.calls[0]![0]).toMatchObject({captionPreset: 'couture', style: 'kinetic_typography', footageKind: 'camera'});
+    expect(mocks.startRender.mock.calls[0]![0]).toMatchObject({blueprintId: 'bpk'});
+  });
+  it('a Pro job without a preset starts the analysis without the field (older apps)', async () => {
+    const bp = blueprint('bpn', []);
+    db.blueprints.set('bpn', bp);
+    analysisDone('an_1', bp);
+    const id = await start();
+    await markCaptionsSourceUploaded(id, 'u1');
+    await settled(id, 'done');
+    expect('captionPreset' in (mocks.startAnalysis.mock.calls[0]![0] as object)).toBe(false);
   });
 });

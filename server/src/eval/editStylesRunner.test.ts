@@ -27,7 +27,7 @@ vi.mock('../pipeline/renderRunner.ts', () => ({
   loadRenderJob: async (id: string) => ({renderJobId: id, status: 'done', progress: 1, outputUrl: 'https://cdn/out.mp4', outputDurationSec: 9}),
   refreshRenderJob: async (job: unknown) => job,
 }));
-vi.mock('../http/notifyCreator.ts', () => ({notifyCreatorEditDone: async () => undefined}));
+vi.mock('../http/notifyCreator.ts', async importOriginal => ({...(await importOriginal<typeof import('../http/notifyCreator.ts')>()), notifyCreatorEditDone: async () => undefined}));
 vi.mock('../pipeline/captionKitBurn.ts', () => ({burnCaptionKitVideo: async () => ({outputUrl: 'https://cdn/burned.mp4'})}));
 vi.mock('../storage/r2.ts', () => ({
   presignSourceVideo: async () => ({key: 'k', publicUrl: 'https://cdn/src.mp4', uploadUrl: 'https://up'}),

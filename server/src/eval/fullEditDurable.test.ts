@@ -20,7 +20,7 @@ vi.mock('../pipeline/renderRunner.ts', () => ({
   loadRenderJob: (...a: unknown[]) => mocks.loadRenderJob(...a),
   refreshRenderJob: async (job: unknown) => job,
 }));
-vi.mock('../http/notifyCreator.ts', () => ({notifyCreatorEditDone: (...a: unknown[]) => mocks.notify(...a)}));
+vi.mock('../http/notifyCreator.ts', async importOriginal => ({...(await importOriginal<typeof import('../http/notifyCreator.ts')>()), notifyCreatorEditDone: (...a: unknown[]) => mocks.notify(...a)}));
 vi.mock('../pipeline/captionKitBurn.ts', () => ({burnCaptionKitVideo: vi.fn()}));
 vi.mock('../storage/r2.ts', () => ({
   presignSourceVideo: async () => ({key: 'k', publicUrl: 'https://cdn/src.mp4', uploadUrl: 'https://up'}),

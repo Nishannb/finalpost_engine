@@ -234,27 +234,23 @@ describe('POST /v1/edits/captions with `style`', () => {
     expect(state.created[1]).not.toHaveProperty('fullEdit');
   });
 
-  it('engine flags switched off: a flag-dependent style runs as Clean Cut and is recorded as degraded `engine_flags_off`', async () => {
+  it('release gate OFF: Kinetic Typography is refused 503 kinetic_unavailable (never started as the older template path), whatever the engine flags say', async () => {
     state.env.EDIT_STYLES_AVAILABLE = 'basic_captions,ai_clean_cut,kinetic_typography';
-    state.env.EDIT_STYLES_ENGINE_FLAGS = false;
-    const response = await post('/v1/edits/captions', 'pro-user', {...BASE, style: 'kinetic_typography'});
-    expect(response.status).toBe(202);
-    expect(state.created[0]).toEqual(expect.objectContaining({mode: 'full_edit', style: 'kinetic_typography', degraded: true, degradedReasons: ['engine_flags_off']}));
-    const editJobId = String((await json(response)).job?.editJobId);
-    const status = await json(await get(`/v1/edits/${editJobId}`, 'pro-user'));
-    expect(status.job).toEqual(expect.objectContaining({style: 'kinetic_typography', degraded: true, degradedReasons: ['engine_flags_off']}));
+    for (const flags of [false, true]) {
+      state.env.EDIT_STYLES_ENGINE_FLAGS = flags;
+      const response = await post('/v1/edits/captions', 'pro-user', {...BASE, style: 'kinetic_typography', footageKind: 'camera'});
+      expect(response.status).toBe(503);
+      expect((await json(response)).code).toBe('kinetic_unavailable');
+    }
+    expect(state.created).toHaveLength(0);
   });
 
-  it('engine flags on: the same request starts not degraded (the analysis reports any real fallback later)', async () => {
+  it('release gate OFF: the other flag-dependent style still starts (degraded when the engine flags are off)', async () => {
     state.env.EDIT_STYLES_AVAILABLE = 'basic_captions,ai_clean_cut,kinetic_typography';
-    state.env.EDIT_STYLES_ENGINE_FLAGS = true;
-    try {
-      const response = await post('/v1/edits/captions', 'pro-user', {...BASE, style: 'kinetic_typography'});
-      expect(response.status).toBe(202);
-      expect(state.created[0]).toEqual(expect.objectContaining({mode: 'full_edit', style: 'kinetic_typography', degraded: false, degradedReasons: []}));
-    } finally {
-      state.env.EDIT_STYLES_ENGINE_FLAGS = false;
-    }
+    state.env.EDIT_STYLES_ENGINE_FLAGS = false;
+    const response = await post('/v1/edits/captions', 'pro-user', {...BASE, style: 'ai_clean_cut'});
+    expect(response.status).toBe(202);
+    expect(state.created[0]).toEqual(expect.objectContaining({mode: 'full_edit', style: 'ai_clean_cut'}));
   });
 
   it('mode-only requests (older apps) are unchanged', async () => {

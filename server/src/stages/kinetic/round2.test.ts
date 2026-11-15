@@ -336,7 +336,7 @@ function baseEvAmazing(over: Partial<TextEvent>): TextEvent {
   return baseEv({id: 'a', wordRange: [0, 1], lines: [{text: 'now', role: 'connector'}, {text: 'amazing', role: 'hero'}], regionHint: 'running', ...over});
 }
 
-describe('3. match cut only in the four moments', () => {
+describe('3. match cut only in the four narrative moments', () => {
   const say = (text: string, t0: number) => text.split(' ').map((w, i) => ({text: w, start: t0 + i * 0.3, end: t0 + i * 0.3 + 0.25}));
   const wordsOf = (raw: ReturnType<typeof say>): KineticWord[] => toKineticWords(raw, FPS);
   const mcEvent = (words: KineticWord[], keyword: string): TextEvent => {
@@ -359,18 +359,16 @@ describe('3. match cut only in the four moments', () => {
     expect(r.plan.events.map(e => e.id)).toEqual(['h']);
     expect(r.notes?.join(' ')).toMatch(/match cut dropped/);
   });
-  it('a statistic, a pivot, the opening hook and the core keyword are legal; a second cut is not', () => {
+  it('a statistic alone is NOT legal; the opening hook (the recurring topic, 2.5-10 s in) is; a second cut inside a short video is not', () => {
     const stat = wordsOf(say('only 90% of creators ever make money', 2));
-    expect(matchCutMomentOf(stat.findIndex(w => w.text === 'creators'), [0, stat.length - 1], stat, FPS)).toMatchObject({ok: true, moment: 'statistic'});
-    const pivot = wordsOf(say('the problem is nobody tells you the solution', 2));
-    expect(matchCutMomentOf(1, [0, pivot.length - 1], pivot, FPS)).toMatchObject({ok: true, moment: 'pivot'});
-    const open = wordsOf(say('viral hooks decide everything inside three seconds', 0.1));
-    const top = open.reduce((a, w) => (w.emphasisScore > a.emphasisScore && w.text.length >= 4 ? w : a), open[0]!);
-    expect(matchCutMomentOf(top.idx, [0, open.length - 1], open, FPS).ok).toBe(true);
-    const a = mcEvent(stat, 'creators');
-    const two = sanitizeMatchCuts({version: '1', style: 'retroNeon', events: [a, {...a, id: 'mc2'}]}, stat, FPS);
+    expect(matchCutMomentOf(stat.findIndex(w => w.text === 'creators'), [0, stat.length - 1], stat, FPS).ok).toBe(false);
+    const open = wordsOf([...say('welcome back everyone this video is all about pricing for creators', 3), ...say('most creators get pricing wrong', 20)]);
+    const i = open.findIndex(w => w.text === 'pricing');
+    expect(matchCutMomentOf(i, [Math.max(0, i - 3), Math.min(open.length - 1, i + 3)], open, FPS)).toMatchObject({ok: true, moment: 'openingHook'});
+    const a = mcEvent(open, 'pricing');
+    const two = sanitizeMatchCuts({version: '1', style: 'retroNeon', events: [a, {...a, id: 'mc2'}]}, open, FPS);
     expect(two.plan.events).toHaveLength(1);
-    expect(two.dropped[0]!.reason).toMatch(/at most one/);
+    expect(two.dropped[0]!.reason).toMatch(/at most 1|closer than/);
   });
   it('the solver (acceptMatchCuts) also refuses a match cut outside the four moments', () => {
     const words = wordsOf(say('that was an example of a hook for you all', 3));
