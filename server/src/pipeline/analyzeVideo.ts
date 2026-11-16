@@ -3214,6 +3214,13 @@ async function analyzeVideoUnguarded(
       if (eventSfx.report) log.info({videoId: musicVideoId, ...eventSfx.report, placements: eventSfx.report.placements.length}, 'sfx.event_generated');
     }
 
+    // The last stage of a bed's lifecycle (spend log: requested -> paid -> downloaded; ledger: claimed -> resolved): logged from the FINAL blueprint, so it is only
+    // reported when the bed is actually on it (a bed dropped for a non-public URL, or replaced later, is never reported). `source: pool` with a fallbackReason is a
+    // fallback, never personalized generation.
+    if (blueprint.audioDesign?.musicUrl) {
+      const provenance = blueprint.audioDesign.musicProvenance;
+      log.info({videoId: musicVideoId, source: provenance?.source ?? null, cacheKey: provenance?.cacheKey ?? null, costUsd: provenance?.costUsd ?? 0, fallbackReason: provenance?.fallbackReason ?? null, fallbackTier: provenance?.fallbackTier ?? null}, 'music.bed_attached');
+    }
     observe(() => ({type: 'blueprint', blueprint}));
     // Phase 2.1 D: keep the final blueprint on disk for free re-renders. A write failure never fails analyze.
     try {

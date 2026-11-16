@@ -65,7 +65,7 @@ export const RemotionRoot: React.FC = () => (
     fps={defaultProps.blueprint.fps}
     width={defaultProps.blueprint.width}
     height={defaultProps.blueprint.height}
-    calculateMetadata={({props}) => ({
+    calculateMetadata={({props}: {props: ShortVideoProps}) => ({
       durationInFrames: durationInFramesFor(props),
       fps: props.blueprint.fps,
       width: props.blueprint.width,

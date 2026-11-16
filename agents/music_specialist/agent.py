@@ -10,7 +10,7 @@ from .postprocess import POSTPROCESS_VERSION, postprocess_bed, write_click_bed
 from .prompts import LYRICS, NEGATIVE_PROMPT, cache_key, caption_for, derive_seed, lyrics_for_arc, resolve_mood, spec_for_brief
 from .qc import qc_bed
 from .runware import DryRunTransport, bgm_task, classify_sfx, sfx_task
-from .spend import append_spend, bgm_cap_cost
+from .spend import SpendLogError, append_spend, bgm_cap_cost, spend_log_writable
 from .silence_trimmer import trim_leading_silence
 from .timeline import build_schema
 
@@ -29,6 +29,17 @@ def _run_qc(metrics: Dict[str, Any], requested_bpm: float) -> Dict[str, Any]:
                 "vocal_score": None, "passed": False}
 
 
+class PaidGenerationError(RuntimeError):
+    """A paid request was (or may have been) made but no usable bed came back. Carries what the server must record in its durable ledger:
+    `stage` is where it failed (post: outcome unknown, the request may or may not have been charged; download: charged, bed lost), `cost` the measured cost when known."""
+
+    def __init__(self, stage: str, cost: Optional[float], message: str, accounting: Dict[str, Any]) -> None:
+        super().__init__(message)
+        self.stage = stage
+        self.cost = cost
+        self.accounting = accounting
+
+
 def qc_retry_allowed(payload: Any) -> bool:
     """Phase 1.7.3: a failed QC may trigger a second paid BGM generation ONLY when the job explicitly opts in with the JSON boolean
     `allow_qc_retry: true`. Missing, false, null, 1, "true" or any other value means no retry. The production server never opts in."""
@@ -38,6 +49,50 @@ def qc_retry_allowed(payload: Any) -> bool:
 class AIMusicSpecialistAgent:
     def __init__(self, transport: Optional[Any] = None) -> None:
         self.transport = transport if transport is not None else DryRunTransport()
+
+    def _paid_bgm_request(self, *, caption: str, seed: int, spec: Any, lyrics: Any, key: str, video_id: str, raw_path: str,
+                          accounting: Dict[str, Any]) -> Optional[float]:
+        """One paid BGM request with a durable lifecycle record in the spend log.
+
+        1. `requested` is appended (and fsynced) BEFORE the provider is called. If that fails, SpendLogError propagates and NO paid call is made:
+           no spend without a durable record.
+        2. The paid call. 3. `paid` (with the measured cost). If this append fails the paid bed is NOT discarded: the `requested` line already shows the
+           request, the failure is reported in `accounting` (the server writes it to its durable R2 ledger) and logged to stderr (which alone is not durable).
+        4. The download, then `downloaded`. A failed download raises PaidGenerationError (the server records a paid request without a bed).
+        """
+        common = {"video_id": video_id, "cache_key": key, "seed": seed, "duration_sec": BGM_DURATION_SEC}
+        append_spend(cost=None, state="requested", **common)
+        accounting["requested_logged"] = True
+        try:
+            url = self.transport.post(bgm_task(caption, seed=seed, bpm=spec.bpm, key_scale=spec.key, lyrics=lyrics), "bgm")
+        except Exception as exc:
+            self._best_effort_spend(accounting, "post_failed", None, common)
+            raise PaidGenerationError("post", None, f"paid request failed before a bed was returned: {type(exc).__name__}", accounting) from exc
+        cost = getattr(self.transport, "last_cost", None)
+        try:
+            append_spend(cost=cost, state="paid", **common)
+            accounting["paid_logged"] = True
+        except SpendLogError as exc:
+            accounting["paid_logged"] = False
+            accounting["errors"].append(str(exc))
+            _log.error("music.spend_paid_record_failed %s (stderr is not durable; the requested line and the server ledger carry the evidence)", exc)
+        try:
+            self.transport.download(url, raw_path)
+        except Exception as exc:
+            self._best_effort_spend(accounting, "download_failed", cost, common)
+            raise PaidGenerationError("download", cost, f"paid bed download failed: {type(exc).__name__}", accounting) from exc
+        self._best_effort_spend(accounting, "downloaded", cost, common)
+        return cost
+
+    @staticmethod
+    def _best_effort_spend(accounting: Dict[str, Any], state: str, cost: Optional[float], common: Dict[str, Any]) -> None:
+        try:
+            append_spend(cost=cost, state=state, **common)
+            accounting[f"{state}_logged"] = True
+        except SpendLogError as exc:
+            accounting[f"{state}_logged"] = False
+            accounting["errors"].append(str(exc))
+            _log.error("music.spend_%s_record_failed %s", state, exc)
 
     @staticmethod
     def select_cuts(cuts) -> list:
@@ -97,7 +152,8 @@ class AIMusicSpecialistAgent:
             "estimated_cost_usd": estimate,
         }
         if mode == "plan":
-            return {**base, "mode": "plan", "cost_usd": 0}
+            writable, why = spend_log_writable()
+            return {**base, "mode": "plan", "cost_usd": 0, "spend_log_ok": writable, **({"spend_log_error": why} if why else {})}
         if estimate > max_usd:
             raise RuntimeError(f"music cost cap exceeded ({estimate} > {max_usd})")
 
@@ -106,12 +162,14 @@ class AIMusicSpecialistAgent:
         if live and not getattr(self.transport, "live", False):
             raise RuntimeError("live mode requires a live Runware transport")
         raw_path = os.path.join(workdir, "bgm_raw.wav")
+        accounting: Dict[str, Any] = {"requested_logged": None, "paid_logged": None, "downloaded_logged": None, "errors": []}
         if live:
-            url = self.transport.post(bgm_task(caption, seed=seed, bpm=spec.bpm, key_scale=spec.key, lyrics=lyrics), "bgm")
-            append_spend(video_id=video_id, cache_key=key, seed=seed,
-                         cost=getattr(self.transport, "last_cost", None), duration_sec=BGM_DURATION_SEC)
-            self.transport.download(url, raw_path)
+            self._paid_bgm_request(caption=caption, seed=seed, spec=spec, lyrics=lyrics, key=key, video_id=video_id, raw_path=raw_path,
+                                   accounting=accounting)
         else:
+            # The synthetic placeholder bed (a 220 Hz tone plus a 1 kHz click on every beat) is a development and test fixture. Production must never attach it.
+            if os.environ.get("NODE_ENV", "").strip().lower() == "production":
+                raise RuntimeError("dry mode refuses to write the synthetic placeholder bed in production")
             write_click_bed(raw_path, spec.bpm)
         bed_path = os.path.join(workdir, "bed.wav")
         metrics = postprocess_bed(raw_path, bed_path)
@@ -122,10 +180,8 @@ class AIMusicSpecialistAgent:
             first_cost = float(getattr(self.transport, "last_cost", None) or bgm_cap_cost())
             if first_cost + bgm_cap_cost() <= max_usd:
                 qc_retried = True
-                url = self.transport.post(bgm_task(caption, seed=seed, bpm=spec.bpm, key_scale=spec.key, lyrics=lyrics), "bgm")
-                append_spend(video_id=video_id, cache_key=key, seed=seed,
-                             cost=getattr(self.transport, "last_cost", None), duration_sec=BGM_DURATION_SEC)
-                self.transport.download(url, raw_path)
+                self._paid_bgm_request(caption=caption, seed=seed, spec=spec, lyrics=lyrics, key=key, video_id=video_id, raw_path=raw_path,
+                                       accounting=accounting)
                 metrics = postprocess_bed(raw_path, bed_path)
                 qc = _run_qc(metrics, spec.bpm)
         if sfx_refused:
@@ -166,5 +222,7 @@ class AIMusicSpecialistAgent:
             "sfx_refused": sfx_refused,
         })
         schema["mode"] = mode
+        schema["paid"] = live
+        schema["accounting"] = accounting
         schema["cost_usd"] = measured
         return schema

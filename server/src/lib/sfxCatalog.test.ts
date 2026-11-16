@@ -51,10 +51,14 @@ function writeTone(file: string, input: {toneSec: number; silenceSec?: number; p
 }
 
 describe('the real library folder', () => {
-  it('ships empty: a README and sfxinfo.json == [] and no audio files', () => {
+  // The library folder now also holds audio files for the NEXT version's SFX work. They are inert: nothing uses a file that sfxinfo.json does not list, so the
+  // catalogue the engine loads must still be empty (no catalogue SFX in V1). The original intent (the shipped catalogue is empty and does nothing) is unchanged.
+  it('ships an empty catalogue: README + sfxinfo.json == [], any audio files are unlisted and inert', () => {
     const dir = sfxLibraryDir({});
     expect(dir.endsWith(path.join('remotion', 'public', 'sfx-library'))).toBe(true);
-    expect(readdirSync(dir).sort()).toEqual(['README.md', 'sfxinfo.json']);
+    const files = readdirSync(dir).sort();
+    expect(files).toEqual(expect.arrayContaining(['README.md', 'sfxinfo.json']));
+    expect(files.filter(name => name !== 'README.md' && name !== 'sfxinfo.json').every(name => /\.(mp3|wav)$/i.test(name))).toBe(true);
     expect(JSON.parse(readFileSync(path.join(dir, 'sfxinfo.json'), 'utf8'))).toEqual([]);
     expect(loadSfxCatalog(dir)).toEqual({entries: [], issues: []});
   });

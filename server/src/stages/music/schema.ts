@@ -46,6 +46,23 @@ export const musicResultSchema = z.object({
   qc_speech_band: z.object({energy_share: z.number(), flux: z.number()}).passthrough().optional(),
   qc_passed: z.boolean().optional(),
   qc_retried: z.boolean().optional(),
+  /** Plan mode: can the agent append to its spend log? false = a paid generation must not start (nothing is claimed or spent). */
+  spend_log_ok: z.boolean().optional(),
+  spend_log_error: z.string().optional(),
+  /** Live runs: a paid request was made, and what the durable spend log recorded for it (requested -> paid -> downloaded). */
+  paid: z.boolean().optional(),
+  accounting: z
+    .object({
+      requested_logged: z.boolean().nullable().optional(),
+      paid_logged: z.boolean().nullable().optional(),
+      downloaded_logged: z.boolean().nullable().optional(),
+      errors: z.array(z.string()).optional(),
+    })
+    .passthrough()
+    .optional(),
 });
+
+/** A paid request that produced no usable bed, parsed from the agent's `MUSIC_PAID_FAILURE` stderr line. `post`: the outcome is unknown (the request may have been charged). `download`: charged, bed lost. */
+export type PaidFailure = {stage: 'post' | 'download'; costUsd: number | null; accounting: Record<string, unknown>};
 
 export type MusicResult = z.infer<typeof musicResultSchema>;

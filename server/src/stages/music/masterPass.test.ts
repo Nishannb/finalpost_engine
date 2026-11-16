@@ -5,7 +5,7 @@ import path from 'node:path';
 import {afterAll, describe, expect, it} from 'vitest';
 
 import {masterPassEnabled} from './flags.ts';
-import {buildPass2Filter, masterPass, parseLoudnormJson} from './masterPass.ts';
+import {MASTER_TARGET, buildPass1Filter, buildPass2Filter, masterPass, parseLoudnormJson} from './masterPass.ts';
 
 const hasFfmpeg = spawnSync('ffmpeg', ['-version']).status === 0;
 
@@ -23,10 +23,18 @@ describe('loudnorm json', () => {
     const stderr = 'noise\n[Parsed_loudnorm_0 @ 0x1]\n{\n"input_i" : "-30.10",\n"input_tp" : "-12.00",\n"input_lra" : "0.50",\n"input_thresh" : "-40.60",\n"target_offset" : "0.1"\n}\n';
     const m = parseLoudnormJson(stderr);
     expect(m).toEqual({inputI: -30.1, inputTp: -12, inputLra: 0.5, inputThresh: -40.6});
-    expect(buildPass2Filter(m)).toBe('loudnorm=I=-14:TP=-1:LRA=11:measured_I=-30.1:measured_TP=-12:measured_LRA=0.5:measured_thresh=-40.6:linear=true');
+    expect(buildPass2Filter(m)).toBe('loudnorm=I=-14:TP=-1.5:LRA=11:measured_I=-30.1:measured_TP=-12:measured_LRA=0.5:measured_thresh=-40.6:linear=true');
   });
   it('throws without json', () => {
     expect(() => parseLoudnormJson('nothing')).toThrow();
+  });
+});
+
+describe('master target', () => {
+  it('keeps the policy loudness (-14 LUFS, LRA 11) and aims 0.5 dB under the -1 dBTP delivery ceiling to absorb the AAC re-encode overshoot', () => {
+    expect(MASTER_TARGET).toEqual({I: -14, TP: -1.5, LRA: 11});
+    expect(MASTER_TARGET.TP).toBeLessThanOrEqual(-1 - 0.5 + 1e-9); // the delivered file must stay <= -1 dBTP; the encode adds ~0.1 dB
+    expect(buildPass1Filter()).toBe('loudnorm=I=-14:TP=-1.5:LRA=11:print_format=json');
   });
 });
 

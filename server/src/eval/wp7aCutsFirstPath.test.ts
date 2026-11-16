@@ -130,7 +130,7 @@ describe('ffmpeg runner and local render (source text)', () => {
     const ffmpeg = read('media', 'ffmpeg.ts');
     const start = ffmpeg.indexOf('export async function denoiseTalkingHeadAudio');
     const block = ffmpeg.slice(start, ffmpeg.indexOf('Cap a clip at the Remotion canvas'));
-    for (const part of ["'-c:v', 'copy'", "'-af', input.filter", "'-c:a', 'aac'", "'-map', '0:v:0', '-map', '0:a:0'", 'Audio denoise produced an empty file']) expect(block).toContain(part);
+    for (const part of ["'-c:v', 'copy'", "'-af', filter", 'measureAudioFilterLatencySamples(input.filter', /* the filter + its measured latency trim */ "'-c:a', 'aac'", "'-map', '0:v:0', '-map', '0:a:0'", 'Audio denoise produced an empty file']) expect(block).toContain(part);
   });
   it('the CLI does not swap the original local file back in when the denoised audio is the edit audio', () => {
     const first = read('scripts', 'firstVideo.ts');

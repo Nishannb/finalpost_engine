@@ -16,7 +16,7 @@ This file is written for engineers and for AI agents working in this repo. `CLAU
 
    These are starting points, tuned by ear. Tune them by making the music quieter, never louder. Do not change the −18 default to hide a measurement problem.
 3. **Music arrangement is supportive.** Sparse, steady, no lead melody, no vocals, no busy energy in the 1–4 kHz speech band. Prefer pads, soft keys, light plucks and simple drums. (`agents/music_specialist/prompts.py`.)
-4. **Final mix: −14 LUFS integrated, −1 dBTP true peak.** The local master pass does this (`MUSIC_MASTER_PASS`, on by default).
+4. **Final mix: −14 LUFS integrated, −1 dBTP true peak ceiling.** The master pass does this (`MUSIC_MASTER_PASS`, on by default). It aims at −1.5 dBTP so the delivered, AAC-encoded file stays at or below the −1 dBTP ceiling.
 5. **SFX punctuate the edit. They never cover a word.** No hit within 120 ms after a word onset, a capped count, and a level set relative to the voice too (`SFX_VOICE_OFFSET_LU`, default −10).
 6. **Any new audio feature must log a number that proves it respects these rules.**
 
@@ -30,7 +30,7 @@ Each is the default when unset and keeps its env override. They apply to **new**
 | Release | 300 ms (hold 150 ms) | `MUSIC_DUCK_RELEASE_MS`, `--release-ms` |
 | Attack look-ahead | one frame (33 ms): the dip finishes before the word | `--lead-ms` |
 | Carved bed under speech | on | `MUSIC_CARVED_TWIN=0` |
-| Master pass (−14 LUFS, −1 dBTP), local **and** Lambda | on | `MUSIC_MASTER_PASS=0` |
+| Master pass (−14 LUFS, −1 dBTP ceiling, target −1.5 dBTP), local **and** Lambda | on | `MUSIC_MASTER_PASS=0` |
 | Pool size per mood | 3 | `MUSIC_BED_POOL_SIZE` |
 
 Remotion rounds every volume to a multiple of 1/97, so a bed or SFX level can land up to about half a step off its target (about 0.3 dB at the −22 dB speech gain, up to about 1.5 dB for a −30 dBFS SFX). That is outside our control and is not corrected.

@@ -83,6 +83,8 @@ afterAll(() => {
 beforeEach(() => {
   clearEntitlementCache();
   Object.assign(state.env, {ENTITLEMENT_ENFORCEMENT: true, EDIT_STYLES_ENABLED: true, EDIT_STYLES_AVAILABLE: '', EDIT_STYLES_ORDER: '', EDIT_STYLES_ENGINE_FLAGS: true});
+  // This file tests the release gate itself (footage, style, fail-closed pipeline), not who may start Kinetic: that is eval/kineticAccessRoutes.test.ts. No environment defaults to global access, so say so explicitly (non-production).
+  Object.assign(state.env, {NODE_ENV: 'test', V1_KINETIC_ACCESS: 'all', V1_KINETIC_ALLOWED_USER_IDS: ''});
   state.created.length = 0;
   state.retried.length = 0;
   state.lookups.length = 0;

@@ -90,6 +90,14 @@ const schema = z.object({
    */
   V1_KINETIC_RELEASE: bool(false),
   /**
+   * V1 KINETIC ACCESS (consulted only while V1_KINETIC_RELEASE is on; lib/kineticAccess.ts). FAIL CLOSED: no default grants access.
+   *   V1_KINETIC_ACCESS            `allowlist` (the only production mode) or `all` (refused in production). Unset / unknown: nobody can start Kinetic.
+   *   V1_KINETIC_ALLOWED_USER_IDS  comma-separated account UUIDs; unset, empty or containing ONE malformed entry: nobody. Pro entitlement is still required.
+   * Set the access settings BEFORE turning V1_KINETIC_RELEASE on. Never put account ids anywhere but the server environment.
+   */
+  V1_KINETIC_ACCESS: str(''),
+  V1_KINETIC_ALLOWED_USER_IDS: str(''),
+  /**
    * Creators Supabase project URL — required in production for ES256/RS256
    * access tokens (JWKS at `/auth/v1/.well-known/jwks.json`).
    * Example: https://mmyprzatmrfdtodsqaia.supabase.co

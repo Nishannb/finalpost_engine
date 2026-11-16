@@ -5,6 +5,7 @@ import {stageLogger} from '../../lib/logger.ts';
 import {
   bedFresh,
   buildSpawnSpec,
+  isProductionEnv,
   redactSecrets,
   resolveBedSource,
   resolveHardKillMs,
@@ -15,7 +16,7 @@ import {
   resolveTimeoutMs,
   sfxEnabled,
 } from './flags.ts';
-import {musicResultSchema, type MusicResult} from './schema.ts';
+import {musicResultSchema, type MusicResult, type PaidFailure} from './schema.ts';
 import {flushSpool, removeSpool, spoolDir, writeSpool} from './spool.ts';
 import type {MusicBrief} from './musicBrief.ts';
 import type {BedPlacementMeta} from './placementMeta.ts';
@@ -135,7 +136,10 @@ export function spawnMusic(
       clearTimeout(timer);
       const safeErr = redactSecrets(err, secret).slice(0, 500);
       if (code !== 0) {
-        reject(new Error(`music_specialist exited ${code}: ${safeErr}`));
+        const failure = new Error(`music_specialist exited ${code}: ${safeErr}`) as Error & {paid?: PaidFailure};
+        const paid = parsePaidFailure(redactSecrets(err, secret));
+        if (paid) failure.paid = paid;
+        reject(failure);
         return;
       }
       try {
@@ -150,6 +154,21 @@ export function spawnMusic(
     // Phase 1.7.3: the server NEVER authorises the agent's paid QC retry. Written after the spread, so no job field can override it.
     child.stdin.end(JSON.stringify({...payload, allow_qc_retry: false, max_usd: resolveMaxUsd(env), timeout_sec: Math.max(1, hardKillMs / 1000 - 5)}));
   });
+}
+
+/** The agent's one machine-readable line when a paid request ended without a usable bed. Anything malformed is ignored (the failure is then an ordinary spawn failure). */
+export function parsePaidFailure(stderr: string): PaidFailure | null {
+  const match = /MUSIC_PAID_FAILURE (\{[^\n]*\})/.exec(stderr);
+  if (!match) return null;
+  try {
+    const parsed = JSON.parse(match[1]!) as {stage?: unknown; cost_usd?: unknown; accounting?: unknown};
+    if (parsed.stage !== 'post' && parsed.stage !== 'download') return null;
+    const cost = typeof parsed.cost_usd === 'number' && Number.isFinite(parsed.cost_usd) ? parsed.cost_usd : null;
+    const accounting = parsed.accounting && typeof parsed.accounting === 'object' ? (parsed.accounting as Record<string, unknown>) : {};
+    return {stage: parsed.stage, costUsd: cost, accounting};
+  } catch {
+    return null;
+  }
 }
 
 function toPlan(result: MusicResult, url: string | null): MusicPlan {
@@ -294,6 +313,8 @@ export type MusicPlanDeps = {
   /** Phase 1.7.2: the per-video generation ledger. Null = no verified store: live generation fails closed. */
   ledger: () => MusicLedgerStore | null;
   now: () => string;
+  /** True only in production. In production a dry run (the synthetic placeholder bed) is never attached or uploaded. */
+  isProduction: () => boolean;
 };
 
 export const DEFAULT_MUSIC_PLAN_DEPS: MusicPlanDeps = {
@@ -310,6 +331,7 @@ export const DEFAULT_MUSIC_PLAN_DEPS: MusicPlanDeps = {
   failOpen,
   ledger: resolveMusicLedgerStore,
   now: () => new Date().toISOString(),
+  isProduction: () => isProductionEnv(),
 };
 
 const qcOf = (result: MusicResult): MusicLedgerResolution['qc'] => ({
@@ -347,7 +369,7 @@ async function reuseFromLedger(asset: MusicLedgerAsset, mood: string, d: MusicPl
 
 async function runMusicPlan(job: MusicJob, d: MusicPlanDeps = DEFAULT_MUSIC_PLAN_DEPS): Promise<MusicPlan | null> {
   const decision = d.decide();
-  if (decision.downgraded) log.warn({from: decision.requested || 'live', to: decision.mode}, 'music.mode_downgraded');
+  if (decision.downgraded) log.warn({from: decision.requested || 'live', to: decision.mode, reason: decision.downgradeReason ?? 'unknown', production: d.isProduction()}, 'music.mode_downgraded');
   if (decision.mode === 'off') return null;
   const bedSource = resolveBedSource();
   const licensedSet = Boolean((process.env.POLISH_MUSIC_BED_URL ?? '').trim());
@@ -360,6 +382,15 @@ async function runMusicPlan(job: MusicJob, d: MusicPlanDeps = DEFAULT_MUSIC_PLAN
   const spawnMode = d.spawnModeFor(decision.mode);
   const dry = spawnMode !== 'live';
   const fresh = bedFresh();
+  // Production must never play the synthetic dry-mode placeholder bed (a 220 Hz tone with a 1 kHz click on every beat). A dry run in production is either a live request that
+  // could not go live (no API key) or an explicit dry setting; both mean "no paid generation is available". The edit gets an eligible EXISTING pool bed (same style, then
+  // same family, nearest tempo: the documented fallback policy) or no bed. Nothing is spawned, generated, spooled or uploaded, and the reason is explicit in the log and,
+  // when a pool bed is used, in the plan's fallbackReason (blueprint musicProvenance.fallbackReason). Development and tests keep the dry behaviour unchanged.
+  if (dry && d.isProduction()) {
+    const reason = decision.downgraded ? `live_unavailable_${decision.downgradeReason ?? 'unknown'}` : 'dry_mode_in_production';
+    log.warn({reason, requested: decision.requested || 'live', mood, video_id: videoId}, 'music.dry_blocked_in_production');
+    return d.failOpen(mood, reason, videoId, brief);
+  }
   try {
     try {
       const flushed = await d.flushSpool({
@@ -398,6 +429,11 @@ async function runMusicPlan(job: MusicJob, d: MusicPlanDeps = DEFAULT_MUSIC_PLAN
     let claimed: MusicLedgerRecord | null = null;
     let store: MusicLedgerStore | null = null;
     if (spawnMode === 'live') {
+      // A paid generation needs a spend log the agent can append to: checked BEFORE the ledger is claimed, so a broken spend log neither spends nor consumes the video's one attempt.
+      if (plan.spend_log_ok === false) {
+        log.error({video_id: videoId, reason: plan.spend_log_error ?? 'unknown'}, 'music.spend_log_unavailable');
+        return d.failOpen(mood, 'spend_log_unavailable', videoId, brief);
+      }
       store = d.ledger();
       if (!store) {
         log.warn({video_id: videoId}, 'music.ledger_unavailable');
@@ -441,9 +477,20 @@ async function runMusicPlan(job: MusicJob, d: MusicPlanDeps = DEFAULT_MUSIC_PLAN
       generated = await d.spawn(decision.mode, {...jobWithSfx, seed: plan.seed});
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      const paid = (error as {paid?: PaidFailure}).paid;
+      if (paid) {
+        // A paid request that ended without a bed: recorded in the durable ledger (cost when known) and loudly in the log. The video stays consumed: nothing is retried.
+        const paidReason = `paid_${paid.stage}_failed`;
+        log.error({video_id: videoId, stage: paid.stage, cost_usd: paid.costUsd, accounting: paid.accounting}, 'music.paid_request_without_bed');
+        await resolveClaim({outcome: 'failed', reason: paidReason, costUsd: paid.costUsd, qc: null, asset: null});
+        return d.failOpen(mood, paidReason, videoId, brief);
+      }
       const reason = /timeout|SIGKILL|exited null/i.test(message) ? 'timeout' : 'spawn';
       await resolveClaim({outcome: 'failed', reason, costUsd: null, qc: null, asset: null});
       return d.failOpen(mood, reason, videoId, brief);
+    }
+    if (claimed && generated.accounting && (generated.accounting.paid_logged === false || (generated.accounting.errors?.length ?? 0) > 0)) {
+      log.error({video_id: videoId, cache_key: generated.cache_key, cost_usd: generated.cost_usd ?? null, accounting: generated.accounting}, 'music.spend_accounting_degraded');
     }
     if (claimed && generated.qc_retried === true) log.warn({video_id: videoId, cache_key: generated.cache_key}, 'music.qc_retry_detected');
     // Phase 1.7.2: a bed that failed QC in a paid run is never used, uploaded, spooled or pooled, and nothing is regenerated.
@@ -522,7 +569,8 @@ async function runMusicPlan(job: MusicJob, d: MusicPlanDeps = DEFAULT_MUSIC_PLAN
     const plan2 = toPlan(generated, uploaded.url);
     await resolveClaim({
       outcome: 'generated',
-      reason: null,
+      // A paid, downloaded and uploaded bed whose `paid` spend-log line could not be written: the bed is kept, and the durable ledger carries the cost and this reason.
+      reason: claimed && generated.accounting?.paid_logged === false ? 'spend_log_paid_append_failed' : null,
       costUsd: generated.cost_usd ?? null,
       qc: qcOf(generated),
       asset: {

@@ -7,11 +7,20 @@ import contentMoodMapJson from './contentMoodMap.json' with {type: 'json'};
 export type MusicMode = 'off' | 'dry' | 'live';
 export type MusicBedSource = 'auto' | 'licensed' | 'generated' | 'off';
 
+/** Why a live request became dry (only set when `downgraded`). */
+export type MusicDowngradeReason = 'test_env' | 'no_api_key';
+
 export type MusicModeDecision = {
   mode: MusicMode;
   requested: string;
   downgraded: boolean;
+  downgradeReason?: MusicDowngradeReason;
 };
+
+/** True only for NODE_ENV=production. Production must never attach the synthetic dry-mode placeholder bed (see musicSpecialist.ts runMusicPlan). */
+export function isProductionEnv(env: NodeJS.ProcessEnv = process.env): boolean {
+  return (env.NODE_ENV ?? '').trim().toLowerCase() === 'production';
+}
 
 /** off | dry | live. Legacy `=1` is dry, or live when MUSIC_SPECIALIST_LIVE=1 and a key is present. */
 export function resolveMusicMode(env: NodeJS.ProcessEnv = process.env): MusicModeDecision {
@@ -20,9 +29,9 @@ export function resolveMusicMode(env: NodeJS.ProcessEnv = process.env): MusicMod
   const hasKey = Boolean((env.RUNWARE_API_KEY ?? '').trim());
   const wantLive = (mode: MusicMode): MusicModeDecision => {
     if (mode !== 'live') return {mode, requested, downgraded: false};
-    if (isTestEnv(env)) return {mode: 'dry', requested, downgraded: true};
+    if (isTestEnv(env)) return {mode: 'dry', requested, downgraded: true, downgradeReason: 'test_env'};
     if (hasKey) return {mode: 'live', requested, downgraded: false};
-    return {mode: 'dry', requested, downgraded: true};
+    return {mode: 'dry', requested, downgraded: true, downgradeReason: 'no_api_key'};
   };
   if (requested === 'live') return wantLive('live');
   if (requested === 'dry') return {mode: 'dry', requested, downgraded: false};
@@ -70,7 +79,7 @@ export function carvedTwinEnabled(env: NodeJS.ProcessEnv = process.env): boolean
 }
 
 /**
- * Local renders run a two-pass loudnorm (I=-14, TP=-1, LRA=11) on the finished MP4 audio. Default ON: the unmastered mix lands near -22 LUFS.
+ * Local renders run a two-pass loudnorm (I=-14, TP=-1.5 so the delivered file stays <= -1 dBTP, LRA=11) on the finished MP4 audio. Default ON: the unmastered mix lands near -22 LUFS.
  * MUSIC_MASTER_PASS=0 is the off switch. Any other value, or unset, is on.
  */
 export function masterPassEnabled(env: NodeJS.ProcessEnv = process.env): boolean {

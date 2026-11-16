@@ -1,5 +1,6 @@
 import {createApp} from './app.ts';
 import {env} from './config/env.ts';
+import {logKineticAccessAtStartup} from './lib/kineticAccess.ts';
 import {logger} from './lib/logger.ts';
 import {validateSfxLibrary} from './lib/sfxCatalog.ts';
 import {startFullEditRecoveryWorker} from './pipeline/captionsEditRunner.ts';
@@ -23,6 +24,8 @@ async function main(): Promise<void> {
     },
     'video engine auth config',
   );
+  // V1 Kinetic access (only reported while the release is on): an invalid configuration is an ERROR line, never a crash; no account id is ever logged.
+  logKineticAccessAtStartup(env, logger);
 
   // Non-fatal: a problem in the human-curated SFX library is a warning, never a reason not to start.
   void validateSfxLibrary()

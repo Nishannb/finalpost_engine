@@ -4,7 +4,12 @@ import path from 'node:path';
 
 import {measureFinalAudio} from './mixMeasure.ts';
 
-export const MASTER_TARGET = {I: -14, TP: -1, LRA: 11} as const;
+/**
+ * The loudnorm TARGET true peak is -1.5 dBTP, not the -1 dBTP ceiling the audio policy requires of the delivered file: the pass measures before the AAC re-encode, and the
+ * encode adds about 0.1 dB of overshoot (a -1 dBTP target measured -0.9 dBTP on the finished MP4 in local proofs, in both the old and the new renderer). The extra 0.5 dB
+ * keeps the DELIVERED file at or below -1 dBTP. Integrated loudness (-14 LUFS) and loudness range are unchanged.
+ */
+export const MASTER_TARGET = {I: -14, TP: -1.5, LRA: 11} as const;
 
 export type LoudnormMeasure = {inputI: number; inputTp: number; inputLra: number; inputThresh: number};
 export type MasterPassResult = {beforeLufs: number | null; beforeTruePeak: number | null; afterLufs: number | null; afterTruePeak: number | null};

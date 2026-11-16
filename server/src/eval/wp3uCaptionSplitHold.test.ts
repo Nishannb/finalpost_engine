@@ -110,7 +110,7 @@ describe('wiring (source text)', () => {
   const types = read('server/src/types/blueprint.ts');
   it('the writer sets splitHoldFrames only inside the mvp legibility branch, from the blueprint fps constant, with the skip warning', () => {
     expect(analyze.match(/captionSplitHold\(/g)).toHaveLength(1);
-    const at = analyze.indexOf('captionSplitHold(OUTPUT_FPS)');
+    const at = analyze.indexOf('captionSplitHold(outputFps)') /* per-job output fps (lib/outputFps.ts) */;
     expect(at).toBeGreaterThan(analyze.indexOf('captionSplitSpec(broll.caption)'));
     expect(analyze.slice(analyze.lastIndexOf('if (legibility) {', at), at)).toContain('captionSplitSpec(broll.caption)');
     expect(analyze).toContain('warnings.push(`legibility:${hold.skipped}`)');

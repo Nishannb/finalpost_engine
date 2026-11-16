@@ -26,6 +26,8 @@ import {assertFullEditEntitlement, resolveCatalogAccess} from '../../lib/entitle
 import {isCaptionKitPresetId} from '../../lib/captionKitPresets.ts';
 import {V1_RELEASE_STYLES, buildEditStyleCatalog, resolveRequestedStyle, v1ReleaseViolation, type EditStyleConfig} from '../../lib/editStyles.ts';
 import {env} from '../../config/env.ts';
+import {assertKineticAccess, assertKineticJobAccess, kineticAccessAllowed} from '../../lib/kineticAccess.ts';
+import {logger} from '../../lib/logger.ts';
 import {hitRateLimit} from '../../store/engineStore.ts';
 import {CAPTION_TEMPLATES, SUPPORTED_LANGUAGES} from '../../types/blueprint.ts';
 import {getAuth} from '../auth.ts';
@@ -113,7 +115,10 @@ editRoutes.get('/edit-styles', async (req, res) => {
     plan: access.plan,
     planVerified: access.verified,
     refreshed,
-    styles: buildEditStyleCatalog({config, hasPro: access.hasPro}),
+    // V1 release: Kinetic is offered only to accounts that may start it (lib/kineticAccess.ts; fail closed). Other styles are untouched.
+    styles: buildEditStyleCatalog({config, hasPro: access.hasPro}).map(entry =>
+      env.V1_KINETIC_RELEASE && entry.id === 'kinetic_typography' && !kineticAccessAllowed(env, auth) ? {...entry, available: false} : entry,
+    ),
   });
 });
 
@@ -143,6 +148,10 @@ editRoutes.post('/edits/captions', async (req, res) => {
   });
   if (violation) {
     throw new EngineError(violation.code, violation.message, violation.details);
+  }
+  // V1 release: Kinetic needs an explicitly configured access list IN ADDITION to Pro (checked before the plan lookup; fail closed). Basic Captions never reach this.
+  if (env.V1_KINETIC_RELEASE && styled && styled.style === 'kinetic_typography') {
+    assertKineticAccess(env, auth, logger, 'create');
   }
   // A style wins over `mode`; without one (older app, or the kill switch off) the request's mode is used exactly as before.
   const mode = styled ? styled.mode : parsed.data.mode;
@@ -202,6 +211,7 @@ const assetsSchema = z.object({
 editRoutes.post('/edits/:editJobId/assets', async (req, res) => {
   const auth = getAuth(res);
   await assertFullEditEntitlement(auth);
+  assertKineticJobAccess(env, auth, await loadCaptionsEditJob(String(req.params.editJobId)), logger, 'assets');
   const parsed = assetsSchema.safeParse(req.body ?? {});
   if (!parsed.success) {
     throw new EngineError('bad_request', parsed.error.issues[0]?.message ?? 'Invalid assets request');
@@ -234,6 +244,8 @@ editRoutes.post('/edits/:editJobId/callbacks/redeliver', async (req, res) => {
 editRoutes.post('/edits/:editJobId/retry', async (req, res) => {
   const auth = getAuth(res);
   await assertFullEditEntitlement(auth);
+  // An old Kinetic job must not bypass the access gate: its style is read from the stored job (the caller's own job only).
+  assertKineticJobAccess(env, auth, await loadCaptionsEditJob(String(req.params.editJobId)), logger, 'retry');
   const job = await retryFullEdit({editJobId: String(req.params.editJobId), userId: auth.userId});
   res.status(202).json({ok: true, job});
 });

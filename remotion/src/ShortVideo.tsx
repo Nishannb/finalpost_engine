@@ -301,21 +301,20 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({blueprint, style}) => {
       groundColor={editPalette?.ground}
       groundDotColor={editPalette?.groundDot}
       groundDotted={!editPalette || editPalette.groundStyle === 'paper_dot'}
-      forceSplit={explainerDrawSplit}
       seam={explainerSeam}
       broll={
         explainerDrawSplit || explainerSpan.layout === 'explainer_b' ? (
           (() => {
             const beat = claimBeatForSpan(blueprint.explainerClaimBeats, explainerSpan);
             const region = explainerRegions('explainer_b', width, height).top!;
-            // Prefer media tagged for the active / target layout during expand into C/D
+            // Prefer media tagged for the active / target layout during expand into C/D (layout A has no media of its own: it is mapped to B here, so `mediaLayout` is never A below)
             const mediaLayout = explainerSpan.layout === 'explainer_b' ? 'explainer_b' : explainerSpan.layout === 'explainer_a' ? 'explainer_b' : explainerSpan.layout;
             return beat && explainerSpan.layout === 'explainer_b' ? (
               <ExplainerClaimPlate beat={beat} width={region.w} height={region.h} accentColor={explainerAccent} />
             ) : (
               <ExplainerMedia
-                overlay={explainerMediaForSpan(allOverlays, {...explainerSpan, layout: mediaLayout === 'explainer_a' ? 'explainer_b' : mediaLayout})}
-                layout={mediaLayout === 'explainer_a' ? 'explainer_b' : mediaLayout}
+                overlay={explainerMediaForSpan(allOverlays, {...explainerSpan, layout: mediaLayout})}
+                layout={mediaLayout}
                 width={region.w}
                 height={region.h}
                 accentColor={explainerAccent}

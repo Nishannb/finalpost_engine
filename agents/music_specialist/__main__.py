@@ -3,7 +3,7 @@ import os
 import sys
 import tempfile
 
-from .agent import AIMusicSpecialistAgent
+from .agent import AIMusicSpecialistAgent, PaidGenerationError
 from .runware import DryRunTransport, RunwareTransport
 
 
@@ -35,7 +35,14 @@ def main() -> None:
     workdir = payload.pop("workdir", None) or tempfile.mkdtemp(prefix="music_specialist_")
     timeout = float(payload.pop("timeout_sec", 40))
     transport = RunwareTransport(timeout_sec=timeout) if mode == "live" else DryRunTransport()
-    json.dump(AIMusicSpecialistAgent(transport).run(payload, workdir, mode), sys.stdout)
+    try:
+        result = AIMusicSpecialistAgent(transport).run(payload, workdir, mode)
+    except PaidGenerationError as exc:
+        # One machine-readable line for the server, which records it in its durable (R2) ledger. stderr alone is NOT a durable record.
+        print("MUSIC_PAID_FAILURE " + json.dumps({"stage": exc.stage, "cost_usd": exc.cost, "accounting": exc.accounting}), file=sys.stderr)
+        print(f"paid music request failed at {exc.stage}: {exc}", file=sys.stderr)
+        raise SystemExit(1)
+    json.dump(result, sys.stdout)
 
 
 if __name__ == "__main__":
