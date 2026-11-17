@@ -34,8 +34,12 @@ async function main(): Promise<void> {
     })
     .catch(error => logger.warn({reason: error instanceof Error ? error.message.slice(0, 200) : 'sfx_validate'}, 'sfx.catalog_warning'));
 
-  // Picks up full edits a previous process left half-done (needs the durable job table; see store/durableJobs.ts).
-  startFullEditRecoveryWorker();
+  // Recovery scans are separate from the durable job table. Unset leaves the table active and schedules nothing.
+  if (env.FULL_EDIT_RECOVERY_ENABLED) {
+    startFullEditRecoveryWorker();
+  } else {
+    logger.info('full edit recovery worker disabled');
+  }
 
   const server = createApp().listen(env.PORT, () => {
     logger.info({port: env.PORT, env: env.NODE_ENV}, 'video engine listening');

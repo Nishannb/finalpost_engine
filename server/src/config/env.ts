@@ -117,6 +117,14 @@ const schema = z.object({
   SUPABASE_JWT_SECRET: str(),
   /** Server-only key for the durable full-edit job table (public.creator_edit_jobs). Never sent to a client. */
   SUPABASE_SERVICE_ROLE_KEY: str(),
+  /**
+   * Automatic full-edit recovery. Default OFF, and independent of the durable job table.
+   * The service-role key still activates public.creator_edit_jobs either way.
+   * 1 = schedule the existing worker: one scan 5s after boot, then every minute (stalled jobs and pending callbacks), plus the daily retention purge.
+   * 0 / unset = do not schedule those scans. New jobs, uploads, user-triggered retries, and entitlement checks are unchanged.
+   * Changing it requires a process restart.
+   */
+  FULL_EDIT_RECOVERY_ENABLED: bool(false),
   /** Retention: a job with no activity for this long is marked failed ('expired'). */
   EDIT_JOB_INACTIVE_DAYS: num(30),
   /** Retention: finished (done / failed) jobs are deleted this many days after they last changed. */
