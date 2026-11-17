@@ -1,17 +1,25 @@
 /**
  * Who may start Kinetic Typography while V1_KINETIC_RELEASE is on. FAIL CLOSED, in every environment.
  *
- *   V1_KINETIC_ACCESS            `allowlist` (the only mode permitted in production) or `all` (refused in production: it is never a production default).
+ *   V1_KINETIC_ACCESS            `entitlement` (production: an active paid Pro or Pro Plus subscription, no UUID list),
+ *                                `allowlist` (production: an explicit UUID list, and Pro is still required), or
+ *                                `all` (refused in production: it is never a production default).
  *                                Unset, empty, misspelled or unknown: nobody.
- *   V1_KINETIC_ALLOWED_USER_IDS  comma-separated account UUIDs (server-side configuration only). Used by `allowlist`. Unset or empty: nobody. ONE malformed entry
- *                                (not a UUID, an empty segment from a stray comma) invalidates the WHOLE list: nobody.
+ *   V1_KINETIC_ALLOWED_USER_IDS  comma-separated account UUIDs (server-side configuration only). Used only by `allowlist`.
+ *                                Ignored by `entitlement` (empty or malformed does not fail that mode and does not grant anyone).
+ *                                For `allowlist`, unset or empty: nobody. ONE malformed entry (not a UUID, an empty segment from a stray comma) invalidates the WHOLE list: nobody.
  *
- * This is an ADDITIONAL condition. Pro entitlement is still required (the plan always comes from the Creators API, never from here): a Nepal-verified or purchased
- * Pro account that is not on the list is refused, and being on the list never grants Pro. There is no exemption for any auth path (service key, dev bypass): the
- * account id the request is made for must be on the list. Free Basic Captions never reach this module.
+ * `entitlement` does not grant access by itself. The route calls assertActiveProEntitlement (lib/entitlement.ts): `source` must be `revenuecat`
+ * with plan `pro` or `pro_plus`. Nepal verification is not a purchase. There is no service-key, dev, or ENTITLEMENT_ENFORCEMENT bypass.
+ * This module's own decision for that mode is a refusal, so a caller that forgets the plan check fails closed.
+ * The catalog still lists the style; it stays locked until that paid subscription is verified.
+ *
+ * `allowlist` is an ADDITIONAL condition. Pro entitlement is still required (the plan always comes from the Creators API, never from here): a Pro account that is not
+ * on the list is refused, and being on the list never grants Pro. There is no exemption for any auth path (service key, dev bypass): the account id the request is
+ * made for must be on the list. Free Basic Captions never reach this module.
  *
  * Account ids come only from the environment. They are never hardcoded, never logged and never returned to a client: reasons are fixed codes, and the public error
- * for a refusal is the same generic `kinetic_unavailable` whether the configuration is invalid or the account is simply not on the list.
+ * for an allowlist refusal is the same generic `kinetic_unavailable` whether the configuration is invalid or the account is simply not on the list.
  */
 
 import {EngineError} from './errors.ts';
@@ -20,10 +28,11 @@ export type KineticAccessProblem = 'mode_unset' | 'mode_unknown' | 'all_not_perm
 
 export type KineticAccessConfig =
   | {ok: true; mode: 'all'}
+  | {ok: true; mode: 'entitlement'}
   | {ok: true; mode: 'allowlist'; ids: ReadonlySet<string>}
   | {ok: false; problem: KineticAccessProblem};
 
-export type KineticAccessDecision = {allowed: true} | {allowed: false; reason: 'not_allowlisted' | `config_${KineticAccessProblem}` | 'invalid_user'};
+export type KineticAccessDecision = {allowed: true} | {allowed: false; reason: 'not_allowlisted' | 'entitlement_required' | `config_${KineticAccessProblem}` | 'invalid_user'};
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -40,6 +49,8 @@ export function parseKineticAccess(input: {mode?: string | undefined; ids?: stri
   const mode = (input.mode ?? '').trim().toLowerCase();
   if (mode === '') return {ok: false, problem: 'mode_unset'};
   if (mode === 'all') return production ? {ok: false, problem: 'all_not_permitted_in_production'} : {ok: true, mode: 'all'};
+  // Production mode. The UUID list is not read. Access itself is decided by the Creators API plan check in the route, not here.
+  if (mode === 'entitlement') return {ok: true, mode: 'entitlement'};
   if (mode !== 'allowlist') return {ok: false, problem: 'mode_unknown'};
   const text = (input.ids ?? '').trim();
   if (text === '') return {ok: false, problem: 'allowlist_empty'};
@@ -56,6 +67,8 @@ export function parseKineticAccess(input: {mode?: string | undefined; ids?: stri
 export function decideKineticAccess(config: KineticAccessConfig, user: {userId: unknown}): KineticAccessDecision {
   if (!config.ok) return {allowed: false, reason: `config_${config.problem}`};
   if (config.mode === 'all') return {allowed: true};
+  // Fail closed in this module. The route admits only a Creators API pro / pro_plus plan.
+  if (config.mode === 'entitlement') return {allowed: false, reason: 'entitlement_required'};
   const id = normalizeUuid(user.userId);
   if (!id) return {allowed: false, reason: 'invalid_user'};
   return config.ids.has(id) ? {allowed: true} : {allowed: false, reason: 'not_allowlisted'};
@@ -65,6 +78,12 @@ type EnvLike = {NODE_ENV?: string | undefined; V1_KINETIC_ACCESS?: string | unde
 
 export const kineticAccessFromEnv = (env: EnvLike): KineticAccessConfig =>
   parseKineticAccess({mode: env.V1_KINETIC_ACCESS, ids: env.V1_KINETIC_ALLOWED_USER_IDS, nodeEnv: env.NODE_ENV});
+
+/** True only for the production entitlement mode. The UUID list is not an access mechanism in this mode. */
+export function isKineticEntitlementMode(env: EnvLike): boolean {
+  const config = kineticAccessFromEnv(env);
+  return config.ok && config.mode === 'entitlement';
+}
 
 type LoggerLike = {info: (obj: Record<string, unknown>, msg: string) => void; warn: (obj: Record<string, unknown>, msg: string) => void; error: (obj: Record<string, unknown>, msg: string) => void};
 
@@ -97,11 +116,13 @@ export function assertKineticJobAccess(env: EnvLike & {V1_KINETIC_RELEASE?: bool
 }
 
 /** What the startup log says. Never contains an account id; the allowlist is reported by count only. */
-export type KineticAccessSummary = {state: 'allowlist'; allowlistCount: number} | {state: 'all'} | {state: 'unavailable'; problem: KineticAccessProblem};
+export type KineticAccessSummary = {state: 'allowlist'; allowlistCount: number} | {state: 'all'} | {state: 'entitlement'} | {state: 'unavailable'; problem: KineticAccessProblem};
 
 export function describeKineticAccess(config: KineticAccessConfig): KineticAccessSummary {
   if (!config.ok) return {state: 'unavailable', problem: config.problem};
-  return config.mode === 'all' ? {state: 'all'} : {state: 'allowlist', allowlistCount: config.ids.size};
+  if (config.mode === 'all') return {state: 'all'};
+  if (config.mode === 'entitlement') return {state: 'entitlement'};
+  return {state: 'allowlist', allowlistCount: config.ids.size};
 }
 
 /** Startup report. Reports only while the release is on; an invalid configuration is an ERROR line (Kinetic refused for everyone, Free captions unaffected). */
@@ -112,6 +133,8 @@ export function logKineticAccessAtStartup(env: EnvLike & {V1_KINETIC_RELEASE?: b
     logger.error({problem: summary.problem}, 'V1 Kinetic release is ON but its access configuration is invalid: Kinetic Typography is refused for every account (Free Basic Captions are unaffected)');
   } else if (summary.state === 'all') {
     logger.warn({}, 'V1 Kinetic access is GLOBAL (V1_KINETIC_ACCESS=all): permitted outside production only');
+  } else if (summary.state === 'entitlement') {
+    logger.info({}, 'V1 Kinetic access: entitlement (active paid Pro / Pro Plus from RevenueCat; no account allowlist)');
   } else {
     logger.info({allowlistCount: summary.allowlistCount}, 'V1 Kinetic access: allowlist');
   }

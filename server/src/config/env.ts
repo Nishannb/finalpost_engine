@@ -91,9 +91,14 @@ const schema = z.object({
   V1_KINETIC_RELEASE: bool(false),
   /**
    * V1 KINETIC ACCESS (consulted only while V1_KINETIC_RELEASE is on; lib/kineticAccess.ts). FAIL CLOSED: no default grants access.
-   *   V1_KINETIC_ACCESS            `allowlist` (the only production mode) or `all` (refused in production). Unset / unknown: nobody can start Kinetic.
-   *   V1_KINETIC_ALLOWED_USER_IDS  comma-separated account UUIDs; unset, empty or containing ONE malformed entry: nobody. Pro entitlement is still required.
-   * Set the access settings BEFORE turning V1_KINETIC_RELEASE on. Never put account ids anywhere but the server environment.
+   *   V1_KINETIC_ACCESS            `entitlement` (production: active paid Pro / Pro Plus, source revenuecat; the UUID list is ignored),
+   *                                `allowlist` (an explicit UUID list, and Pro is still required), or `all` (refused in production).
+   *                                Unset / unknown: nobody can start Kinetic.
+   *   V1_KINETIC_ALLOWED_USER_IDS  used only by `allowlist`: comma-separated account UUIDs; unset, empty or containing ONE malformed entry: nobody.
+   *                                Ignored when V1_KINETIC_ACCESS=entitlement. Leave it unset in that mode.
+   * `entitlement` requires source `revenuecat` with plan `pro` or `pro_plus`. Nepal verification is not enough.
+   * The check includes service-key and dev callers, and it does not honor ENTITLEMENT_ENFORCEMENT=0. The worker uses the same rule before paid work.
+   * Set the access mode BEFORE turning V1_KINETIC_RELEASE on. Never put account ids anywhere but the server environment.
    */
   V1_KINETIC_ACCESS: str(''),
   V1_KINETIC_ALLOWED_USER_IDS: str(''),

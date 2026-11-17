@@ -50,7 +50,9 @@ const OUTSIDE_PRO = '00000000-0000-4000-8000-000000000003';
 const NEPAL_PRO = '00000000-0000-4000-8000-000000000004';
 const LISTED_FREE = '00000000-0000-4000-8000-000000000005';
 const FREE = '00000000-0000-4000-8000-000000000006';
-const ALL_IDS = [LISTED_PRO, SECOND_LISTED, OUTSIDE_PRO, NEPAL_PRO, LISTED_FREE, FREE];
+const EXPIRED = '00000000-0000-4000-8000-000000000007';
+const CANCELLED = '00000000-0000-4000-8000-000000000008';
+const ALL_IDS = [LISTED_PRO, SECOND_LISTED, OUTSIDE_PRO, NEPAL_PRO, LISTED_FREE, FREE, EXPIRED, CANCELLED];
 
 const BASE = {contentType: 'video/mp4', languageCode: 'en'};
 const PRO_KINETIC = {...BASE, style: 'kinetic_typography', mode: 'full_edit', captionTemplate: 'basic', footageKind: 'camera', captionPreset: 'punchline'};
@@ -118,6 +120,9 @@ beforeEach(() => {
   state.plans.set(NEPAL_PRO, {plan: 'pro', verified: true, source: 'nepal_verified'});
   state.plans.set(LISTED_FREE, {plan: 'free', verified: true, source: 'revenuecat'});
   state.plans.set(FREE, {plan: 'free', verified: true, source: 'revenuecat'});
+  // Flask collapses an expired entitlement and a cancelled entitlement past its period to the same verified free answer.
+  state.plans.set(EXPIRED, {plan: 'free', verified: true, source: 'revenuecat'});
+  state.plans.set(CANCELLED, {plan: 'free', verified: true, source: 'revenuecat'});
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url.startsWith('https://creators.test/creator/internal/entitlement')) {
@@ -226,6 +231,7 @@ describe('Free Basic Captions are unaffected', () => {
     ['invalid configuration', {mode: 'allowlist', ids: 'oops'}],
     ['global access in production (invalid)', {mode: 'all'}],
     ['an unknown mode', {mode: 'nope'}],
+    ['entitlement mode', {mode: 'entitlement'}],
   ])('%s: a Free account starts Basic Captions, no entitlement lookup', async (_name, cfg) => {
     configure({...cfg});
     const response = await post('/v1/edits/captions', FREE, BASIC);
@@ -305,6 +311,124 @@ describe('POST /v1/edits/:id/retry and /assets for an existing Kinetic job', () 
     allowlist(SECOND_LISTED);
     expect((await post(`/v1/edits/${jobId}/retry`, SECOND_LISTED, {})).status).toBe(202); // the mocked runner decides ownership; the access check did not interfere
     expect(state.retried).toEqual([{editJobId: jobId, userId: SECOND_LISTED}]);
+  });
+});
+
+describe('V1_KINETIC_ACCESS=entitlement (production)', () => {
+  const entitlement = (ids = 'not-a-uuid') => configure({mode: 'entitlement', ids});
+
+  it('an active paid pro or pro_plus subscription can start Kinetic, and the UUID list is ignored', async () => {
+    entitlement(`${LISTED_PRO},not-a-uuid`);
+    state.plans.set(SECOND_LISTED, {plan: 'pro_plus', verified: true, source: 'revenuecat'});
+    for (const user of [LISTED_PRO, SECOND_LISTED, OUTSIDE_PRO]) {
+      expect((await post('/v1/edits/captions', user, PRO_KINETIC)).status).toBe(202);
+    }
+    expect(state.created.map(job => job.userId)).toEqual([LISTED_PRO, SECOND_LISTED, OUTSIDE_PRO]);
+    expect(state.lookups).toEqual([LISTED_PRO, SECOND_LISTED, OUTSIDE_PRO]);
+  });
+
+  it('a Nepal-verified account without a paid subscription is refused', async () => {
+    entitlement();
+    const response = await post('/v1/edits/captions', NEPAL_PRO, PRO_KINETIC);
+    expect(response.status).toBe(403);
+    expect((await bodyOf(response)).code).toBe('pro_required');
+    expect(state.created).toHaveLength(0);
+    expect(state.lookups).toEqual([NEPAL_PRO]);
+  });
+
+  it('expired and cancelled subscriptions are refused', async () => {
+    entitlement();
+    for (const user of [EXPIRED, CANCELLED]) {
+      const response = await post('/v1/edits/captions', user, PRO_KINETIC);
+      expect(response.status).toBe(403);
+      expect((await bodyOf(response)).code).toBe('pro_required');
+    }
+    expect(state.created).toHaveLength(0);
+  });
+
+  it('a verified Free account is refused with pro_required, and nothing is created', async () => {
+    entitlement();
+    const response = await post('/v1/edits/captions', FREE, PRO_KINETIC);
+    expect(response.status).toBe(403);
+    expect((await bodyOf(response)).code).toBe('pro_required');
+    expect(state.created).toHaveLength(0);
+    expect(state.lookups).toEqual([FREE]);
+  });
+
+  it('a listed Free account is still refused: the UUID list never grants Pro', async () => {
+    entitlement(LISTED_FREE);
+    const response = await post('/v1/edits/captions', LISTED_FREE, PRO_KINETIC);
+    expect(response.status).toBe(403);
+    expect((await bodyOf(response)).code).toBe('pro_required');
+    expect(state.created).toHaveLength(0);
+  });
+
+  it('a failed plan lookup fails closed with entitlement_unavailable', async () => {
+    entitlement();
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.startsWith('https://creators.test/creator/internal/entitlement')) {
+        state.lookups.push('down');
+        return new Response('no', {status: 503});
+      }
+      return realFetch(input, init);
+    }) as typeof fetch;
+    const response = await post('/v1/edits/captions', OUTSIDE_PRO, PRO_KINETIC);
+    expect(response.status).toBe(503);
+    expect((await bodyOf(response)).code).toBe('entitlement_unavailable');
+    expect(state.created).toHaveLength(0);
+  });
+
+  it('service-key and dev callers get no bypass: the account they act for must be Pro', async () => {
+    entitlement();
+    expect((await post('/v1/edits/captions', FREE, PRO_KINETIC, 'service-key')).status).toBe(403);
+    expect((await post('/v1/edits/captions', 'dev-user', PRO_KINETIC, 'dev')).status).toBe(403);
+    expect((await post('/v1/edits/captions', OUTSIDE_PRO, PRO_KINETIC, 'service-key')).status).toBe(202);
+    expect((await post('/v1/edits/captions', NEPAL_PRO, PRO_KINETIC, 'dev')).status).toBe(403);
+    expect(state.created.map(job => job.userId)).toEqual([OUTSIDE_PRO]);
+  });
+
+  it('ENTITLEMENT_ENFORCEMENT=0 does not open Kinetic to a Free account', async () => {
+    entitlement();
+    state.env.ENTITLEMENT_ENFORCEMENT = false;
+    const response = await post('/v1/edits/captions', FREE, PRO_KINETIC);
+    expect(response.status).toBe(403);
+    expect((await bodyOf(response)).code).toBe('pro_required');
+    expect(state.lookups).toEqual([FREE]);
+    expect(state.created).toHaveLength(0);
+  });
+
+  it('the catalog lists Kinetic for everyone and locks it unless the subscription is paid', async () => {
+    entitlement();
+    const kinetic = async (user: string) => ((await bodyOf(await get('/v1/edit-styles', user))).styles ?? []).find(s => s.id === 'kinetic_typography');
+    expect(await kinetic(OUTSIDE_PRO)).toMatchObject({available: true, locked: false});
+    expect(await kinetic(NEPAL_PRO)).toMatchObject({available: true, locked: true});
+    expect(await kinetic(FREE)).toMatchObject({available: true, locked: true});
+    expect(await kinetic(EXPIRED)).toMatchObject({available: true, locked: true});
+    expect(await kinetic(CANCELLED)).toMatchObject({available: true, locked: true});
+    expect(await kinetic(LISTED_FREE)).toMatchObject({available: true, locked: true});
+  });
+
+  it('retry and assets follow the current plan, not a UUID list', async () => {
+    entitlement();
+    const jobId = String((await bodyOf(await post('/v1/edits/captions', OUTSIDE_PRO, PRO_KINETIC))).job?.editJobId);
+    expect((await post(`/v1/edits/${jobId}/retry`, OUTSIDE_PRO, {})).status).toBe(202);
+    expect((await post(`/v1/edits/${jobId}/assets`, OUTSIDE_PRO, {skipAll: true})).status).toBe(202);
+    state.plans.set(OUTSIDE_PRO, {plan: 'free', verified: true, source: 'revenuecat'});
+    clearEntitlementCache();
+    const retry = await post(`/v1/edits/${jobId}/retry`, OUTSIDE_PRO, {});
+    expect(retry.status).toBe(403);
+    expect((await bodyOf(retry)).code).toBe('pro_required');
+    const assets = await post(`/v1/edits/${jobId}/assets`, OUTSIDE_PRO, {skipAll: true});
+    expect(assets.status).toBe(403);
+    expect(state.retried).toHaveLength(1);
+    expect(state.assets).toHaveLength(1);
+  });
+
+  it('`all` is still refused in production', async () => {
+    configure({mode: 'all'});
+    await refused(await post('/v1/edits/captions', OUTSIDE_PRO, PRO_KINETIC));
+    expect(state.created).toHaveLength(0);
   });
 });
 

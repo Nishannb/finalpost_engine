@@ -9,6 +9,7 @@ import {
   assertKineticJobAccess,
   decideKineticAccess,
   describeKineticAccess,
+  isKineticEntitlementMode,
   kineticAccessAllowed,
   kineticAccessFromEnv,
   logKineticAccessAtStartup,
@@ -60,6 +61,17 @@ describe('parseKineticAccess: fail closed', () => {
     expect(kineticAccessFromEnv({NODE_ENV: PROD, V1_KINETIC_ACCESS: 'allowlist', V1_KINETIC_ALLOWED_USER_IDS: A})).toMatchObject({ok: true, mode: 'allowlist'});
     expect(kineticAccessFromEnv({NODE_ENV: PROD})).toEqual({ok: false, problem: 'mode_unset'});
   });
+  it('`entitlement` is accepted in production and does not read the UUID list', () => {
+    for (const ids of [undefined, '', '   ', 'not-a-uuid', `${A},oops`, A]) {
+      const config = parseKineticAccess({mode: ' Entitlement ', ids, nodeEnv: PROD});
+      expect(config).toEqual({ok: true, mode: 'entitlement'});
+      expect(decideKineticAccess(config, {userId: A})).toEqual({allowed: false, reason: 'entitlement_required'});
+      expect(decideKineticAccess(config, {userId: OUTSIDER})).toEqual({allowed: false, reason: 'entitlement_required'});
+    }
+    expect(isKineticEntitlementMode({NODE_ENV: PROD, V1_KINETIC_ACCESS: 'entitlement', V1_KINETIC_ALLOWED_USER_IDS: 'not-a-uuid'})).toBe(true);
+    expect(isKineticEntitlementMode({NODE_ENV: PROD, V1_KINETIC_ACCESS: 'allowlist', V1_KINETIC_ALLOWED_USER_IDS: A})).toBe(false);
+    expect(isKineticEntitlementMode({NODE_ENV: PROD, V1_KINETIC_ACCESS: 'all'})).toBe(false);
+  });
 });
 
 describe('decideKineticAccess', () => {
@@ -96,6 +108,7 @@ describe('assertKineticAccess / kineticAccessAllowed', () => {
       () => assertKineticAccess(env, {userId: OUTSIDER}, logger(), 'create'),
       () => assertKineticAccess({NODE_ENV: PROD}, {userId: A}, logger(), 'create'),
       () => assertKineticAccess({NODE_ENV: PROD, V1_KINETIC_ACCESS: 'all'}, {userId: A}, logger(), 'create'),
+      () => assertKineticAccess({NODE_ENV: PROD, V1_KINETIC_ACCESS: 'entitlement'}, {userId: A}, logger(), 'create'),
     ].map(run => {
       try {
         run();
@@ -111,6 +124,10 @@ describe('assertKineticAccess / kineticAccessAllowed', () => {
     const l = logger();
     expect(() => assertKineticAccess(env, {userId: OUTSIDER}, l, 'retry')).toThrow();
     expect(l.warn).toHaveBeenCalledWith({where: 'retry', reason: 'not_allowlisted'}, 'kinetic access refused');
+    const entitlementLog = logger();
+    expect(() => assertKineticAccess({NODE_ENV: PROD, V1_KINETIC_ACCESS: 'entitlement'}, {userId: A}, entitlementLog, 'create')).toThrow();
+    expect(entitlementLog.warn).toHaveBeenCalledWith({where: 'create', reason: 'entitlement_required'}, 'kinetic access refused');
+    expect(everything(entitlementLog)).not.toContain(A);
     expect(everything(l)).not.toContain(OUTSIDER);
     expect(everything(l)).not.toContain(A);
   });
@@ -170,6 +187,13 @@ describe('startup report', () => {
   });
   it('describeKineticAccess is count-only', () => {
     expect(describeKineticAccess(parseKineticAccess({mode: 'allowlist', ids: A, nodeEnv: PROD}))).toEqual({state: 'allowlist', allowlistCount: 1});
+  });
+  it('release ON with entitlement mode: an info line, no account id, and a malformed UUID list is ignored', () => {
+    const l = logger();
+    expect(logKineticAccessAtStartup({NODE_ENV: PROD, V1_KINETIC_RELEASE: true, V1_KINETIC_ACCESS: 'entitlement', V1_KINETIC_ALLOWED_USER_IDS: `${A},bad`}, l)).toEqual({state: 'entitlement'});
+    expect(l.info).toHaveBeenCalledWith({}, 'V1 Kinetic access: entitlement (active paid Pro / Pro Plus from RevenueCat; no account allowlist)');
+    expect(l.error).not.toHaveBeenCalled();
+    idsAbsent(l);
   });
 });
 

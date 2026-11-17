@@ -12,7 +12,8 @@ import {notifyCreatorEditDone, reopenCallback, stageCallback, type CreatorCallba
 import {randomUUID as workerUuid} from 'node:crypto';
 
 import {env} from '../config/env.ts';
-import {checkFullEditForWorker} from '../lib/entitlement.ts';
+import {checkFullEditForWorker, checkPaidKineticForWorker} from '../lib/entitlement.ts';
+import {isKineticEntitlementMode} from '../lib/kineticAccess.ts';
 import {styleTier, type EditStyleId} from '../lib/editStyles.ts';
 import {
   loadAnalysisJob,
@@ -653,7 +654,10 @@ async function startWithRetry<T>(fn: () => Promise<T>): Promise<T> {
 
 /** Re-checks the creator's plan right before paid work starts. Returns false (and fails the job) when it is not allowed. */
 async function entitledToProceed(job: CaptionsEditJob): Promise<boolean> {
-  const verdict = await checkFullEditForWorker(job.userId);
+  // Kinetic entitlement mode uses the paid-subscription rule. Allowlist and every other style keep the existing plan check.
+  const verdict = job.style === 'kinetic_typography' && isKineticEntitlementMode(env)
+    ? await checkPaidKineticForWorker(job.userId)
+    : await checkFullEditForWorker(job.userId);
   if (verdict === 'allow') {
     return true;
   }

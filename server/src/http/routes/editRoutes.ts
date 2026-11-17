@@ -22,11 +22,11 @@ import {
   submitFullEditAssets,
 } from '../../pipeline/captionsEditRunner.ts';
 import {labeledAssetBindingSchema} from '../schemas.ts';
-import {assertFullEditEntitlement, resolveCatalogAccess} from '../../lib/entitlement.ts';
+import {assertActiveProEntitlement, assertFullEditEntitlement, hasActivePaidSubscription, resolveCatalogAccess, resolveEntitlement} from '../../lib/entitlement.ts';
 import {isCaptionKitPresetId} from '../../lib/captionKitPresets.ts';
 import {V1_RELEASE_STYLES, buildEditStyleCatalog, resolveRequestedStyle, v1ReleaseViolation, type EditStyleConfig} from '../../lib/editStyles.ts';
 import {env} from '../../config/env.ts';
-import {assertKineticAccess, assertKineticJobAccess, kineticAccessAllowed} from '../../lib/kineticAccess.ts';
+import {assertKineticAccess, isKineticEntitlementMode, kineticAccessAllowed} from '../../lib/kineticAccess.ts';
 import {logger} from '../../lib/logger.ts';
 import {hitRateLimit} from '../../store/engineStore.ts';
 import {CAPTION_TEMPLATES, SUPPORTED_LANGUAGES} from '../../types/blueprint.ts';
@@ -94,6 +94,23 @@ function editStyleConfig(): EditStyleConfig {
 }
 
 /**
+ * Kinetic start / retry / assets. `entitlement` admits only an active paid Pro or Pro Plus subscription, with no auth-path bypass and no UUID list.
+ * Every other mode keeps the allowlist gate (fail closed). Basic Captions never call this.
+ */
+async function requireKineticAccess(auth: {userId: string}, where: string): Promise<void> {
+  if (isKineticEntitlementMode(env)) {
+    await assertActiveProEntitlement(auth.userId);
+    return;
+  }
+  assertKineticAccess(env, auth, logger, where);
+}
+
+async function requireKineticJobAccess(auth: {userId: string}, job: {userId?: unknown; style?: unknown} | null | undefined, where: string): Promise<void> {
+  if (!env.V1_KINETIC_RELEASE || !job || job.style !== 'kinetic_typography' || job.userId !== auth.userId) return;
+  await requireKineticAccess(auth, where);
+}
+
+/**
  * GET /v1/edit-styles: the picker catalog with each style's lock state for this creator. Never fails on a plan lookup error: an
  * unverifiable plan locks the Pro styles (fail closed) so the picker still renders. 404 while the kill switch is off, which the app
  * treats exactly like an engine without the catalog (bundled manifest + mode-only request).
@@ -109,6 +126,10 @@ editRoutes.get('/edit-styles', async (req, res) => {
   const wantsRefresh = req.query.refresh === '1' || req.query.refresh === 'true';
   const refreshed = wantsRefresh && (await hitRateLimit(`edit-styles-refresh:${auth.userId}`, EDIT_STYLES_REFRESH_WINDOW_SEC)) <= 1;
   const access = await resolveCatalogAccess(auth, {refresh: refreshed});
+  // Entitlement mode lists Kinetic and locks it unless the Creators API proved an active paid subscription.
+  // Allowlist mode hides it from accounts that are not on the list. Other styles keep the catalog plan lock.
+  const kineticByEntitlement = isKineticEntitlementMode(env);
+  const kineticPaid = kineticByEntitlement && hasActivePaidSubscription(await resolveEntitlement(auth.userId));
   res.setHeader('Cache-Control', 'private, no-store');
   res.json({
     ok: true,
@@ -116,9 +137,11 @@ editRoutes.get('/edit-styles', async (req, res) => {
     planVerified: access.verified,
     refreshed,
     // V1 release: Kinetic is offered only to accounts that may start it (lib/kineticAccess.ts; fail closed). Other styles are untouched.
-    styles: buildEditStyleCatalog({config, hasPro: access.hasPro}).map(entry =>
-      env.V1_KINETIC_RELEASE && entry.id === 'kinetic_typography' && !kineticAccessAllowed(env, auth) ? {...entry, available: false} : entry,
-    ),
+    styles: buildEditStyleCatalog({config, hasPro: access.hasPro}).map(entry => {
+      if (!(env.V1_KINETIC_RELEASE && entry.id === 'kinetic_typography')) return entry;
+      if (kineticByEntitlement) return {...entry, locked: !kineticPaid};
+      return kineticAccessAllowed(env, auth) ? entry : {...entry, available: false};
+    }),
   });
 });
 
@@ -149,9 +172,10 @@ editRoutes.post('/edits/captions', async (req, res) => {
   if (violation) {
     throw new EngineError(violation.code, violation.message, violation.details);
   }
-  // V1 release: Kinetic needs an explicitly configured access list IN ADDITION to Pro (checked before the plan lookup; fail closed). Basic Captions never reach this.
+  // V1 release: Kinetic is fail closed. `entitlement` requires an active paid subscription (no UUID list, no auth bypass).
+  // `allowlist` requires the UUID list and then the plan check below. Basic Captions never reach this.
   if (env.V1_KINETIC_RELEASE && styled && styled.style === 'kinetic_typography') {
-    assertKineticAccess(env, auth, logger, 'create');
+    await requireKineticAccess(auth, 'create');
   }
   // A style wins over `mode`; without one (older app, or the kill switch off) the request's mode is used exactly as before.
   const mode = styled ? styled.mode : parsed.data.mode;
@@ -211,7 +235,7 @@ const assetsSchema = z.object({
 editRoutes.post('/edits/:editJobId/assets', async (req, res) => {
   const auth = getAuth(res);
   await assertFullEditEntitlement(auth);
-  assertKineticJobAccess(env, auth, await loadCaptionsEditJob(String(req.params.editJobId)), logger, 'assets');
+  await requireKineticJobAccess(auth, await loadCaptionsEditJob(String(req.params.editJobId)), 'assets');
   const parsed = assetsSchema.safeParse(req.body ?? {});
   if (!parsed.success) {
     throw new EngineError('bad_request', parsed.error.issues[0]?.message ?? 'Invalid assets request');
@@ -245,7 +269,7 @@ editRoutes.post('/edits/:editJobId/retry', async (req, res) => {
   const auth = getAuth(res);
   await assertFullEditEntitlement(auth);
   // An old Kinetic job must not bypass the access gate: its style is read from the stored job (the caller's own job only).
-  assertKineticJobAccess(env, auth, await loadCaptionsEditJob(String(req.params.editJobId)), logger, 'retry');
+  await requireKineticJobAccess(auth, await loadCaptionsEditJob(String(req.params.editJobId)), 'retry');
   const job = await retryFullEdit({editJobId: String(req.params.editJobId), userId: auth.userId});
   res.status(202).json({ok: true, job});
 });

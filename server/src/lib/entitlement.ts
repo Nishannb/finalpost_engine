@@ -21,6 +21,19 @@ export function planHasFullEdit(plan: CreatorPlan): boolean {
   return plan === 'pro' || plan === 'pro_plus';
 }
 
+/**
+ * Active paid Pro / Pro Plus, as the Creators API reports it.
+ * `GET /creator/internal/entitlement` returns `source: "revenuecat"` only after RevenueCat's subscriber
+ * record has an active `finalpost_pro` or configured Pro Plus entitlement (a future `expires_date`, a
+ * lifetime `expires_date` of null, or a still-open billing grace period). Expired and cancelled
+ * subscriptions come back as `plan: "free"`, `source: "revenuecat"`, `verified: true`.
+ * `source: "nepal_verified"` is the Supabase flag alone. RevenueCat is not consulted, so it is not proof of a purchase.
+ * Any other source, or `verified !== true`, is not a paid subscription.
+ */
+export function hasActivePaidSubscription(entitlement: Pick<Entitlement, 'plan' | 'verified' | 'source'>): boolean {
+  return entitlement.verified === true && planHasFullEdit(entitlement.plan) && entitlement.source === 'revenuecat';
+}
+
 export function clearEntitlementCache(): void {
   cache.clear();
   clearCatalogAccessCache();
@@ -79,6 +92,36 @@ export async function assertFullEditEntitlement(auth: Pick<AuthContext, 'userId'
     });
   }
   throw new EngineError('pro_required', 'FinalPost Pro is required for the full AI edit.');
+}
+
+/**
+ * Kinetic access mode `entitlement`. Requires an active paid Pro or Pro Plus subscription from the Creators API.
+ * Nepal verification is not a subscription. Service-key, dev auth, and ENTITLEMENT_ENFORCEMENT=0 do not skip this.
+ * The plan is never read from the request. A failed lookup fails closed.
+ */
+export async function assertActiveProEntitlement(userId: string): Promise<void> {
+  const entitlement = await resolveEntitlement(userId);
+  if (hasActivePaidSubscription(entitlement)) {
+    return;
+  }
+  if (!entitlement.verified) {
+    throw new EngineError('entitlement_unavailable', 'We could not confirm your FinalPost plan right now. Try again in a moment.', {
+      reason: entitlement.source,
+    });
+  }
+  throw new EngineError('pro_required', 'FinalPost Pro is required for the full AI edit.');
+}
+
+/**
+ * The same paid-subscription rule for a Kinetic worker that only has the creator id.
+ * Unlike checkFullEditForWorker, ENTITLEMENT_ENFORCEMENT=0 does not skip it.
+ */
+export async function checkPaidKineticForWorker(userId: string): Promise<'allow' | 'deny' | 'unavailable'> {
+  const entitlement = await resolveEntitlement(userId);
+  if (hasActivePaidSubscription(entitlement)) {
+    return 'allow';
+  }
+  return entitlement.verified ? 'deny' : 'unavailable';
 }
 
 /**
