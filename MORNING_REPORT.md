@@ -1,3 +1,37 @@
+# 2026-11-18 — Kinetic entitlement access
+
+Branch: `main`. HEAD is still `9cf6c65431d115e10faa1e934cd9867ce26e1c2b`. Changes are uncommitted. Not pushed, merged or deployed.
+
+## Spend proof
+
+`agents/music_specialist/spend.log` was absent at the start and absent at the end. No Runware, LLM, Lambda, `first-video`, R2, or deploy.
+
+## Task
+
+Production Kinetic access no longer depends on a UUID allowlist.
+
+- `V1_KINETIC_ACCESS=entitlement` is accepted in production. `V1_KINETIC_ALLOWED_USER_IDS` is ignored in that mode.
+- Create, retry, asset submit, the catalog, and the Kinetic worker admit a subscription only when the Creators API returns `verified: true`, `plan` `pro` or `pro_plus`, and `source: "revenuecat"`.
+- `source: "nepal_verified"` is refused. A verified `free` plan (how Flask reports expired and cancelled entitlements) is `pro_required`. A failed lookup is `entitlement_unavailable`.
+- `allowlist` and the production refusal of `all` are unchanged. Allowlist still uses the broader Pro check, so a listed Nepal-verified account is still admitted there.
+
+Files: `server/src/lib/kineticAccess.ts`, `server/src/lib/entitlement.ts`, `server/src/http/routes/editRoutes.ts`, `server/src/config/env.ts`, `.env.production.example`, and the two kinetic access tests.
+
+## Tests
+
+- Kinetic unit + HTTP, V1 gate, entitlement enforcement, music/sfx/renderBlueprint vitest: 250 passed, 1 skipped.
+- Server `tsc --noEmit`: clean.
+- Remotion `tsc --noEmit`: clean.
+- Pytest was not run. `agents/.venv` does not exist, and this change does not touch the music specialist.
+
+## Production env
+
+`V1_KINETIC_RELEASE=1`, `V1_KINETIC_ACCESS=entitlement`, `ENTITLEMENT_ENFORCEMENT=1`, with `CREATOR_API_URL` and `ENGINE_API_KEY` set. Leave `V1_KINETIC_ALLOWED_USER_IDS` unset. Do not set `V1_KINETIC_ACCESS=all`.
+
+## Needs a human
+
+Commit is not created. A Nepal-verified account who also pays is refused, because Flask returns `source: "nepal_verified"` and does not call RevenueCat. The engine cannot see that purchase until the Creators API stops short-circuiting.
+
 # Phase 3.1
 
 Branch: `bgm-phase-2`. Not pushed, merged or deployed. Date: 2026-11-04. Policy: [docs/audio/VOICE_FIRST.md](docs/audio/VOICE_FIRST.md) (the "Loudness-aware ducking" section is new).

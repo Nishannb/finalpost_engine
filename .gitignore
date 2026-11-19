@@ -4,6 +4,10 @@ dist/
 .env
 .env.local
 
+# Written by deploy/deploy.sh on the droplet (running / previous SHA)
+.deploy-running-sha
+.deploy-previous-sha
+
 # Remotion build artifacts
 remotion/out/
 remotion/.remotion/

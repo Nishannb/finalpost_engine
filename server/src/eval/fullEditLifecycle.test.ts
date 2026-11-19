@@ -67,13 +67,14 @@ function analysisDone(analysisJobId: string, bp: unknown) {
   db.analysis.set(analysisJobId, {analysisJobId, status: 'done', progress: 1, blueprint: bp});
 }
 
-async function start(userId = 'u1') {
+async function start(userId = 'u1', style?: 'kinetic_typography') {
   const {job} = await createCaptionsEditJob({
     userId,
     contentType: 'video/mp4',
     languageCode: 'en' as never,
     captionTemplate: 'karaoke' as never,
     mode: 'full_edit',
+    ...(style ? {style, footageKind: 'camera' as never} : {}),
     fullEdit: {renderFlags: {brollEnabled: true, zoomEnabled: true, trimEnabled: true}},
   });
   return job.editJobId;
@@ -143,6 +144,25 @@ describe('full edit: analysis with asset slots stops at the server-owned gate', 
     expect(sent()).toEqual([
       expect.objectContaining({type: 'edit_done', status: 'done', outputUrl: 'https://cdn/out.mp4', blueprintId: 'bp2'}),
     ]);
+  });
+});
+
+describe('kinetic_typography never runs the director asset gate', () => {
+  it('renders straight through even when the blueprint carries an asset brief, with no assets_needed', async () => {
+    const bp = blueprint('bpk', [SLOT]);
+    db.blueprints.set('bpk', bp);
+    analysisDone('an_1', bp);
+    const id = await start('u1', 'kinetic_typography');
+    await markCaptionsSourceUploaded(id, 'u1');
+
+    const job = await settled(id, 'done');
+    expect(job.assetBrief).toBeUndefined();
+    expect(mocks.startRender).toHaveBeenCalledTimes(1);
+    expect(sent().map(n => n.type)).toEqual(['edit_done']);
+    const analysisInput = mocks.startAnalysis.mock.calls[0]![0] as Record<string, unknown>;
+    expect(analysisInput.style).toBe('kinetic_typography');
+    expect(analysisInput.userBrollUrls).toBeUndefined();
+    expect(analysisInput.subjectCutoutUrl).toBeUndefined();
   });
 });
 
