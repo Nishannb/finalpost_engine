@@ -73,12 +73,27 @@ echo "$GIT_SHA" > .deploy-running-sha
 
 echo "==> Deploying git sha=$GIT_SHA (previous=$(cat .deploy-previous-sha))"
 
+# Production unit on the engine droplet is `finalpost-engine.service`.
+# Older docs used `kinmel-video-engine`; keep both for detect/restart.
+SYSTEMD_UNITS=(finalpost-engine kinmel-video-engine)
+
+detect_systemd_unit() {
+  local unit
+  for unit in "${SYSTEMD_UNITS[@]}"; do
+    if command -v systemctl >/dev/null 2>&1 && systemctl cat "$unit" >/dev/null 2>&1; then
+      echo "$unit"
+      return 0
+    fi
+  done
+  return 1
+}
+
 detect_route() {
   if [[ -n "$FORCE_ROUTE" ]]; then
     echo "$FORCE_ROUTE"
     return
   fi
-  if command -v systemctl >/dev/null 2>&1 && systemctl cat kinmel-video-engine >/dev/null 2>&1; then
+  if detect_systemd_unit >/dev/null; then
     echo systemd
     return
   fi
@@ -94,12 +109,37 @@ detect_route() {
     echo docker
     return
   fi
-  echo "ERROR: neither systemd unit kinmel-video-engine nor Docker is available." >&2
+  echo "ERROR: neither systemd unit (finalpost-engine / kinmel-video-engine) nor Docker is available." >&2
   exit 1
 }
 
 ROUTE="$(detect_route)"
 echo "==> Route: $ROUTE"
+
+# CaptionKit (Get Captions) runs on the host Python and needs fontTools + PIL.
+ensure_captionkit_deps() {
+  local py="${CAPTIONKIT_PYTHON:-}"
+  if [[ -z "$py" && -f .env ]]; then
+    py="$(grep -E '^CAPTIONKIT_PYTHON=' .env | tail -1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
+  fi
+  py="${py:-python3}"
+  if "$py" -c 'import fontTools, PIL' >/dev/null 2>&1; then
+    echo "==> CaptionKit deps OK (fontTools, PIL via $py)"
+    return 0
+  fi
+  local cmd="apt-get install -y python3-fonttools python3-pil"
+  echo "==> CaptionKit deps missing for $py; installing"
+  if [[ "$(id -u)" -eq 0 ]]; then
+    apt-get update -y && apt-get install -y python3-fonttools python3-pil || true
+  elif command -v sudo >/dev/null 2>&1; then
+    sudo apt-get update -y && sudo apt-get install -y python3-fonttools python3-pil || true
+  fi
+  if ! "$py" -c 'import fontTools, PIL' >/dev/null 2>&1; then
+    echo "ERROR: CaptionKit needs fontTools + PIL for $py. Run: sudo $cmd" >&2
+    echo "(If CAPTIONKIT_PYTHON points at a venv: $py -m pip install fonttools pillow)" >&2
+    exit 1
+  fi
+}
 
 if [[ "$BUILD" -eq 1 ]]; then
   if [[ "$ROUTE" == "docker" ]]; then
@@ -107,6 +147,7 @@ if [[ "$BUILD" -eq 1 ]]; then
     docker tag kinmel-video-engine "kinmel-video-engine:previous" 2>/dev/null || true
     docker build -t "kinmel-video-engine:$GIT_SHA" -t kinmel-video-engine:latest -t kinmel-video-engine .
   else
+    ensure_captionkit_deps
     echo "==> npm install"
     npm install
     echo "==> npm run build --workspace=server"
@@ -117,14 +158,17 @@ else
 fi
 
 restart_systemd() {
-  if ! systemctl cat kinmel-video-engine >/dev/null 2>&1; then
-    echo "ERROR: systemd unit kinmel-video-engine not found." >&2
-    echo "Install /etc/systemd/system/kinmel-video-engine.service (WorkingDirectory=$ROOT) first." >&2
+  local unit
+  unit="$(detect_systemd_unit || true)"
+  if [[ -z "$unit" ]]; then
+    echo "ERROR: systemd unit finalpost-engine / kinmel-video-engine not found." >&2
+    echo "Install /etc/systemd/system/finalpost-engine.service (WorkingDirectory=$ROOT) first." >&2
     exit 1
   fi
-  echo "==> systemctl restart kinmel-video-engine"
-  sudo systemctl restart kinmel-video-engine
-  sudo systemctl --no-pager --full status kinmel-video-engine || true
+  echo "==> systemctl restart $unit"
+  sudo systemctl restart "$unit"
+  sudo systemctl --no-pager --full status "$unit" || true
+  SYSTEMD_UNIT="$unit"
 }
 
 restart_docker() {
@@ -156,7 +200,7 @@ for i in $(seq 1 45); do
   if [[ "$i" -eq 45 ]]; then
     echo "ERROR: engine not healthy after deploy." >&2
     if [[ "$ROUTE" == "systemd" ]]; then
-      journalctl -u kinmel-video-engine -n 80 --no-pager >&2 || true
+      journalctl -u "${SYSTEMD_UNIT:-$(detect_systemd_unit || echo finalpost-engine)}" -n 80 --no-pager >&2 || true
     else
       docker logs --tail 80 kinmel-video-engine >&2 || true
     fi

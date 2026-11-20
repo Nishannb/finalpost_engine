@@ -243,7 +243,7 @@ def build_ass(words: list[Word], preset: dict, width: int, height: int,
     if pos == "top":
         an, y = 8, round(H * off)
     elif pos == "center":
-        an, y = 5, round(H * (0.5 + off))
+        an, y = 5, round(H * (0.5 + 0.15 + off))  # center presets sit 15% of frame height lower
     else:
         an, y = 2, round(H * (1 - off))
     margin_lr = round(width * 0.06)

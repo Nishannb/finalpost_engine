@@ -38,7 +38,14 @@ One-liner equivalent:
 cd /opt/finalpost/ai-video-engine && ./deploy/backup.sh && ./deploy/deploy.sh --pull
 ```
 
-Health checks are built in (`/health`, prints `/capabilities`).
+Health checks are built in (`/health`, prints `/capabilities`). The script auto-detects `finalpost-engine.service` (or the older `kinmel-video-engine` name).
+
+**Remotion / Kinetic UI:** `./deploy/deploy.sh` updates only the Node API. After Kinetic or other Remotion code changes, redeploy the Lambda site from a laptop that has AWS keys in `.env`:
+
+```bash
+cd ~/Desktop/apps/finalpost/finalpost_engine-production
+npm run remotion:deploy
+```
 
 ## First time: turn the rsync tree into a git checkout
 

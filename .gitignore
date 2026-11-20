@@ -3,6 +3,7 @@ node_modules/
 dist/
 .env
 .env.local
+.env.aws-deploy
 
 # Written by deploy/deploy.sh on the droplet (running / previous SHA)
 .deploy-running-sha

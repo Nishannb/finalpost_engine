@@ -111,7 +111,24 @@ function runCaptionKit(input: {
         resolve();
         return;
       }
-      log.error({code, stderr, presetId: input.presetId}, 'captionkit render failed');
+      log.error(
+        {code, stderr: stderr.slice(-1500), presetId: input.presetId},
+        'captionkit render failed',
+      );
+      const missing = missingPythonModule(stderr);
+      if (missing) {
+        log.error(
+          {module: missing, python},
+          'captionkit host dependency missing: apt-get install -y python3-fonttools python3-pil',
+        );
+        reject(
+          new EngineError(
+            'render_failed',
+            `Captions are temporarily unavailable (engine setup: missing Python module ${missing}). Please try again later.`,
+          ),
+        );
+        return;
+      }
       reject(
         new EngineError(
           'render_failed',
@@ -120,4 +137,10 @@ function runCaptionKit(input: {
       );
     });
   });
+}
+
+/** Detects a missing host Python dependency (fontTools / PIL) in CaptionKit stderr. */
+export function missingPythonModule(stderr: string): string | null {
+  const match = /No module named ['"]?(fontTools|PIL)[\w.]*['"]?/.exec(stderr);
+  return match?.[1] ?? null;
 }
