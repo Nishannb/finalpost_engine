@@ -33,7 +33,9 @@ async function main(): Promise<void> {
   for (const row of rows) {
     const job = row.job ?? {};
     const bp = (row.blueprint ?? {}) as Record<string, unknown>;
-    const warnings = Array.isArray(bp.warnings) ? (bp.warnings as unknown[]).filter((w): w is string => typeof w === 'string') : [];
+    // the pipeline's diagnostics live in blueprint.stats.warnings (analyzeVideo); a top-level list is read too for older shapes
+    const rawWarnings = (bp.stats as {warnings?: unknown} | undefined)?.warnings ?? bp.warnings;
+    const warnings = Array.isArray(rawWarnings) ? (rawWarnings as unknown[]).filter((w): w is string => typeof w === 'string') : [];
     const brief = (row.asset_brief ?? bp.assetBrief) as {slots?: Array<{label?: string; kind?: string}>} | null;
     const kinetic = bp.kinetic as {events?: unknown[]} | undefined;
     console.log('='.repeat(72));
