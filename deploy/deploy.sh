@@ -174,8 +174,15 @@ restart_systemd() {
 restart_docker() {
   echo "==> Recreating container kinmel-video-engine"
   docker rm -f kinmel-video-engine 2>/dev/null || true
+  # Speaker cutout (RVM): the venv + weights live on the HOST under /opt/finalpost/rvm (deploy/setup-rvm.sh) so a rebuild never deletes them.
+  # Mount them at the same path so RVM_PYTHON / RVM_WEIGHTS_PATH in .env work inside the container too.
+  local rvm_mount=()
+  if [[ -d /opt/finalpost/rvm ]]; then
+    rvm_mount=(-v /opt/finalpost/rvm:/opt/finalpost/rvm)
+  fi
   docker run -d --name kinmel-video-engine \
     --env-file "$ROOT/.env" \
+    "${rvm_mount[@]}" \
     -p 127.0.0.1:8090:8090 \
     --tmpfs /tmp \
     --restart unless-stopped \

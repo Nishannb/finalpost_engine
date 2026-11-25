@@ -1,3 +1,33 @@
+# 2026-11-26 (2): AI B-roll opportunities; why phone Kinetic sat in the lower half
+
+Spend: none. No paid calls (the model call is stubbed in tests), no R2, no deploy. Uncommitted.
+
+- **AI B-roll detector:** new `stages/broll/brollOpportunities.ts`.
+    - One Gemini call (label `Gemini broll opportunities`, same transport as the kinetic director) reads the whole transcript and points at word indices. Every timestamp comes from the real words.
+    - Fixed rules then drop: low confidence, talking-head moments, the first 1 s, repeated entities, moments closer than 2.5 s (except within one continuity group), more than about 1 per 7 s (at most 6), and B-roll covering more than 35% of the video.
+    - Uploadable treatments (entity, footage, product, screen) become the asset asks. Infographic, conceptual and kinetic-type picks stay in `blueprint.brollOpportunities`.
+    - An empty answer means no asks. If the call fails, the keyword asks run as before.
+    - Pinned on for Kinetic Typography (`brollOpportunitiesAi`, env `POLISH_BROLL_OPPORTUNITIES_AI` default off, style key gains `b`).
+    - The post-upload re-analysis reuses the asks the creator answered (`priorAssetBrief`), so there is no second call and bindings match.
+    - 11 new tests. Updated `lib/v1Release.test.ts` (style-key suffix).
+- **Gemini budget:** one extra call per Kinetic edit (the last local run used 10 of 12). On refusal it falls back to the keyword asks.
+- **Lower-half Kinetic (reproduced offline, no model):** the Composer harness ran on the aicut words with no matte, like the droplet (no RVM). With a typical head-and-torso speaker box, 20 of 22 blocks landed in the lower half.
+    - `kit.ts zonesFor` only offers a `top` zone when there is at least 0.085 H between the Shorts safe top (0.13 H) and the face. Without a matte nothing can go behind the head, so every composition falls to chest / below / low.
+    - The approved local edit had the RVM matte.
+    - Options need an owner decision: RVM is postponed from V1. The layout was not changed.
+- **Tools:** `server/src/scripts/inspectEditJobs.ts` is a read-only script for the droplet. It prints each recent full edit's style, B-roll asks and pipeline diagnostics.
+- **Baselines unchanged:** `mattingRunner` (no RVM venv), the call-inventory staleness test (10 unlisted files, 1 new: the inspector), and older WP suites under `stages/broll` and `lib/assembler`. Those suites test code untouched since HEAD.
+
+# 2026-11-26: phone edit had no Kinetic V2 and no B-roll asks
+
+Spend: none (no paid calls, no R2, no deploy). Uncommitted.
+
+- **Correction (droplet .env checked by the owner):** the droplet HAS `EDIT_STYLES_ENABLED`, `V1_KINETIC_RELEASE`, `V1_KINETIC_ACCESS=entitlement` and `POLISH_KINETIC_COMPOSER` set, so this was NOT the cause of the phone edit. It is still a real hole (closed below).
+- **Hole (code-proven):** `resolveRequestedStyle` returns null when the style catalog is off (`EDIT_STYLES_ENABLED` and `V1_KINETIC_RELEASE` both unset). A Kinetic request then ran as a plain `full_edit` on `PRODUCT_EDIT_PROFILE`: no Kinetic V2, no Composer, and no Kinetic B-roll brief. None of these keys are in `.env.production.example`.
+- **Fix:** `http/routes/editRoutes.ts` now refuses `kinetic_typography` with 503 `kinetic_unavailable` when styles are off, and logs it. `editStylesRoutes.test.ts` was updated; 75/75 route tests pass and tsc is clean. The Kinetic keys are documented (commented out) in `.env.production.example`.
+- **Needs a human:** set `V1_KINETIC_ACCESS=entitlement`, `V1_KINETIC_RELEASE=1` and `POLISH_KINETIC_COMPOSER=1` on the droplet, then deploy.
+- **App (creators_kinmel):** the Edit Completed sheet was replaced by a 2 s top banner, so the preview plays and the continue button works. The X and download buttons share one anchor. The asset gate is now a list of tags: tap to upload, X to drop.
+
 # 2026-11-25 (night) — aicut.mp4 review fixes + paid Kinetic run
 
 Owner-approved paid run (runner `server/src/scripts/kineticRun.ts`). Changes are uncommitted.

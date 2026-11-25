@@ -36,6 +36,8 @@ export type LabeledAssetSlot = {
   required?: boolean;
   /** WP26: why the edit wants it, for the UI: `logo_cloud`, `image_run_sequence`, `card_tilt`. */
   motionIntent?: string;
+  /** 2026-11-26: the AI B-roll opportunity this ask came from (stages/broll/brollOpportunities.ts); absent on keyword asks. */
+  opportunityId?: string;
 };
 
 export type LabeledAssetBrief = {
@@ -107,7 +109,15 @@ export function buildLabeledAssetBrief(input: {
   windowSec?: number;
   /** Kinetic Typography job: concrete B-roll asks first (grounded in the spoken line), no generic "optional B-roll" filler. */
   kinetic?: boolean;
+  /**
+   * 2026-11-26: asks chosen by the B-roll opportunity detector (brollOpportunities.ts). When given (even empty: "no strong moment" is an answer) they
+   * REPLACE the keyword asks entirely; undefined = the keyword asks exactly as before (the detector is off or failed).
+   */
+  aiSlots?: ReadonlyArray<Omit<LabeledAssetSlot, 'status'>>;
 }): LabeledAssetBrief {
+  if (input.aiSlots) {
+    return {version: 1, outputDurationSec: input.outputDurationSec, slots: input.aiSlots.slice(0, input.maxSlots ?? DEFAULT_MAX_SLOTS).map(slot => ({...slot, status: 'needed' as const}))};
+  }
   const maxSlots = input.maxSlots ?? DEFAULT_MAX_SLOTS;
   const windowSec = input.windowSec ?? 12;
   const slots: LabeledAssetSlot[] = [];

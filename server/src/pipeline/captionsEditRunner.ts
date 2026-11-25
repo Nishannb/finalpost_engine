@@ -924,6 +924,7 @@ async function resumeFullEditAfterAssets(job: CaptionsEditJob): Promise<void> {
         ...(job.captionPreset ? {captionPreset: job.captionPreset} : {}),
         userBrollUrls: merged,
         labeledAssetBindings: bindings,
+        ...(job.assetBrief ? {priorAssetBrief: job.assetBrief} : {}),
         ...(!isKineticJob(job) && options.subjectCutoutUrl ? {subjectCutoutUrl: options.subjectCutoutUrl} : {}),
         ...(job.style ? {style: job.style} : {}), // startAnalysis resolves its flags (lib/styleRun.ts)
         ...(job.footageKind ? {footageKind: job.footageKind} : {}), // only 'camera' may enter Kinetic V2 (lib/footageKind.ts)

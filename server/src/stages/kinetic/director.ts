@@ -76,7 +76,8 @@ export function parseDirectorText(text: string): unknown {
 }
 
 /** The existing Gemini key / endpoint, no new secrets. Imported lazily so pure modules never load config. */
-export async function geminiDirectorCall(): Promise<DirectorCall | null> {
+/** `label` names the call in the Gemini budget / cost logs (default: the kinetic director). Other JSON planners (the B-roll opportunity detector) reuse this transport with their own label. */
+export async function geminiDirectorCall(label = 'Gemini kinetic director'): Promise<DirectorCall | null> {
   const {env} = await import('../../config/env.ts');
   if (!env.GEMINI_API_KEY) return null;
   const {requestJson} = await import('../../lib/http.ts');
@@ -84,7 +85,7 @@ export async function geminiDirectorCall(): Promise<DirectorCall | null> {
   return async ({system, user}) => {
     const body = await requestJson<{candidates?: Array<{content?: {parts?: Array<{text?: string}>}}>}>(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: 'POST',
-      label: 'Gemini kinetic director',
+      label,
       failureCode: 'broll_failed',
       timeoutMs: 45_000,
       retries: 0,

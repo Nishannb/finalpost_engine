@@ -45,6 +45,8 @@ export type EffectiveFlags = {
   kineticComposer: boolean;
   /** Kinetic Composer colours picked by the Director from curated palettes (POLISH_KINETIC_AI_PALETTE, default off) */
   kineticAiPalette: boolean;
+  /** B-roll opportunities chosen by the AI from the meaning of the transcript (POLISH_BROLL_OPPORTUNITIES_AI, default off; pinned on for Kinetic Typography). Off / failure = the keyword asks as before */
+  brollOpportunitiesAi: boolean;
   /** Match Cut camera-shutter treatment + synchronized shutter sound (POLISH_KINETIC_MATCHCUT_SHUTTER). */
   matchCutShutter: boolean;
   subjectStage: boolean;
@@ -93,6 +95,7 @@ export type EffectiveFlagsEnv = {
   POLISH_KINETIC_ENGINE_MATTE: boolean;
   POLISH_KINETIC_COMPOSER?: boolean;
   POLISH_KINETIC_AI_PALETTE?: boolean;
+  POLISH_BROLL_OPPORTUNITIES_AI?: boolean;
   POLISH_KINETIC_MATCHCUT_SHUTTER: boolean;
   POLISH_SUBJECT_STAGE: boolean;
   POLISH_VO_CUT_GRAMMAR: boolean;
@@ -140,6 +143,7 @@ export function effectiveFlagsFromEnv(env: EffectiveFlagsEnv, profile: ProductEd
     kineticEngineMatte: Boolean(env.POLISH_KINETIC_ENGINE_MATTE),
     kineticComposer: Boolean(env.POLISH_KINETIC_COMPOSER),
     kineticAiPalette: Boolean(env.POLISH_KINETIC_AI_PALETTE),
+    brollOpportunitiesAi: Boolean(env.POLISH_BROLL_OPPORTUNITIES_AI),
     matchCutShutter: Boolean(env.POLISH_KINETIC_MATCHCUT_SHUTTER),
     subjectStage: Boolean(env.POLISH_SUBJECT_STAGE),
     voCutGrammar: Boolean(env.POLISH_VO_CUT_GRAMMAR),

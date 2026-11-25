@@ -73,6 +73,8 @@ export async function startAnalysis(input: {
   styleRecipe?: Record<string, unknown>;
   userBrollUrls?: string[];
   labeledAssetBindings?: import('../stages/broll/labeledAssetBrief.ts').LabeledAssetBinding[];
+  /** 2026-11-26: the asks the creator already answered (the job's brief). The re-analysis with uploads binds onto THESE, never onto a fresh AI pick. */
+  priorAssetBrief?: import('../stages/broll/labeledAssetBrief.ts').LabeledAssetBrief;
   /** WP55: creator / business brand name (optional). */
   brandName?: string;
   captionStyleGuide?: Record<string, unknown> | null;
@@ -102,7 +104,7 @@ export async function startAnalysis(input: {
 }): Promise<AnalysisJob> {
   const basicCaptions = Boolean(input.basicCaptions);
   if (basicCaptions) {
-    input = {...input, requestedEdits: ['captions'], teleprompterClean: false, scriptText: undefined, directorV2: false, northStar: false, userBrollUrls: [], labeledAssetBindings: [], styleRecipe: undefined, subjectCutoutUrl: undefined, forceSpeakerCutout: false};
+    input = {...input, requestedEdits: ['captions'], teleprompterClean: false, scriptText: undefined, directorV2: false, northStar: false, userBrollUrls: [], labeledAssetBindings: [], priorAssetBrief: undefined, styleRecipe: undefined, subjectCutoutUrl: undefined, forceSpeakerCutout: false};
   }
   const now = new Date().toISOString();
   const bindingUrls = (input.labeledAssetBindings ?? [])
@@ -225,6 +227,7 @@ export async function startAnalysis(input: {
     styleRecipe: input.styleRecipe,
     userBrollUrls,
     labeledAssetBindings,
+    ...(input.priorAssetBrief ? {priorAssetBrief: input.priorAssetBrief} : {}),
     brandName: input.brandName,
     captionStyleGuide: input.captionStyleGuide,
     forceSpeakerCutout: input.forceSpeakerCutout,
@@ -267,6 +270,7 @@ async function runAnalysis(
     styleRecipe?: Record<string, unknown>;
     userBrollUrls?: string[];
     labeledAssetBindings?: import('../stages/broll/labeledAssetBrief.ts').LabeledAssetBinding[];
+    priorAssetBrief?: import('../stages/broll/labeledAssetBrief.ts').LabeledAssetBrief;
     brandName?: string;
     captionStyleGuide?: Record<string, unknown> | null;
     forceSpeakerCutout?: boolean;
@@ -316,6 +320,7 @@ async function runAnalysis(
         styleRecipe: extras.styleRecipe,
         userBrollUrls: extras.userBrollUrls,
         labeledAssetBindings: extras.labeledAssetBindings,
+        ...(extras.priorAssetBrief ? {priorAssetBrief: extras.priorAssetBrief} : {}),
         brandName: extras.brandName,
         captionStyleGuide: extras.captionStyleGuide,
         forceSpeakerCutout: extras.forceSpeakerCutout,

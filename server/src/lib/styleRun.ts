@@ -68,6 +68,8 @@ function styledFlags(style: EditStyleId, env: EffectiveFlagsEnv, release = false
           // Kinetic Typography is Pro-only: the Composer's colours are chosen by the AI for each video (owner decision 2026-11-25; the preset keeps its faces, case, outline and shadow).
           // Read only when the Composer runs (POLISH_KINETIC_COMPOSER); the cache key carries it (`p`).
           kineticAiPalette: true,
+          // B-roll asks chosen from the meaning of the transcript, not keywords (owner decision 2026-11-26). Failure = the keyword asks.
+          brollOpportunitiesAi: true,
         },
       };
     case 'explainer':
@@ -132,7 +134,7 @@ export function resolveStyleRun(input: {
     geminiMaxRequests: styleGeminiCap(input.style, input.envGeminiMaxRequests),
     geminiPlan: profile === 'polish' ? STYLED_POLISH_BUDGET_PLAN : CUTS_BUDGET_PLAN,
     // Kinetic engine v2 changes the produced blueprint, so it must not share a cache key with the template path; with the flag off the key is exactly what it was.
-    styleKey: `style:${input.style}:${STYLE_FLAGS_VERSION}${input.style === 'kinetic_typography' && flags.kineticEngine ? `:engine${flags.kineticEngineThreeD ? '3d' : ''}${flags.kineticEngineAdaptive ? 'a' : ''}${flags.kineticEngineMotion ? 'm' : ''}${flags.kineticEngineMatte ? 'r' : ''}${flags.matchCutShutter ? 's' : ''}${flags.kineticComposer ? 'c' : ''}${flags.kineticComposer && flags.kineticAiPalette ? 'p' : ''}` : ''}`,
+    styleKey: `style:${input.style}:${STYLE_FLAGS_VERSION}${input.style === 'kinetic_typography' && flags.kineticEngine ? `:engine${flags.kineticEngineThreeD ? '3d' : ''}${flags.kineticEngineAdaptive ? 'a' : ''}${flags.kineticEngineMotion ? 'm' : ''}${flags.kineticEngineMatte ? 'r' : ''}${flags.matchCutShutter ? 's' : ''}${flags.kineticComposer ? 'c' : ''}${flags.kineticComposer && flags.kineticAiPalette ? 'p' : ''}${flags.brollOpportunitiesAi ? 'b' : ''}` : ''}`,
     plannedReasons: [],
     pipeline: def.pipeline ?? 'none',
   };

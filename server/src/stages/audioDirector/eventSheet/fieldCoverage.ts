@@ -89,6 +89,7 @@ export const BLUEPRINT_FIELD_RULES = {
   sourceDurationSec: meta('Length of the source file (shaped-source time); the edit is bounded by outputDurationSec.'),
   editThesis: meta('Director rationale text.'),
   assetBrief: meta('Asset planning report.'),
+  brollOpportunities: meta('B-roll opportunity report (AI detector).'),
   editReadiness: meta('Edit readiness report.'),
   evidence: meta('Facts for the offline scorer.'),
   assembler: meta('Assembler report.'),

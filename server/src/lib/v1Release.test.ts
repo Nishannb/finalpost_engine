@@ -75,7 +75,8 @@ describe('kinetic_typography flags under the release switch', () => {
     expect(flags).toMatchObject({kineticEngine: true, matchCutShutter: true, kineticLed: true, kineticEngineMatte: false, subjectStage: false, kineticEngineThreeD: false});
     expect(pipeline).toBe('kinetic_v2');
     expect(styleKey).toContain(':engine');
-    expect(styleKey.endsWith('s')).toBe(true);
+    expect(styleKey).toMatch(/:engine[a-z0-9]*s/); // the shutter fragment (later letters: c composer, p palette, b AI B-roll asks)
+    expect(flags.brollOpportunitiesAi).toBe(true);
   });
 
   it('release OFF: exactly what it was (the engine flag follows the env, no shutter, no new key fragment)', () => {

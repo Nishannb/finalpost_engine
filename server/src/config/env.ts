@@ -296,6 +296,11 @@ const schema = z.object({
    */
   POLISH_KINETIC_AI_PALETTE: bool(false),
   /**
+   * Default OFF (pinned ON for the Kinetic Typography style, owner decision 2026-11-26). One Gemini call reads the whole transcript and picks the moments a visual would really help
+   * (stages/broll/brollOpportunities.ts); deterministic rules then cap count, spacing and duration, and the uploadable ones become the asset asks. Off, or the call failing = the keyword asks.
+   */
+  POLISH_BROLL_OPPORTUNITIES_AI: bool(false),
+  /**
    * Default OFF. The Match Cut gets the camera-shutter treatment: scene cuts on the 100 ms click grid of remotion/public/sfx/matchcut.mp3, fast directional motion blur on the moving text only, a crisp landing, and the shutter
    * sound as an audio hit at the cut. Match Cut ELIGIBILITY (four moments, one per plan, 20 s apart) is untouched. V1_KINETIC_RELEASE pins it on for the Kinetic Typography style.
    */

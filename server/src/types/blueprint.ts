@@ -1191,6 +1191,8 @@ export type TimelineBlueprint = {
    * (logo / person / product / screenshot). Renderer ignores this; the client binds uploads by `id`.
    */
   assetBrief?: import('../stages/broll/labeledAssetBrief.ts').LabeledAssetBrief;
+  /** 2026-11-26: every B-roll opportunity the AI kept (uploadable or engine-owned treatments), for downstream retrieval / rendering and diagnostics. Renderer ignores it. */
+  brollOpportunities?: import('../stages/broll/brollOpportunities.ts').BrollOpportunity[];
   /** WP26: `awaiting_assets` while a required labeled slot is still needed (the app shows the checklist and re-submits with bindings before rendering); `ready` otherwise. Present whenever `assetBrief` is. */
   editReadiness?: import('../stages/broll/labeledAssetBrief.ts').EditReadiness;
   directorReport?: DirectorRunReport;

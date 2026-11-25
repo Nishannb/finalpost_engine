@@ -75,6 +75,9 @@ import {
   buildLabeledAssetBrief,
   type LabeledAssetBinding,
 } from '../stages/broll/labeledAssetBrief.ts';
+import type {LabeledAssetSlot} from '../stages/broll/labeledAssetBrief.ts';
+import {BROLL_DETECTOR_LABEL, detectBrollOpportunities, type BrollOpportunity} from '../stages/broll/brollOpportunities.ts';
+import {geminiDirectorCall, type DirectorCall} from '../stages/kinetic/director.ts';
 import {clampStickyEnds, dedupeStatKinetic, dropBubbleOverlays, dropDoubleStatEmphasis, paletteRepeats, refuseOverlappingImages} from '../stages/broll/craftMutualExclusion.ts';
 import {planKlipyOverlays} from '../stages/broll/klipyOverlayPlanner.ts';
 import {romanizeCaptionWords} from '../stages/broll/romanizeCaptions.ts';
@@ -210,6 +213,8 @@ export type AnalyzeInput = {
    * after describe; uploaded asset URLs should also appear in userBrollUrls.
    */
   labeledAssetBindings?: LabeledAssetBinding[];
+  /** 2026-11-26: the brief the creator answered (full-edit re-analysis). With the AI B-roll detector on, its asks are reused (no new call) so bindings match by slot id. */
+  priorAssetBrief?: import('../stages/broll/labeledAssetBrief.ts').LabeledAssetBrief;
   /** WP55: creator / business brand name for type_logo_reveal (optional; never guessed from the transcript). */
   brandName?: string;
   /** Force speaker-over-B-roll regardless of director choice. */
@@ -1972,11 +1977,35 @@ async function analyzeVideoUnguarded(
     let imageRunCuts: number[] = []; // WP22: visual changes inside the image runs (mid-run pops of a long logo cloud get a transition)
     let editorialRunWindows: Array<{start: number; end: number}> = []; // WP30: published editorial still runs (anchors for the WP16 transition density)
     const templateStillUrls: string[] = []; // WP48: https stills for motion-template personalization
+    // 2026-11-26: B-roll asks chosen from the MEANING of the transcript (stages/broll/brollOpportunities.ts), not keywords. The re-analysis after the creator
+    // answered reuses the asks they saw (bindings match by slot id); a failed / unavailable detector leaves aiSlots undefined = the keyword asks exactly as before.
+    let aiSlots: Array<Omit<LabeledAssetSlot, 'status'>> | undefined;
+    let brollOpportunities: BrollOpportunity[] | undefined;
+    if (polishPath && kineticEngineSpec && flags.brollOpportunitiesAi) {
+      const prior = input.priorAssetBrief;
+      if (prior && Array.isArray(prior.slots)) {
+        aiSlots = prior.slots.map(({status: _status, userAssetId: _asset, ...slot}) => slot);
+        warnings.push(`broll_opportunities:reused_prior_brief:${aiSlots.length}`);
+      } else {
+        const mark = Date.now();
+        let call: DirectorCall | null = null;
+        try { call = await geminiDirectorCall(BROLL_DETECTOR_LABEL); } catch { call = null; }
+        const detection = await detectBrollOpportunities({words: captionWords, durationSec: timeline.outputDurationSec, call});
+        timings.brollOpportunities = Date.now() - mark;
+        warnings.push(...detection.warnings);
+        if (detection.source === 'ai') {
+          aiSlots = detection.slots;
+          brollOpportunities = detection.opportunities;
+          dumpDirectorTrace('10-broll-opportunities', detection.opportunities);
+        }
+      }
+    }
     let assetBrief = polishPath
       ? buildLabeledAssetBrief({
           words: captionWords,
           outputDurationSec: timeline.outputDurationSec,
           ...(kineticEngineSpec ? {kinetic: true} : {}), // Kinetic: concrete B-roll asks on the cleaned timeline (stages/broll/labeledAssetBrief.ts kineticBrollSlots)
+          ...(aiSlots ? {aiSlots} : {}),
         })
       : undefined;
     if (polishPath) {
@@ -3065,6 +3094,7 @@ async function analyzeVideoUnguarded(
       editThesis: broll.editThesis,
       cta: broll.cta,
       ...(assetBrief ? {assetBrief, editReadiness: computeEditReadiness(assetBrief)} : {}),
+      ...(brollOpportunities ? {brollOpportunities} : {}),
       directorReport: broll.directorReport,
       assembler: broll.assembler,
       tracks: [

@@ -269,10 +269,12 @@ describe('POST /v1/edits/captions with `style`', () => {
     state.env.EDIT_STYLES_ENABLED = false;
     expect((await post('/v1/edits/captions', 'free-user', {...BASE, mode: 'basic_captions', style: 'ai_clean_cut'})).status).toBe(202);
     expect((await post('/v1/edits/captions', 'pro-user', {...BASE, mode: 'full_edit', style: 'not-a-style'})).status).toBe(202);
-    expect((await post('/v1/edits/captions', 'pro-user', {...BASE, mode: 'full_edit', style: 'kinetic_typography'})).status).toBe(202);
+    // Kinetic is the exception: it is refused, never run as a plain full_edit on the server profile (2026-11-26).
+    const kinetic = await post('/v1/edits/captions', 'pro-user', {...BASE, mode: 'full_edit', style: 'kinetic_typography', footageKind: 'camera'});
+    expect(kinetic.status).toBe(503);
+    expect((await json(kinetic)).code).toBe('kinetic_unavailable');
     expect(state.created.map(c => [c.mode, c.style])).toEqual([
       ['basic_captions', undefined],
-      ['full_edit', undefined],
       ['full_edit', undefined],
     ]);
   });

@@ -154,7 +154,15 @@ editRoutes.post('/edits/captions', async (req, res) => {
       parsed.error.issues[0]?.message ?? 'Invalid captions edit request',
     );
   }
-  const styled = resolveRequestedStyle(parsed.data.style, editStyleConfig());
+  const styleConfig = editStyleConfig();
+  const styled = resolveRequestedStyle(parsed.data.style, styleConfig);
+  // Fail closed (2026-11-26): with the style kill switch off, `style` resolves to null and a Kinetic request used to run
+  // silently as a plain `full_edit` on PRODUCT_EDIT_PROFILE (no Kinetic V2, no Composer, no Kinetic B-roll asks), which is
+  // what the app's production edits got. Kinetic is never run as a different edit: refuse it, retryable.
+  if (!styleConfig.enabled && parsed.data.style === 'kinetic_typography') {
+    logger.error({stylesEnabled: false, release: env.V1_KINETIC_RELEASE}, 'kinetic_typography requested but edit styles are off on this engine');
+    throw new EngineError('kinetic_unavailable', 'Kinetic Typography is not available right now. Please try again later.', {reason: 'edit_styles_off'});
+  }
   if (styled && 'error' in styled) {
     if (styled.error === 'style_unavailable') {
       throw new EngineError('style_unavailable', 'That edit style is not available yet.', {style: styled.style});
