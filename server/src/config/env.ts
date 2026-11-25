@@ -322,6 +322,12 @@ const schema = z.object({
   /** Optional path of an existing RVM checkpoint (passed to the python process); empty = subjectmatte/weights/rvm_mobilenetv3.pth as before. */
   RVM_WEIGHTS_PATH: str(),
   RVM_DEVICE: str('auto'),
+  /**
+   * 2026-11-26: the speaker cutout on a Modal GPU (subjectmatte/modal_app.py, media/remoteRvm.ts). Set = the analyze-side person matte (Kinetic text behind the speaker)
+   * runs remotely; RVM_PYTHON / the local venv are then not needed. RVM_REMOTE_TOKEN is a SECRET (the worker's bearer token). Unset = the local python as before.
+   */
+  RVM_REMOTE_URL: str(),
+  RVM_REMOTE_TOKEN: str(),
   MATTING_MAX_CONCURRENT: num(1),
   MATTING_MAX_DURATION_SEC: num(90),
   MATTING_MAX_DIMENSION: num(1920),

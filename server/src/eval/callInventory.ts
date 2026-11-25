@@ -9,7 +9,7 @@
  * only reached under conditions that depend on model output.
  */
 
-export type Provider = 'gemini' | 'groq' | 'anthropic' | 'openrouter' | 'runware' | 'stock' | 'internal';
+export type Provider = 'gemini' | 'groq' | 'anthropic' | 'openrouter' | 'runware' | 'stock' | 'internal' | 'modal';
 export type Countability =
   | 'counted_by_test'              // a fetch-level test in callInventory.test.ts reproduces the stated attempts
   | 'counted_by_code_reading'      // bounded by constants visible in the code, not reproduced by a test
@@ -44,6 +44,20 @@ export type CallSite = {
 const GEMINI_FALLBACK_NOTE = 'callDirectorModel tries [GEMINI_MODEL, gemini-3.6-flash, gemini-3.7-flash] de-duplicated (2 models by default, 3 for any other GEMINI_MODEL), each with retries:1 (2 attempts on a 5xx or network error). The FIRST timeout switches every remaining attempt to no-extended-thinking, so a timeout costs one extra request on the first model only. Measured by fetch-level tests: all-5xx 4 (3 models: 6); all-timeouts 3 (3 models: 4); worst case timeout-then-5xx 5 (3 models: 7); an empty reply 2 (3 models: 3).';
 
 export const CALL_INVENTORY: CallSite[] = [
+  {
+    id: 'kinetic_director_transport', file: 'stages/kinetic/director.ts', provider: 'gemini', modelBacked: true,
+    trigger: 'Kinetic V2 (polish + kineticEngine): the Composer Director (one call per edit, memoised across re-solves) and, with brollOpportunitiesAi (pinned on for Kinetic Typography), the B-roll opportunity detector (label "Gemini broll opportunities", one call per edit; the post-upload re-analysis reuses the answered brief and makes none).', flags: ['V1_KINETIC_RELEASE / POLISH_KINETIC_ENGINE', 'POLISH_KINETIC_COMPOSER', 'brollOpportunitiesAi', 'GEMINI_API_KEY'],
+    logicalCalls: 'up to 2 per run (Director + B-roll detector)', maxHttpAttemptsPerLogicalCall: 1, attemptsBasis: 'geminiDirectorCall uses requestJson retries:0',
+    extraRequestPaths: 'none', fallback: 'Director: the deterministic direction. Detector: the keyword asks (labeledAssetBrief.ts).',
+    consumes: 'the cleaned transcript words (indices + times)', produces: 'composition direction; B-roll opportunities -> asset asks', countability: 'counted_by_code_reading',
+  },
+  {
+    id: 'remote_rvm_matte', file: 'media/remoteRvm.ts', provider: 'modal', modelBacked: false,
+    trigger: 'Kinetic matte (POLISH_KINETIC_ENGINE_MATTE) with RVM_REMOTE_URL + RVM_REMOTE_TOKEN set: one POST per uncached matte (the person-matte cache skips repeats). The input clip is uploaded to R2 first (storage/r2.ts).', flags: ['POLISH_KINETIC_ENGINE_MATTE', 'RVM_REMOTE_URL', 'RVM_REMOTE_TOKEN'],
+    logicalCalls: '1 per uncached matte', maxHttpAttemptsPerLogicalCall: 1, attemptsBasis: 'a single fetch, aborted at MATTING_TIMEOUT_SEC; no retry',
+    extraRequestPaths: 'none', fallback: 'No matte: the front-only Kinetic layout (kinetic_engine:matte_unused / rvm:<reason>).',
+    consumes: 'the kept-run working clip (https URL)', produces: 'VP9 alpha WebM + result JSON', countability: 'counted_by_code_reading',
+  },
   {
     id: 'asr_groq', file: 'stages/transcribe/groqTranscribe.ts', provider: 'groq', modelBacked: true,
     trigger: 'Start of every analyzeVideo run (speech-to-text of the extracted audio).', flags: ['GROQ_API_KEY'],

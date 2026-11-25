@@ -1,3 +1,18 @@
+# 2026-11-26 (3): speaker cutout on a Modal GPU; droplet was never updated
+
+Spend: none. Modal was not called or deployed; `modal` was only pip-installed in the scratchpad to import-check the app.
+
+- **Droplet state (from the owner's deploy log):** HEAD was `38cf553` (19 Nov). `a277c75` (the Composer and the B-roll gate) never ran in production. The `ec1d050` pull aborted on a local edit to `captionkit_tmp/captionkit.py` (probably the same one-line centre offset committed in `a3760bb`).
+- **CPU RVM measured:** one M1 core takes 160-190 s for a 10 s 1080x1920 clip (inference ~513 ms/frame). Max-side 640 takes 135 s. The foreground compose is cheap (11 s per 10 s on one thread).
+- **Modal worker:**
+    - `subjectmatte/modal_app.py` runs the same `human_matting.cli` on a T4 behind bearer-token auth.
+    - The flag allow-list is in `subjectmatte/modal_args.py`; its test is `subjectmatte/test_modal_args.py`.
+- **Engine:**
+    - `media/remoteRvm.ts` is a drop-in `RunPython`: it uploads the working clip to R2, POSTs the flags, and writes the WebM and report.
+    - `media/personMatte.ts` uses it when `RVM_REMOTE_URL` and `RVM_REMOTE_TOKEN` are set. Cache, slot, timeout and quality gate are unchanged.
+    - New env vars in `config/env.ts`. Inventory entries added for the kinetic director transport and the remote matte.
+- **Tests:** media 22/22 (4 new). Pipeline, kinetic and media: 392/393 (`mattingRunner` baseline). Python allow-list 8/8. tsc clean. The call-inventory staleness test is still a baseline failure (9 unlisted files, down from 10; `tempFiles.ts` stale).
+
 # 2026-11-26 (2): AI B-roll opportunities; why phone Kinetic sat in the lower half
 
 Spend: none. No paid calls (the model call is stubbed in tests), no R2, no deploy. Uncommitted.

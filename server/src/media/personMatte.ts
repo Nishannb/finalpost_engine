@@ -28,6 +28,7 @@ import {
   type RvmQuality,
 } from './rvmMatte.ts';
 import {rvmSlots, type RvmSlots} from './rvmSlot.ts';
+import {makeRemoteRvmRunner, remoteRvmConfigured} from './remoteRvm.ts';
 
 const log = stageLogger('person-matte');
 
@@ -219,8 +220,11 @@ export async function extractSubjectMatte(input: {
     input.onSkip?.(reason);
     return null;
   };
-  const python = input.python !== undefined ? input.python : resolveRvmPython();
-  if (!python && !input.runner) return skip('not_configured');
+  // 2026-11-26: a configured Modal worker replaces the local python (media/remoteRvm.ts); a test runner still wins.
+  const remote = !input.runner && input.python === undefined && remoteRvmConfigured();
+  const runner: RunPython | undefined = input.runner ?? (remote ? makeRemoteRvmRunner({url: env.RVM_REMOTE_URL.trim(), token: env.RVM_REMOTE_TOKEN.trim()}) : undefined);
+  const python = input.python !== undefined ? input.python : remote ? 'remote' : resolveRvmPython();
+  if (!python && !runner) return skip('not_configured');
   if (input.ranges.length === 0) return skip('no_ranges');
   const started = Date.now();
   const maxSide = input.maxSide ?? (env.PERSON_MATTE_MAX_SIDE > 0 ? Math.floor(env.PERSON_MATTE_MAX_SIDE) : undefined);
@@ -238,7 +242,7 @@ export async function extractSubjectMatte(input: {
       const now = new Date();
       await Promise.all([fs.utimes(cachedWebm, now, now), fs.utimes(cachedReport, now, now)]).catch(() => undefined); // LRU: a hit makes the entry the newest
     } else {
-      if (!input.runner) {
+      if (!runner) {
         try {
           await assertRvmRuntime(python); // python exists + ffmpeg has libvpx-vp9
         } catch {
@@ -249,7 +253,7 @@ export async function extractSubjectMatte(input: {
       if (!release) return skip('busy');
       let run: Awaited<ReturnType<RunPython>>;
       try {
-        run = await (input.runner ?? spawnRvm)(
+        run = await (runner ?? spawnRvm)(
           python ?? 'python',
           buildRvmArgs({input: input.inputPath, outputWebm: cachedWebm, resultJson: cachedReport, quality, ranges: input.ranges, ...(maxSide ? {maxSide} : {}), ...(input.strokePx !== undefined ? {strokePx: input.strokePx} : {}), ...(input.pocketPasses !== undefined ? {pocketPasses: input.pocketPasses} : {}), ...(input.alphaOnly ? {alphaOnly: true} : {}), ...(input.skipFgrDownload ? {skipFgrDownload: true} : {}), ...(input.reusePackBuffer ? {reusePackBuffer: true} : {})}),
           {cwd: RVM_ROOT, env: rvmChildEnv(env.RVM_DEVICE), timeoutMs: Math.max(30, env.MATTING_TIMEOUT_SEC) * 1000},

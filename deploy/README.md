@@ -106,3 +106,21 @@ Docker route also tags `kinmel-video-engine:previous` on each build.
 - Does not sync laptop `.env` (droplet `.env` stays authoritative)
 - Does not deploy Remotion Lambda / the Remotion site
 - Does not deploy Flask (`api.kinmel.shop`) — that remains `/opt/kinmel-server` + `./deploy/deploy.sh`
+
+## Speaker cutout on Modal (GPU)
+
+The droplet has no GPU; RVM on its CPU cannot finish a clip in time. The cutout runs on Modal (`subjectmatte/modal_app.py`, T4, scales to zero).
+
+Laptop (once, then again whenever `subjectmatte/human_matting` changes):
+
+```bash
+pip install modal && modal setup                      # browser login, creates ~/.modal.toml
+TOKEN=$(openssl rand -hex 32); echo "$TOKEN"          # keep it: it also goes into the droplet .env
+modal secret create finalpost-rvm RVM_WORKER_TOKEN="$TOKEN"
+cd ~/Desktop/apps/finalpost/finalpost_engine-production/subjectmatte
+RVM_WEIGHTS_LOCAL=~/Desktop/apps/finalpost/creators_kinmel/finalpost_engine/subjectmatte/weights/rvm_mobilenetv3.pth modal deploy modal_app.py
+curl -s https://<workspace>--finalpost-rvm-web.modal.run/health   # {"ok":true}
+```
+
+Droplet `.env`: `POLISH_KINETIC_ENGINE_MATTE=1`, `RVM_REMOTE_URL=<url>/matte`, `RVM_REMOTE_TOKEN=<TOKEN>`, then `./deploy/deploy.sh --no-build`.
+Proof after an edit: `inspectEditJobs.ts` shows `kinetic_engine:matte_ready:…` and `kinetic_engine:behind:…`.
