@@ -62,7 +62,8 @@ const SCRIPT_VERSION = 'rvm-2'; // rvm-2: alpha_refinement fringe / limb-gap fix
 const MERGE_GAP_SEC = 0.25;
 
 /** True when a python interpreter for RVM resolves (RVM_PYTHON, else the local venv). The ffmpeg libvpx-vp9 check happens when the matte is actually requested. */
-export const subjectMatteConfigured = (): boolean => resolveRvmPython() !== null;
+/** A matte can be made: the Modal worker is configured (media/remoteRvm.ts, 2026-11-26) or a local RVM python exists. */
+export const subjectMatteConfigured = (): boolean => remoteRvmConfigured() || resolveRvmPython() !== null;
 
 /**
  * Output-time windows -> SOURCE-time ranges through the keep segments (cuts / trims / reordering safe: a window that spans a cut becomes two ranges). Windows beyond the timeline are dropped.

@@ -6,7 +6,8 @@ import {describe, expect, it} from 'vitest';
 
 import {makeRemoteRvmRunner} from './remoteRvm.ts';
 import {buildRvmArgs} from './rvmMatte.ts';
-import {extractSubjectMatte} from './personMatte.ts';
+import {extractSubjectMatte, subjectMatteConfigured} from './personMatte.ts';
+import {env} from '../config/env.ts';
 
 const dir = () => mkdtempSync(path.join(tmpdir(), 'remote-rvm-'));
 const REPORT = {ok: true, device: 'cuda', detected_ratio: 1, mean_area: 0.4, segmented_frames: 300, frames: 300, seconds: 3.1, model: 'rvm_mobilenetv3'};
@@ -71,5 +72,21 @@ describe('remote RVM runner (Modal worker)', () => {
     // second call: cache hit, no new request
     await extractSubjectMatte({inputPath: s.input, outputPath: out, ranges: [[0, 10]], runner: s.runner, cacheDir: path.join(s.d, 'cache'), alphaOnly: true});
     expect(s.calls).toHaveLength(1);
+  });
+
+  it('a configured worker counts as "matte configured" for the analyze gate (no local python needed)', () => {
+    const e = env as unknown as {RVM_REMOTE_URL: string; RVM_REMOTE_TOKEN: string; RVM_PYTHON: string};
+    const saved = {...e};
+    try {
+      e.RVM_PYTHON = '/nonexistent/python';
+      e.RVM_REMOTE_URL = 'https://worker.example/matte';
+      e.RVM_REMOTE_TOKEN = 't';
+      expect(subjectMatteConfigured()).toBe(true);
+      e.RVM_REMOTE_TOKEN = '';
+      e.RVM_REMOTE_URL = '';
+      e.RVM_PYTHON = '';
+    } finally {
+      Object.assign(e, {RVM_REMOTE_URL: saved.RVM_REMOTE_URL, RVM_REMOTE_TOKEN: saved.RVM_REMOTE_TOKEN, RVM_PYTHON: saved.RVM_PYTHON});
+    }
   });
 });
