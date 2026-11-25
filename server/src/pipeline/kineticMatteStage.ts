@@ -119,9 +119,11 @@ export async function prepareKineticMatte(input: KineticMatteInput): Promise<Kin
     return {ok: false, reason, warnings, ...(report ? {report} : {})};
   };
   try {
-    if (!(input.fps > 0) || !(input.srcW > 0) || !(input.srcH > 0) || input.keepSegments.length === 0) return fail('invalid_geometry');
-    const ranges = keptSourceRanges(input.keepSegments);
-    const keptSec = input.keepSegments.reduce((a, s) => a + Math.max(0, s.sourceEnd - s.sourceStart), 0);
+    // an EMPTY keep segment (start == end, e.g. a sub-frame tail of an older blueprint) shows nothing of its own: it must not demand a matte frame past the source's end
+    const keepSegments = input.keepSegments.filter(s => s.sourceEnd - s.sourceStart >= 0.5 / input.fps);
+    if (!(input.fps > 0) || !(input.srcW > 0) || !(input.srcH > 0) || keepSegments.length === 0) return fail('invalid_geometry');
+    const ranges = keptSourceRanges(keepSegments);
+    const keptSec = keepSegments.reduce((a, s) => a + Math.max(0, s.sourceEnd - s.sourceStart), 0);
     const budget = input.maxDurationSec ?? env.MATTING_MAX_DURATION_SEC;
     if (keptSec > budget) return fail(`over_budget:${Math.round(keptSec)}s>${budget}s`, {keptSec, ranges});
     const endSec = Math.max(...ranges.map(r => r[1])) + 2 / input.fps;
@@ -167,10 +169,10 @@ export async function prepareKineticMatte(input: KineticMatteInput): Promise<Kin
     const alpha = await decodeSourceAlpha(matte.path, input.srcW, input.srcH);
     if (alpha.frames.length !== matteFrames) return fail(`alpha_decode_frames:${alpha.frames.length}/${matteFrames}`);
     // every output frame must have a matte frame (the foreground must exist wherever behind text could be drawn)
-    const placed = placedSegments(input.keepSegments, input.fps);
+    const placed = placedSegments(keepSegments, input.fps);
     const lastNeeded = Math.max(...placed.map(p => p.trimBefore + p.durationInFrames - 1));
     if (lastNeeded >= matteFrames) return fail(`matte_short:${matteFrames}<=${lastNeeded}`);
-    const composition = compositionMatte(alpha, {srcW: input.srcW, srcH: input.srcH, outW: input.outW, outH: input.outH, objectPosition: input.objectPosition, zoomTriggers: input.zoomTriggers, zoomEnabled: input.zoomEnabled, keepSegments: input.keepSegments, fps: input.fps, durationFrames: input.durationFrames});
+    const composition = compositionMatte(alpha, {srcW: input.srcW, srcH: input.srcH, outW: input.outW, outH: input.outH, objectPosition: input.objectPosition, zoomTriggers: input.zoomTriggers, zoomEnabled: input.zoomEnabled, keepSegments, fps: input.fps, durationFrames: input.durationFrames});
     const mapMs = Date.now() - t;
     if (composition.missing > 0) return fail(`grid_missing_frames:${composition.missing}`);
     if (composition.samples === 0 || composition.empty > composition.samples * 0.3) return fail(`grid_empty:${composition.empty}/${composition.samples}`);

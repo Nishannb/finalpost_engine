@@ -57,7 +57,7 @@ export type SubjectMatteResult = {
 export type KeepSegmentLike = {sourceStart: number; sourceEnd: number; outputStart: number};
 
 /** Bump when the produced artefact changes (engine, encoder settings): old cache entries then stop matching. */
-const SCRIPT_VERSION = 'rvm-1';
+const SCRIPT_VERSION = 'rvm-2'; // rvm-2: alpha_refinement fringe / limb-gap fix (stale rvm-1 mattes must not be served)
 const MERGE_GAP_SEC = 0.25;
 
 /** True when a python interpreter for RVM resolves (RVM_PYTHON, else the local venv). The ffmpeg libvpx-vp9 check happens when the matte is actually requested. */
@@ -113,7 +113,7 @@ async function fingerprint(file: string): Promise<string> {
   const stat = await fs.stat(file);
   const hash = createHash('sha256');
   hash.update(`${stat.size}:${SCRIPT_VERSION}`);
-  // size + first and last MiB: unique enough for a source upload, and cheap on a multi-hundred-MB file
+  // size + first, middle and last MiB: unique enough for a source upload, and cheap on a multi-hundred-MB file
   const slice = (start: number, end: number) =>
     new Promise<void>((resolve, reject) => {
       const stream = createReadStream(file, {start, end});
@@ -123,6 +123,11 @@ async function fingerprint(file: string): Promise<string> {
     });
   const MiB = 1024 * 1024;
   await slice(0, Math.min(stat.size - 1, MiB - 1));
+  if (stat.size > 3 * MiB) {
+    // a MiB from the middle as well: two uploads of equal size whose first and last MiB match (same container header / trailer) must not share a cached matte
+    const mid = Math.floor(stat.size / 2) - Math.floor(MiB / 2);
+    await slice(mid, mid + MiB - 1);
+  }
   if (stat.size > 2 * MiB) await slice(stat.size - MiB, stat.size - 1);
   return hash.digest('hex').slice(0, 32);
 }

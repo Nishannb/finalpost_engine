@@ -19,6 +19,7 @@ import {FULLSCREEN_OBJECT_POSITION, kineticFinalTextGuard, kineticOwnedCompositi
 import {prepareKineticMatte, type KineticMatteOutcome} from './kineticMatteStage.ts';
 import {kineticEngineAllowedFor, resolveFootageKind, type FootageKind} from '../lib/footageKind.ts';
 import {applyMatchCutShutter, matchCutShutterHits} from '../stages/kinetic/matchCutShutter.ts';
+import {brollCoverageWindows, kineticCaptionMuteRanges, splitKineticSpecForBroll} from '../stages/kinetic/brollCaptionSplit.ts';
 import {measureVoiceLufs} from '../stages/kinetic/voiceLoudness.ts';
 import {parseOutputFpsMode, resolveOutputFps} from '../lib/outputFps.ts';
 import {editingPipelineWarning, pipelineFlagOverrides, pipelineOwns, resolveEditingPipeline, type EditingPipelineSelection} from '../lib/editingPipeline.ts';
@@ -163,6 +164,7 @@ import {buildCaptionWords, dropUnmeasuredZoomFocus, resolveDirectedZooms, splitS
 import {buildTimeline, round} from '../stages/filters/timeline.ts';
 import {transcribeWithPrecompact} from '../stages/transcribe/precompact.ts';
 import {uploadSourceVideo} from '../storage/r2.ts';
+import {localStorageActive} from '../storage/localStorage.ts';
 import {applyProvidedCutout, normalizeProvidedCutoutUrl} from '../lib/providedCutout.ts';
 import type {
   AnalysisStage,
@@ -1295,8 +1297,10 @@ async function analyzeVideoUnguarded(
           warnings.push(...kineticMatte.warnings);
         }
       }
-      let engine = await runKineticEngineStage({...engineInput, ...(kineticMatte?.ok ? {matte: kineticMatte.matte} : {})});
+      let engine = await runKineticEngineStage({...engineInput, ...(flags.kineticComposer ? {composer: true, ...(flags.kineticAiPalette ? {aiPalette: true} : {})} : {}), ...(kineticMatte?.ok ? {matte: kineticMatte.matte} : {})});
       warnings.push(...engine.warnings);
+      // Kinetic Composer: the type was solved against the composer's final zoom list (kept directed zooms + beat punch-ins), so the blueprint carries exactly that list
+      if (engine.composer) zoomTriggers = engine.composer.zoomTriggers.map(z => ({start: z.start, end: z.end, scale: z.scale, ...(z.focus ? {focus: z.focus} : {}), sentenceIndex: z.sentenceIndex}));
       if (engine.spec && kineticMatte?.ok) {
         const fg = planKineticForeground(engine.spec, outputFps, Math.ceil(timeline.outputDurationSec * outputFps));
         if (fg.behindEvents === 0) warnings.push('kinetic_engine:matte_unused:no_behind_events');
@@ -1617,7 +1621,7 @@ async function analyzeVideoUnguarded(
         captionWords,
         keepSegments: timeline.keepSegments,
         activeSourcePath,
-        ...(providedCutoutUrl ? {providedCutoutUrl} : {}),
+        ...(providedCutoutUrl ? {providedCutoutUrl, providedVerify: {download: async (url: string, dest: string) => { await downloadToFile(url, dest, {maxBytes: 200 * 1024 * 1024, timeoutMs: 60_000}); }, path: workspace.file('subject-stage-provided.webm')}} : {}),
         chromaPath: workspace.file('subject-stage-chroma.webm'),
         rvmPath: workspace.file('subject-stage-matte.webm'),
         deps: {
@@ -1731,7 +1735,7 @@ async function analyzeVideoUnguarded(
       warnings.push(...reconciled.warnings);
       // WP8C final gate (same wording as before): reported only when it differs from the planning answer.
       if (matteOccupancyCtx) {
-        const finalMatte = decideMatteGate({occupancy: matteOccupancyCtx, cutout: {available: matteExpected()}, extract: {attempted: Boolean(outcome?.attempted), videoUrl: resolvedCutout.videoUrl}});
+        const finalMatte = decideMatteGate({occupancy: matteOccupancyCtx, cutout: {available: matteExpected()}, ...(typeof outcome?.confidence === 'number' ? {confidence: outcome.confidence} : {}), extract: {attempted: Boolean(outcome?.attempted), videoUrl: resolvedCutout.videoUrl}});
         if (mvpLike && finalMatte.reason !== planningMatteReason) warnings.push(matteGateWarning(finalMatte));
       }
       if (mvpLike && reconciled.textBehindSkipped) warnings.push(TEXT_BEHIND_SKIPPED_WARNING);
@@ -1972,6 +1976,7 @@ async function analyzeVideoUnguarded(
       ? buildLabeledAssetBrief({
           words: captionWords,
           outputDurationSec: timeline.outputDurationSec,
+          ...(kineticEngineSpec ? {kinetic: true} : {}), // Kinetic: concrete B-roll asks on the cleaned timeline (stages/broll/labeledAssetBrief.ts kineticBrollSlots)
         })
       : undefined;
     if (polishPath) {
@@ -2022,6 +2027,7 @@ async function analyzeVideoUnguarded(
           ...(broll.mediaContainers ?? []).map(item => ({start: item.start, end: item.end})),
           ...(motion?.generatedGraphics ?? []).filter(graphic => graphic.placement.mode === 'full_screen' || graphic.placement.mode === 'split_screen').map(graphic => ({start: graphic.start, end: graphic.end})),
         ],
+        ...(kineticEngineSpec ? {fullFrameBrollStills: true} : {}), // Kinetic: a creator B-roll still is a full-frame cutaway (its window gets simple captions)
       });
       let placedOverlays = placement.overlays;
       imageRunCuts = placement.runs.filter(run => run.mode === 'logo_cloud').flatMap(run => run.cutAts);
@@ -2704,7 +2710,15 @@ async function analyzeVideoUnguarded(
     // Phase 5.23: an ACTIVE Subject Stage owns its text too (subjectStageTextOwnership below): ordinary captions are muted for the whole run.
     // Phase 5.27C: an active Subject Stage mutes the ordinary captions only where it DRAWS (its other text lanes are cleared by the ownership below); the legacy planner path keeps the whole run
     const stageDrawn = subjectStagePayload ? subjectStageDrawnWindows(subjectStagePayload) : null;
-    const muteRanges: MuteRange[] = subjectStagePayload ? (stageDrawn ? mergeMuteRanges(stageDrawn.map(w => ({startSec: w.start, endSec: w.end}))) : [{startSec: 0, endSec: timeline.outputDurationSec}]) : kineticEngineSpec ? [{startSec: 0, endSec: timeline.outputDurationSec}] : textualMgMute.length > 0 || motionTemplateMute.length > 0 || visualBackendMute.length > 0 ? mergeMuteRanges([...muteRangesWp11a, ...textualMgMute, ...motionTemplateMute, ...visualBackendMute]) : muteRangesWp11a;
+    // Kinetic + creator B-roll: Kinetic type owns talking-head time only. Full-frame cutaway windows lose their kinetic events (B-roll wins) and keep the ordinary captions (not muted there): never both on the same words.
+    let kineticBrollWindows: ReturnType<typeof brollCoverageWindows> = [];
+    if (kineticEngineSpec && !subjectStagePayload) {
+      kineticBrollWindows = brollCoverageWindows(broll.overlays);
+      const split = splitKineticSpecForBroll(kineticEngineSpec, kineticBrollWindows);
+      kineticEngineSpec = split.spec;
+      warnings.push(...split.warnings);
+    }
+    const muteRanges: MuteRange[] = subjectStagePayload ? (stageDrawn ? mergeMuteRanges(stageDrawn.map(w => ({startSec: w.start, endSec: w.end}))) : [{startSec: 0, endSec: timeline.outputDurationSec}]) : kineticEngineSpec ? kineticCaptionMuteRanges(kineticBrollWindows, timeline.outputDurationSec) : textualMgMute.length > 0 || motionTemplateMute.length > 0 || visualBackendMute.length > 0 ? mergeMuteRanges([...muteRangesWp11a, ...textualMgMute, ...motionTemplateMute, ...visualBackendMute]) : muteRangesWp11a;
     if (muteRanges.length > 0) warnings.push(`polish_captions:muted_for_graphics:${muteRanges.length}`);
     // WP12D + WP27: local SFX hits on polish explain; optional music bed from POLISH_MUSIC_BED_URL (licensed URL only — never scraped).
     let audioDesign = broll.audioDesign;
@@ -2807,7 +2821,8 @@ async function analyzeVideoUnguarded(
           },
         };
         // Lambda fetches these over the network: a local path or non-HTTPS URL would render silence. Drop the bed instead.
-        const unreachable = nonPublicBedUrls(audioDesign);
+        // Development only: with STORAGE_BACKEND=local (refused in production) every object, the source included, lives on this machine and the render is local, so a local bed is reachable.
+        const unreachable = localStorageActive() ? [] : nonPublicBedUrls(audioDesign);
         if (unreachable.length > 0) {
           log.warn({fields: unreachable.map(item => item.field)}, 'music.bed_url_not_public');
           warnings.push('music:bed_url_not_public');

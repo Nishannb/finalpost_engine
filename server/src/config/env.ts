@@ -81,6 +81,12 @@ const schema = z.object({
    */
   EDIT_STYLES_ENGINE_FLAGS: bool(true),
   /**
+   * Subject Stage in the picker (lib/editStyles.ts), default OFF. A SEPARATE Pro "full edit" option next to Kinetic Typography (never merged with it: one pipeline owns a job). OFF = Subject Stage is engine-only exactly as before
+   * (not listed; startable only when EDIT_STYLES_AVAILABLE names it). ON = it is listed and startable, also under V1_KINETIC_RELEASE (where it then needs camera footage and the engine flags like Kinetic). Needs the host RVM
+   * (docs/RVM_HOST.md); without a usable matte the job completes degraded with `subject_stage_skipped:<reason>`. Do not turn on before the rollout in docs/RVM_SUBJECT_STAGE_PLAN.md.
+   */
+  SUBJECT_STAGE_PICKER: bool(false),
+  /**
    * V1 RELEASE MODE (default OFF: nothing below changes while it is off). One switch for the first commercial release, "Free = Basic Captions, Pro = Kinetic Typography only":
    *  - the Kinetic Typography style always runs the Kinetic V2 engine plus the Match Cut shutter treatment (it no longer depends on POLISH_KINETIC_ENGINE);
    *  - it FAILS CLOSED: if Kinetic V2 did not produce the edit the job fails with a retryable `kinetic_unavailable`, never a different edit;
@@ -276,6 +282,19 @@ const schema = z.object({
    * matching person foreground (source RGB + RVM alpha) as `subjectForeground`. Needs RVM configured (RVM_PYTHON / .venv-rvm + weights). Any failure = no matte = the Phase 4.9 front-only engine.
    */
   POLISH_KINETIC_ENGINE_MATTE: bool(false),
+  /**
+   * Default OFF. Kinetic Composer (stages/kinetic/composer): inside the Kinetic V2 engine, the edit is planned per BEAT (stat / list / contrast / question / CTA / hook ...) and drawn by a library of
+   * compositions (giant word, word swap, line wipe, side stack, headline, contrast split, counter, list chip, question card, callout bars, highlighter, CTA card, takeover card, hero stack) with
+   * plate treatments, accent shapes and beat punch-ins, under a variety controller and the same guardrails. Same single Director call as the V2 engine (none extra). Any composer failure = the V2
+   * engine exactly as before. Needs POLISH_KINETIC_ENGINE (or V1_KINETIC_RELEASE) to be on.
+   */
+  POLISH_KINETIC_COMPOSER: bool(false),
+  /**
+   * Default OFF. Kinetic Composer colours chosen by the AI: the Director (the same single call, none extra) picks one of a curated set of readable palettes (text / accent / second accent)
+   * for the video's subject, tone and footage colour, and the composer uses it instead of the caption preset's colours. The preset still sets the faces, case, outline and shadow.
+   * Off (or no Director / an unknown palette / "keep") = the preset's own colours exactly as before.
+   */
+  POLISH_KINETIC_AI_PALETTE: bool(false),
   /**
    * Default OFF. The Match Cut gets the camera-shutter treatment: scene cuts on the 100 ms click grid of remotion/public/sfx/matchcut.mp3, fast directional motion blur on the moving text only, a crisp landing, and the shutter
    * sound as an audio hit at the cut. Match Cut ELIGIBILITY (four moments, one per plan, 20 s apart) is untouched. V1_KINETIC_RELEASE pins it on for the Kinetic Typography style.

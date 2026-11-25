@@ -96,12 +96,12 @@ export const RECIPE_BY_KIND: Readonly<Record<LabeledAssetKind, string | undefine
 
 type Host = {layout: VisualOverlay['layout']; anchor: VisualAnchor; weight: 'accent' | 'hero'; radius: number};
 
-function hostFor(kind: LabeledAssetKind, mediaKind: 'image' | 'video'): Host {
+function hostFor(kind: LabeledAssetKind, mediaKind: 'image' | 'video', fullFrameStills = false): Host {
   if (kind === 'logo') return {layout: 'pip', anchor: 'top_right', weight: 'accent', radius: 18};
   if (kind === 'person') return {layout: 'card', anchor: 'top_right', weight: 'accent', radius: 28};
   if (kind === 'screenshot') return {layout: 'card', anchor: 'top', weight: 'hero', radius: 28};
   if (kind === 'product') return {layout: 'pip', anchor: 'bottom_left', weight: 'accent', radius: 24};
-  if (kind === 'broll_clip' && mediaKind === 'video') return {layout: 'cutaway', anchor: 'top', weight: 'hero', radius: 0};
+  if (kind === 'broll_clip' && (mediaKind === 'video' || fullFrameStills)) return {layout: 'cutaway', anchor: 'top', weight: 'hero', radius: 0};
   return {layout: 'pip', anchor: 'top_left', weight: 'accent', radius: 24};
 }
 
@@ -178,7 +178,11 @@ export function planLabeledAssetPlacements(input: {
   outputDurationSec: number;
   /** Windows already owned by full-screen beats (cutaways, split / composite overlays, full / split graphics, media containers). */
   blockedRanges?: readonly TimeRange[];
+  /** Kinetic: a `broll_clip` upload that is a still is a full-frame cutaway (never a card / slideshow), so the Kinetic caption split can treat its window as B-roll. */
+  fullFrameBrollStills?: boolean;
 }): LabeledAssetPlacement {
+  const fullFrame = input.fullFrameBrollStills === true;
+  const isFullFrameStill = (item: {slot: LabeledAssetSlot; asset: ResolvedLabeledAsset}) => fullFrame && item.slot.kind === 'broll_clip' && item.asset.mediaKind === 'image';
   const result: LabeledAssetPlacement = {overlays: [], runs: [], placed: 0, unresolved: 0, blocked: 0, solidRefused: 0};
   const uploaded = (input.brief?.slots ?? []).filter(slot => slot.status === 'uploaded');
   const taken: TimeRange[] = [];
@@ -203,8 +207,8 @@ export function planLabeledAssetPlacements(input: {
   }
   candidates.sort((a, b) => a.range.start - b.range.start);
 
-  const stills = candidates.filter(item => item.asset.mediaKind === 'image');
-  const clips = candidates.filter(item => item.asset.mediaKind !== 'image');
+  const stills = candidates.filter(item => item.asset.mediaKind === 'image' && !isFullFrameStill(item));
+  const clips = candidates.filter(item => item.asset.mediaKind !== 'image' || isFullFrameStill(item));
   const place = (overlay: VisualOverlay, range: TimeRange) => {
     if (taken.some(other => overlaps(range, other))) {
       result.blocked += 1;
@@ -258,11 +262,11 @@ export function planLabeledAssetPlacements(input: {
   }
 
   for (const {slot, asset, range} of clips) {
-    place(baseOverlay(slot, asset, range, hostFor(slot.kind, asset.mediaKind)), range);
+    place(baseOverlay(slot, asset, range, hostFor(slot.kind, asset.mediaKind, fullFrame)), range);
   }
 
   // WP29 backstop: a still overlay is a pip / card / slideshow, never a cover layout (cutaway / split / composite would show it full-bleed).
-  result.overlays = result.overlays.map(overlay => (overlay.mediaKind === 'image' && (overlay.layout === 'cutaway' || overlay.layout === 'split' || overlay.layout === 'composite') ? {...overlay, layout: 'card' as const} : overlay));
+  result.overlays = result.overlays.map(overlay => (overlay.mediaKind === 'image' && !(fullFrame && (overlay.intent ?? '').startsWith('labeled_asset:broll_clip:')) && (overlay.layout === 'cutaway' || overlay.layout === 'split' || overlay.layout === 'composite') ? {...overlay, layout: 'card' as const} : overlay));
   result.overlays.sort((a, b) => a.start - b.start);
   return result;
 }

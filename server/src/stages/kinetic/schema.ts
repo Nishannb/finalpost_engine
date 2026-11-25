@@ -301,8 +301,97 @@ export const renderEventSchema = z.strictObject({
   notes: z.array(z.string()).default([]),
   /** type.matchCut only: the props the compositor passes to TypeTextMatchCut */
   matchCut: matchCutPropsSchema.optional(),
+  /** Kinetic Composer: the composition that solved this event (giantWord, contrastSplit, ...). Absent = a Kinetic V2 playbook / legacy event. Informational for the compositor. */
+  composition: z.string().min(1).max(40).optional(),
+  /** Kinetic Composer: in-plane rotation of the block about its centre (deg, + = clockwise). Absent = 0 (every pre-composer event). */
+  rotateDeg: num.optional(),
 });
 export type RenderEvent = z.infer<typeof renderEventSchema>;
+
+// ---------------------------------------------------------------------------------------------------------------- Kinetic Composer scene layer
+
+/**
+ * Composer scene elements: non-text graphics the composer draws with its type (accent shapes, counters, plate treatments). Optional on the spec: absent = nothing is drawn and an old spec
+ * renders exactly as before. Composition pixels, ABSOLUTE composition frames. `keys` are solver-sampled (linear interpolation only, like every other kinetic track).
+ */
+export const sceneKeySchema = z.strictObject({
+  frame: nonNegInt,
+  opacity: num.default(1),
+  /** 0..1 draw-on (bar / underline / line grow from `origin`; ring / box stroke trace; counter value progress) */
+  progress: num.default(1),
+  scale: num.default(1),
+  /** offsets (px) from the element's rest position */
+  x: num.default(0),
+  y: num.default(0),
+  /** plate effect strength 0..1 (dim / wash / vignette darkness, blur radius fraction, backdrop opacity) */
+  amount: num.default(1),
+});
+export type SceneKey = z.infer<typeof sceneKeySchema>;
+export const SCENE_SHAPES = ['bar', 'underline', 'box', 'ring', 'line', 'arrow', 'dot', 'bracket'] as const;
+export const sceneShapeSchema = z.strictObject({
+  kind: z.literal('shape'),
+  id: z.string().min(1).max(64),
+  inFrame: nonNegInt,
+  outFrame: nonNegInt,
+  keys: z.array(sceneKeySchema).min(1),
+  shape: z.enum(SCENE_SHAPES),
+  /** box of the shape (px); a line / arrow runs from (x, y) to (x + w, y + h) */
+  x: num,
+  y: num,
+  w: num,
+  h: num,
+  color: z.string(),
+  strokePx: num.default(0),
+  radiusPx: num.default(0),
+  rotateDeg: num.default(0),
+  fill: z.boolean().default(true),
+  /** under = drawn beneath the type (highlight bars, boxes), over = above it (rings, arrows) */
+  layer: z.enum(['under', 'over']).default('under'),
+  /** where a bar / underline grows from */
+  origin: z.enum(['left', 'center', 'right']).default('left'),
+});
+export const sceneCounterSchema = z.strictObject({
+  kind: z.literal('counter'),
+  id: z.string().min(1).max(64),
+  inFrame: nonNegInt,
+  outFrame: nonNegInt,
+  keys: z.array(sceneKeySchema).min(1),
+  /** the spoken number (the counter ticks from `from` to `to` between countStart and countEnd) */
+  from: num,
+  to: num,
+  decimals: z.number().int().min(0).max(2).default(0),
+  prefix: z.string().max(4).default(''),
+  suffix: z.string().max(12).default(''),
+  cx: num,
+  cy: num,
+  w: num,
+  h: num,
+  fontPx: num,
+  font: fontKeySchema,
+  weight: z.number().int().default(700),
+  color: z.string(),
+  strokeColor: z.string().nullable().default(null),
+  glowColor: z.string().nullable().default(null),
+  countStart: nonNegInt,
+  countEnd: nonNegInt,
+});
+export const PLATE_EFFECTS = ['dim', 'wash', 'vignette', 'blur', 'spotlight', 'backdrop'] as const;
+export const scenePlateSchema = z.strictObject({
+  kind: z.literal('plate'),
+  id: z.string().min(1).max(64),
+  inFrame: nonNegInt,
+  outFrame: nonNegInt,
+  keys: z.array(sceneKeySchema).min(1),
+  effect: z.enum(PLATE_EFFECTS),
+  color: z.string().default('#000000'),
+  /** spotlight centre (0..1 of the frame) */
+  focus: z.strictObject({x: num, y: num}).optional(),
+});
+export const sceneElementSchema = z.discriminatedUnion('kind', [sceneShapeSchema, sceneCounterSchema, scenePlateSchema]);
+export type SceneElement = z.infer<typeof sceneElementSchema>;
+export type SceneShape = z.infer<typeof sceneShapeSchema>;
+export type SceneCounter = z.infer<typeof sceneCounterSchema>;
+export type ScenePlate = z.infer<typeof scenePlateSchema>;
 
 /** The normal single-word caption shown ONLY on frames where no kinetic lockup is active (IN-11 tick in, OUT-6 cut out). Words that belong to a kinetic event never appear here. */
 export const gapCaptionSchema = z.strictObject({
@@ -343,5 +432,7 @@ export const renderSpecSchema = z.strictObject({
   /** the font pairing the plan chose (absent = style default) */
   fontPair: fontPairSchema.optional(),
   planSource: z.string(),
+  /** Kinetic Composer scene layer (shapes, counters, plate treatments). Absent = none (every pre-composer spec). */
+  scene: z.array(sceneElementSchema).optional(),
 });
 export type RenderSpec = z.infer<typeof renderSpecSchema>;

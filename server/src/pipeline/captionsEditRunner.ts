@@ -582,8 +582,10 @@ async function failJob(
 const fullEditActive = new Set<string>();
 
 /**
- * Kinetic Typography owns its render (the Kinetic V2 spec on the blueprint). It never runs the director labeled-asset gate:
- * no b-roll, no cutout, no `awaiting_assets`, even if an asset brief is attached to its blueprint.
+ * Kinetic Typography owns its render (the Kinetic V2 spec on the blueprint) and runs the SAME labeled-asset gate as the other full edits:
+ * after the cuts the analysis attaches an asset brief of concrete B-roll asks; with slots and no answer the job parks at `awaiting_assets`
+ * (one `assets_needed` push), and the creator's uploads become full-frame cutaways. Kinetic type then owns talking-head time only and
+ * the cutaway windows carry simple captions (stages/kinetic/brollCaptionSplit.ts). It still takes no pre-attached user B-roll and no subject cutout.
  */
 const isKineticJob = (job: Pick<CaptionsEditJob, 'style'>): boolean => job.style === 'kinetic_typography';
 
@@ -713,7 +715,7 @@ async function continueFullEditAfterAnalysis(job: CaptionsEditJob): Promise<void
   const blueprint = analysis.blueprint;
   job.blueprintId = blueprint.blueprintId;
   const brief = blueprint.assetBrief;
-  if (brief && Array.isArray(brief.slots) && !isKineticJob(job)) {
+  if (brief && Array.isArray(brief.slots)) {
     job.assetBrief = brief;
   }
   job.updatedAt = new Date().toISOString();
@@ -721,7 +723,7 @@ async function continueFullEditAfterAnalysis(job: CaptionsEditJob): Promise<void
   await saveDurableBlueprint(job, blueprint);
 
   // Server-owned gate: stop here until the creator answers (submit or skip), unless they already did.
-  if (!isKineticJob(job) && !job.labeledAssetBindings && (job.assetBrief?.slots.length ?? 0) > 0) {
+  if (!job.labeledAssetBindings && (job.assetBrief?.slots.length ?? 0) > 0) {
     job.status = 'awaiting_assets';
     job.progress = 0.5;
     await saveCaptionsEditJob(job);
@@ -782,12 +784,7 @@ async function startFullEditRender(job: CaptionsEditJob): Promise<void> {
 
 async function resumeFullEditPipeline(job: CaptionsEditJob): Promise<void> {
   if (job.status === 'awaiting_assets') {
-    if (isKineticJob(job)) {
-      // A Kinetic job parked by an earlier build has no asset step: render.
-      log.info({editJobId: job.editJobId}, 'kinetic job was awaiting_assets; rendering');
-      await startFullEditRender(job);
-    }
-    return; // other styles wait for submitFullEditAssets
+    return; // every style waits for submitFullEditAssets
   }
   if (job.status === 'analyzing') {
     if (job.labeledAssetBindings && !job.assetsAnalysisStarted) {
@@ -916,7 +913,7 @@ async function resumeFullEditAfterAssets(job: CaptionsEditJob): Promise<void> {
       return;
     }
     // New assets change the plan: analyze again with them (a fresh blueprint, no cache).
-    const merged = [...(options.userBrollUrls ?? []), ...urls].filter((url, i, all) => all.indexOf(url) === i);
+    const merged = [...(isKineticJob(job) ? [] : options.userBrollUrls ?? []), ...urls].filter((url, i, all) => all.indexOf(url) === i);
     const analysis = await startWithRetry(() =>
       startAnalysis({
         userId: job.userId,
@@ -927,7 +924,7 @@ async function resumeFullEditAfterAssets(job: CaptionsEditJob): Promise<void> {
         ...(job.captionPreset ? {captionPreset: job.captionPreset} : {}),
         userBrollUrls: merged,
         labeledAssetBindings: bindings,
-        ...(options.subjectCutoutUrl ? {subjectCutoutUrl: options.subjectCutoutUrl} : {}),
+        ...(!isKineticJob(job) && options.subjectCutoutUrl ? {subjectCutoutUrl: options.subjectCutoutUrl} : {}),
         ...(job.style ? {style: job.style} : {}), // startAnalysis resolves its flags (lib/styleRun.ts)
         ...(job.footageKind ? {footageKind: job.footageKind} : {}), // only 'camera' may enter Kinetic V2 (lib/footageKind.ts)
       }),
@@ -967,7 +964,7 @@ export async function retryFullEdit(input: {editJobId: string; userId: string}):
   job.retryCount = (job.retryCount ?? 0) + 1; // a new round: its failure / success are new callback events
   job.notified = (job.notified ?? []).filter(type => type !== 'edit_failed');
   await (await getKv()).del(notifyClaimKey(job.editJobId, 'edit_failed')); // a new failure may notify again
-  if (job.blueprintId && (isKineticJob(job) || job.labeledAssetBindings || (job.assetBrief?.slots.length ?? 0) === 0)) {
+  if (job.blueprintId && (job.labeledAssetBindings || (job.assetBrief?.slots.length ?? 0) === 0)) {
     job.status = 'rendering';
     job.renderJobId = undefined;
   } else {

@@ -251,6 +251,63 @@ export function planMatchCuts(words: readonly KineticWord[], shots: readonly Kin
   return out;
 }
 
+/**
+ * The Director's match-cut suggestion (composer/direction.ts MATCH_CUT_BRIEF): the AI judges the MEANING (is this really the topic being introduced, a new chapter, a setup before a reveal),
+ * the engine keeps every structural rule so the cut is never forced. Accepted when:
+ *  - the keyword is a legal match keyword (4-12 letters, a content word) spoken inside the suggested beat, in a sentence of >= MATCH_CUT_MIN_PHRASE_WORDS words, with room in its shot;
+ *  - AND either the deterministic judge agrees (matchCutMomentOf) or the suggested moment's own structure holds:
+ *      openingHook        2.5-10 s in, inside the first two sentences, the first mention of a word the video says again (a recurring topic word);
+ *      chapterTransition  after a finished thought of >= 5 words and a >= 0.35 s pause, past the opening, and the keyword was not said before (a genuinely new topic);
+ *      evidenceMontage    one sentence of >= 8 spoken words;
+ *      beforeReveal       a reveal sentence of >= 4 words still FOLLOWS (a setup on the video's last line is refused).
+ * Budget and spacing are the caller's (planMatchCuts rules). Pure.
+ */
+export function directorMatchCut(
+  words: readonly KineticWord[], shots: readonly KineticShot[], fps: number,
+  s: {beatRange: [number, number]; keyword: string; moment: MatchCutMoment},
+): {event: TextEvent; reason: string} | {event: null; reason: string} {
+  const k = normToken(s.keyword);
+  let kwIdx = -1;
+  for (let i = s.beatRange[0]; i <= s.beatRange[1]; i += 1) if (normToken(words[i]?.text ?? '') === k) { kwIdx = i; break; }
+  if (kwIdx < 0) return {event: null, reason: 'keyword_not_spoken_in_beat'};
+  const kw = words[kwIdx]!;
+  if (!isLegalMatchKeyword(kw.text)) return {event: null, reason: 'keyword_not_legal'};
+  const sents = sentencesCached(words, fps);
+  const si = sents.findIndex(sent => sent.some(w => w.idx === kwIdx));
+  if (si < 0) return {event: null, reason: 'keyword_not_in_sentence'};
+  const sent = sents[si]!, prev = sents[si - 1], next = sents[si + 1];
+  if (sent.length < MATCH_CUT_MIN_PHRASE_WORDS) return {event: null, reason: 'sentence_too_short'};
+  const t = kw.startFrame / fps;
+  const judged = matchCutMomentOf(kwIdx, [sent[0]!.idx, sent[sent.length - 1]!.idx], words, fps);
+  let moment: MatchCutMoment = s.moment;
+  let why: string;
+  if (judged.ok) { moment = judged.moment; why = `ai+rules:${judged.moment}`; }
+  else {
+    const gapBefore = prev ? (sent[0]!.startFrame - prev[prev.length - 1]!.endFrame) / fps : 99;
+    const firstMention = words.findIndex(w => tokenOf(w) === tokenOf(kw)) === kwIdx;
+    const recurs = words.filter(w => tokenOf(w) === tokenOf(kw)).length >= 2;
+    const ok =
+      s.moment === 'openingHook' ? si <= 1 && t >= OPEN_MIN_SEC && t <= OPEN_MAX_SEC && firstMention && recurs && isTopicWord(kw.text)
+        : s.moment === 'chapterTransition' ? Boolean(prev && prev.length >= CHAPTER_MIN_PREV_WORDS && gapBefore >= CHAPTER_PAUSE_SEC && t > OPEN_MAX_SEC && firstMention)
+          : s.moment === 'evidenceMontage' ? sent.length >= EVIDENCE_MIN_WORDS
+            : Boolean(next && next.length >= 4);
+    if (!ok) return {event: null, reason: `structure_failed:${s.moment}`};
+    why = `ai:${s.moment}`;
+  }
+  const pos = sent.findIndex(w => w.idx === kwIdx);
+  const cand = buildMatchCut(toMotionWords(sent, fps), pos, undefined, why, MOMENT_SCORE[moment], Math.floor(sent[0]!.startFrame / fps));
+  if (!cand) return {event: null, reason: 'no_buildable_montage'};
+  const at = Math.max(0, kw.startFrame - LEAD_FRAMES);
+  const shot = shotOf(shots, kw.startFrame);
+  if (!shot || shot.endFrame - at < Math.round(MATCH_CUT_MIN_SEC * fps)) return {event: null, reason: 'no_room_in_shot'};
+  const h = cand.hint as {keyword: string; swapKeyword?: string; variant: MatchCutProps['variant']};
+  const from = Math.max(0, pos - MATCH_CONTEXT_BEFORE), to = Math.min(sent.length, pos + 1 + MATCH_CONTEXT_AFTER) - 1;
+  return {
+    event: {id: `mc-${kwIdx}`, shotId: shot.id, wordRange: [sent[from]!.idx, sent[to]!.idx], lines: [{text: h.keyword, role: 'hero'}], preset: 'type.matchCut', layering: 'front', anchor: 'screen', regionHint: 'auto', matchCut: {keyword: h.keyword, ...(h.swapKeyword ? {swapKeyword: h.swapKeyword} : {}), variant: h.variant}},
+    reason: why,
+  };
+}
+
 /** Frame window a match cut owns: lands 2 frames before the keyword is spoken, 1.8 s long, clipped to its shot. */
 export function matchCutWindow(ev: TextEvent, words: readonly KineticWord[], shot: KineticShot | undefined, fps: number): {inFrame: number; outFrame: number} | null {
   const kw = locateKeyword(ev, words);

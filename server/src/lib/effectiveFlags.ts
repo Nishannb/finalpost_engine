@@ -41,6 +41,10 @@ export type EffectiveFlags = {
   kineticEngineAdaptive: boolean;
   kineticEngineMotion: boolean;
   kineticEngineMatte: boolean;
+  /** Kinetic Composer (POLISH_KINETIC_COMPOSER, default off): beat-driven composition library inside the V2 engine; failure = the V2 engine */
+  kineticComposer: boolean;
+  /** Kinetic Composer colours picked by the Director from curated palettes (POLISH_KINETIC_AI_PALETTE, default off) */
+  kineticAiPalette: boolean;
   /** Match Cut camera-shutter treatment + synchronized shutter sound (POLISH_KINETIC_MATCHCUT_SHUTTER). */
   matchCutShutter: boolean;
   subjectStage: boolean;
@@ -87,6 +91,8 @@ export type EffectiveFlagsEnv = {
   POLISH_KINETIC_ENGINE_ADAPTIVE: boolean;
   POLISH_KINETIC_ENGINE_MOTION: boolean;
   POLISH_KINETIC_ENGINE_MATTE: boolean;
+  POLISH_KINETIC_COMPOSER?: boolean;
+  POLISH_KINETIC_AI_PALETTE?: boolean;
   POLISH_KINETIC_MATCHCUT_SHUTTER: boolean;
   POLISH_SUBJECT_STAGE: boolean;
   POLISH_VO_CUT_GRAMMAR: boolean;
@@ -132,6 +138,8 @@ export function effectiveFlagsFromEnv(env: EffectiveFlagsEnv, profile: ProductEd
     kineticEngineAdaptive: Boolean(env.POLISH_KINETIC_ENGINE_ADAPTIVE),
     kineticEngineMotion: Boolean(env.POLISH_KINETIC_ENGINE_MOTION),
     kineticEngineMatte: Boolean(env.POLISH_KINETIC_ENGINE_MATTE),
+    kineticComposer: Boolean(env.POLISH_KINETIC_COMPOSER),
+    kineticAiPalette: Boolean(env.POLISH_KINETIC_AI_PALETTE),
     matchCutShutter: Boolean(env.POLISH_KINETIC_MATCHCUT_SHUTTER),
     subjectStage: Boolean(env.POLISH_SUBJECT_STAGE),
     voCutGrammar: Boolean(env.POLISH_VO_CUT_GRAMMAR),

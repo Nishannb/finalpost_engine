@@ -167,7 +167,7 @@ describe('text ownership', () => {
   });
   it('analyze wiring: captions muted for Kinetic V2 OR an active stage; the Kinetic V2 final text guard is unchanged and runs first; the stage guard only when no kinetic spec exists', () => {
     const src = read('./analyzeVideo.ts');
-    expect(src).toContain('const muteRanges: MuteRange[] = subjectStagePayload ? (stageDrawn ? mergeMuteRanges(stageDrawn.map(w => ({startSec: w.start, endSec: w.end}))) : [{startSec: 0, endSec: timeline.outputDurationSec}]) : kineticEngineSpec ? [{startSec: 0, endSec: timeline.outputDurationSec}] :'); // Phase 5.27C: the stage mutes only where it draws; the Kinetic V2 branch is unchanged
+    expect(src).toContain('const muteRanges: MuteRange[] = subjectStagePayload ? (stageDrawn ? mergeMuteRanges(stageDrawn.map(w => ({startSec: w.start, endSec: w.end}))) : [{startSec: 0, endSec: timeline.outputDurationSec}]) : kineticEngineSpec ? kineticCaptionMuteRanges(kineticBrollWindows, timeline.outputDurationSec) :'); // Kinetic + creator B-roll: the whole edit is muted (kineticCaptionMuteRanges([] , d) = [{0, d}]) except inside full-frame B-roll windows // Phase 5.27C: the stage mutes only where it draws; the Kinetic V2 branch is unchanged
     const kineticGuard = src.indexOf('const guard = kineticFinalTextGuard({hookTitle: broll.hookTitle, openingTreatment: openingSpec');
     const stageGuard = src.indexOf('} else if (subjectStagePayload) {');
     expect(kineticGuard).toBeGreaterThan(-1);

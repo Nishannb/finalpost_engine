@@ -147,6 +147,15 @@ describe('autoTrimSilence', () => {
 });
 
 describe('keepSegmentsFor', () => {
+  it('never ends with an empty tail when an exclusion stops a hair before the file end (aicut.mp4: 33.0329 vs 33.0333 s)', () => {
+    const segments = keepSegmentsFor([{start: 23.86, end: 24.6}, {start: 32.36, end: 33.0329}], 33.033333);
+    expect(segments).toEqual([
+      {sourceStart: 0, sourceEnd: 23.86, outputStart: 0},
+      {sourceStart: 24.6, sourceEnd: 32.36, outputStart: 23.86},
+    ]);
+    expect(segments.every(s => s.sourceEnd > s.sourceStart)).toBe(true);
+  });
+
   it('accumulates output offsets across multiple cuts', () => {
     const segments = keepSegmentsFor(
       [

@@ -8,6 +8,7 @@ import {AbsoluteFill, useCurrentFrame} from 'remotion';
 import {FONT_STACK, useKineticFonts} from './fonts';
 import {PRESET_COMPONENTS} from './presets';
 import {interpolateKeyframes} from './primitives';
+import {SceneLayer} from './SceneLayer';
 import type {GapCaption, RenderEvent, RenderSpec} from './spec';
 
 /** Warm light-leak flash of the title moment: a full-frame screen-blend wash (a compositor primitive, never a glow on the glyphs). Opacities are sampled by the solver. */
@@ -73,7 +74,8 @@ export const KineticEventView: React.FC<{event: RenderEvent; frame: number; laye
         opacity: perWord ? 1 : k.opacity,
         transformStyle: perWord ? 'preserve-3d' : undefined,
         transformOrigin: '50% 50%',
-        transform: `translate(${k.x - w / 2}px, ${k.y - h / 2}px) perspective(${event.perspectivePx}px) translateZ(${k.z}px) rotateX(${k.rotateX}deg) rotateY(${k.rotateY}deg) scale(${k.scale})`,
+        // Kinetic Composer: optional in-plane rotation about the block centre (absent on every pre-composer event = the transform exactly as before)
+        transform: `translate(${k.x - w / 2}px, ${k.y - h / 2}px)${event.rotateDeg ? ` rotate(${event.rotateDeg}deg)` : ''} perspective(${event.perspectivePx}px) translateZ(${k.z}px) rotateX(${k.rotateX}deg) rotateY(${k.rotateY}deg) scale(${k.scale})`,
         filter: perWord ? undefined : `${blur > 0.05 ? `blur(${blur}px)` : ''}${event.tint ? ' saturate(0.92) brightness(0.94)' : ''}`.trim() || undefined,
         willChange: 'transform, opacity',
       }}
@@ -94,13 +96,17 @@ export const KineticTrack: React.FC<{spec: RenderSpec | undefined; layer: Kineti
   const hasLayer = (e: RenderEvent, side: KineticLayer) => e.lines.some(l => (l.layer ?? e.layering) === side);
   const events = spec.events.filter(e => (layer === 'behind' ? foreground && hasLayer(e, 'behind') : hasLayer(e, 'front') || (!foreground && e.layering === 'behind')));
   const captions = layer === 'front' ? spec.captions ?? [] : [];
-  if (events.length === 0 && captions.length === 0) return null;
+  // Kinetic Composer scene layer: front mount only; absent on every pre-composer spec
+  const scene = layer === 'front' ? spec.scene : undefined;
+  if (events.length === 0 && captions.length === 0 && !scene?.length) return null;
   return (
     <AbsoluteFill style={{pointerEvents: 'none'}}>
+      {scene ? <SceneLayer scene={scene} frame={frame} part="under" /> : null}
       {captions.filter(c => frame >= c.inFrame && frame < c.outFrame).map(c => <GapCaptionView key={`cap-${c.wordIdx}`} caption={c} frame={frame} />)}
       {events.map(e => (
         <KineticEventView key={e.id} event={e} frame={frame} {...(foreground && e.lines.some(l => l.layer) ? {layer} : {})} />
       ))}
+      {scene ? <SceneLayer scene={scene} frame={frame} part="over" /> : null}
       {layer === 'front' ? spec.events.map(e => <LightLeak key={`leak-${e.id}`} event={e} frame={frame} />) : null}
     </AbsoluteFill>
   );

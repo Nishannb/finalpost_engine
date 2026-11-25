@@ -147,22 +147,67 @@ describe('full edit: analysis with asset slots stops at the server-owned gate', 
   });
 });
 
-describe('kinetic_typography never runs the director asset gate', () => {
-  it('renders straight through even when the blueprint carries an asset brief, with no assets_needed', async () => {
-    const bp = blueprint('bpk', [SLOT]);
+describe('kinetic_typography runs the labeled-asset gate (creator B-roll)', () => {
+  const KSLOT = {id: 'asset_broll_1', kind: 'broll_clip', label: 'Clip or image: office', status: 'needed', required: false, reason: 'x', accept: ['video', 'image']};
+  async function kineticGated() {
+    const bp = blueprint('bpk', [KSLOT]);
     db.blueprints.set('bpk', bp);
     analysisDone('an_1', bp);
     const id = await start('u1', 'kinetic_typography');
     await markCaptionsSourceUploaded(id, 'u1');
+    return id;
+  }
 
-    const job = await settled(id, 'done');
-    expect(job.assetBrief).toBeUndefined();
-    expect(mocks.startRender).toHaveBeenCalledTimes(1);
-    expect(sent().map(n => n.type)).toEqual(['edit_done']);
+  it('a non-empty brief parks at awaiting_assets and sends exactly one assets_needed (no render yet)', async () => {
+    const id = await kineticGated();
+    const job = await settled(id, 'awaiting_assets');
+    expect(job.assetBrief?.slots).toHaveLength(1);
+    expect(mocks.startRender).not.toHaveBeenCalled();
+    expect(sent().map(n => n.type)).toEqual(['assets_needed']);
     const analysisInput = mocks.startAnalysis.mock.calls[0]![0] as Record<string, unknown>;
     expect(analysisInput.style).toBe('kinetic_typography');
     expect(analysisInput.userBrollUrls).toBeUndefined();
     expect(analysisInput.subjectCutoutUrl).toBeUndefined();
+    await markCaptionsSourceUploaded(id, 'u1');
+    await new Promise(resolve => setTimeout(resolve, 60));
+    expect(sent().filter(n => n.type === 'assets_needed')).toHaveLength(1);
+  });
+
+  it('an empty brief does not pause: straight to the Kinetic render', async () => {
+    const bp = blueprint('bpk0', []);
+    db.blueprints.set('bpk0', bp);
+    analysisDone('an_1', bp);
+    const id = await start('u1', 'kinetic_typography');
+    await markCaptionsSourceUploaded(id, 'u1');
+    const job = await settled(id, 'done');
+    expect(job.assetBrief?.slots).toHaveLength(0);
+    expect(mocks.startRender).toHaveBeenCalledTimes(1);
+    expect(sent().map(n => n.type)).toEqual(['edit_done']);
+  });
+
+  it('skip-all resumes the render from the stored plan (no second analysis)', async () => {
+    const id = await kineticGated();
+    await settled(id, 'awaiting_assets');
+    await submitFullEditAssets({editJobId: id, userId: 'u1', skipAll: true});
+    await settled(id, 'done');
+    expect(mocks.startAnalysis).toHaveBeenCalledTimes(1);
+    expect(mocks.startRender).toHaveBeenCalledTimes(1);
+    expect(sent().map(n => n.type)).toEqual(['assets_needed', 'edit_done']);
+  });
+
+  it('uploaded assets: re-analyzes as Kinetic with ONLY the creator URLs and the bindings, never a cutout', async () => {
+    const id = await kineticGated();
+    await settled(id, 'awaiting_assets');
+    const bp2 = blueprint('bpk2', [{...KSLOT, status: 'uploaded'}]);
+    db.blueprints.set('bpk2', bp2);
+    analysisDone('an_2', bp2);
+    const bindings = [{slotId: 'asset_broll_1', status: 'uploaded' as const, assetUrl: 'https://cdn/office.mp4', kind: 'broll_clip' as const}];
+    await submitFullEditAssets({editJobId: id, userId: 'u1', bindings});
+    await settled(id, 'done');
+    const second = mocks.startAnalysis.mock.calls[1]![0] as Record<string, unknown>;
+    expect(second).toMatchObject({style: 'kinetic_typography', userBrollUrls: ['https://cdn/office.mp4'], useCache: false, labeledAssetBindings: bindings});
+    expect(second.subjectCutoutUrl).toBeUndefined();
+    expect(sent().map(n => n.type)).toEqual(['assets_needed', 'edit_done']);
   });
 });
 

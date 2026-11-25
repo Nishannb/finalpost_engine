@@ -10,6 +10,7 @@
  * The outcome says what the asset covers (`coverage`), and `reconcileByCoverage` drops the elements it cannot draw. Nothing is invented: no asset, no behind-subject element.
  * Everything here except `obtainPersonMatte`'s injected deps is pure.
  */
+import {matteConfidence} from '../lib/matteGate.ts';
 import type {KeepSegmentLike, SubjectMatteResult} from '../media/personMatte.ts';
 import {outputWindowsToSourceRanges} from '../media/personMatte.ts';
 import {MATTE_RANGE_PAD_SEC} from '../stages/broll/kineticLedConfig.ts';
@@ -152,6 +153,8 @@ export type PersonMatteOutcome = {
   matteSec: number;
   /** Whether an extraction was tried at all (feeds the final matte gate). */
   attempted: boolean;
+  /** RVM only: 0..1 confidence from the matte's own report (lib/matteGate.ts matteConfidence); feeds the final matte gate. */
+  confidence?: number;
   warnings: string[];
 };
 
@@ -232,6 +235,7 @@ export async function obtainPersonMatte(input: {
     droppedNeeds: trimmed.dropped,
     matteSec: trimmed.costSec,
     attempted,
+    confidence: matteConfidence(result.report),
     warnings,
   };
 }

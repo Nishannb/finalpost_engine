@@ -367,6 +367,13 @@ async function reuseFromLedger(asset: MusicLedgerAsset, mood: string, d: MusicPl
   return rest;
 }
 
+/** the QC failed on the loop seam alone (mirrors agents/music_specialist/qc.py: silence <= 1.5 s, peak <= -0.1 dBFS, BPM error <= 3 %, seam <= 1.5 dB) */
+export function seamOnlyFailure(r: Pick<MusicResult, 'qc_silence_sec' | 'qc_true_peak_dbfs' | 'qc_bpm_error_ratio' | 'qc_seam_db'>): boolean {
+  const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  const silence = n(r.qc_silence_sec), peak = n(r.qc_true_peak_dbfs), bpm = n(r.qc_bpm_error_ratio), seam = n(r.qc_seam_db);
+  return silence !== null && silence <= 1.5 && peak !== null && peak <= -0.1 && bpm !== null && bpm <= 0.03 && seam !== null && seam > 1.5;
+}
+
 async function runMusicPlan(job: MusicJob, d: MusicPlanDeps = DEFAULT_MUSIC_PLAN_DEPS): Promise<MusicPlan | null> {
   const decision = d.decide();
   if (decision.downgraded) log.warn({from: decision.requested || 'live', to: decision.mode, reason: decision.downgradeReason ?? 'unknown', production: d.isProduction()}, 'music.mode_downgraded');
@@ -493,8 +500,15 @@ async function runMusicPlan(job: MusicJob, d: MusicPlanDeps = DEFAULT_MUSIC_PLAN
       log.error({video_id: videoId, cache_key: generated.cache_key, cost_usd: generated.cost_usd ?? null, accounting: generated.accounting}, 'music.spend_accounting_degraded');
     }
     if (claimed && generated.qc_retried === true) log.warn({video_id: videoId, cache_key: generated.cache_key}, 'music.qc_retry_detected');
+    // A bed whose ONLY failed check is the loop seam is still a good bed when the video never loops it (the full bed is longer than the video): it is used WITHOUT its loop,
+    // and it stays out of the pool (its meta keeps qc_passed=false, so appendToPool refuses it) because a longer video would need the loop. 2026-11-25: a 60 s bed for a 30.7 s
+    // video was thrown away for a 1.516 dB seam (limit 1.5) after it was paid for.
+    if (claimed && generated.qc_passed === false && seamOnlyFailure(generated) && (generated.duration_sec ?? 0) >= job.canvas_sec + 0.5) {
+      log.warn({video_id: videoId, cache_key: generated.cache_key, seam_db: generated.qc_seam_db, bed_sec: generated.duration_sec, video_sec: job.canvas_sec}, 'music.qc_seam_only_used_without_loop');
+      generated = {...generated, loop_fallback: true};
+    }
     // Phase 1.7.2: a bed that failed QC in a paid run is never used, uploaded, spooled or pooled, and nothing is regenerated.
-    if (claimed && generated.qc_passed === false) {
+    else if (claimed && generated.qc_passed === false) {
       const qc = qcOf(generated);
       log.warn({video_id: videoId, cache_key: generated.cache_key, cost_usd: generated.cost_usd ?? null, qc}, 'music.qc_failed');
       await resolveClaim({outcome: 'qc_failed', reason: 'qc_failed', costUsd: generated.cost_usd ?? null, qc, asset: null});

@@ -10,7 +10,7 @@
  *   plan     planSubjectStage over the real transcript sentences, accents timed from the caption words
  *   result   `payload` for `blueprint.subjectStage`; the caller then clears the elements that would fight the stage (`applySubjectStageExclusions`) and keeps kinetic-led off for the run.
  */
-import {obtainPersonMatte, collectMatteNeeds, type PersonMatteDeps, type PersonMatteOutcome} from './personMatteStage.ts';
+import {obtainPersonMatte, collectMatteNeeds, chromaSanity, type PersonMatteDeps, type PersonMatteOutcome} from './personMatteStage.ts';
 import type {KeepSegmentLike} from '../media/personMatte.ts';
 import {sentencesOfWords} from '../stages/broll/visualBackend/planVisualBackendBeats.ts';
 import {deriveKeywords} from '../stages/subjectStage/stageIntent.ts';
@@ -145,6 +145,12 @@ export type RunSubjectStageInput = SubjectStageGateInput & {
   activeSourcePath: string;
   /** the client's transparent asset URL, when provided */
   providedCutoutUrl?: string;
+  /**
+   * Plan P2/P5: verify a PROVIDED cutout. `download` streams the asset to `path` (lib/tempFiles.ts downloadToFile: public hosts only, byte ceiling). A downloaded asset must pass the same sanity as a chroma key
+   * (size, mean alpha neither empty nor opaque); an insane one makes the style skip (never half-on), and a sane one gives the stage a LOCAL matte, so the speaker protection uses the real matte grid
+   * instead of the speaker box. A failed download keeps the previous behaviour (`provided_unverified`: used as is, protection by speaker box). Absent = exactly as before.
+   */
+  providedVerify?: {download: (url: string, path: string) => Promise<void>; path: string};
   chromaPath: string;
   rvmPath: string;
   /** the SAME deps the kinetic-era person matte stage uses (RVM runs through the shared cache + the shared RVM slot) */
@@ -246,10 +252,26 @@ export async function runSubjectStage(input: RunSubjectStageInput): Promise<Subj
   let source: SubjectStageResult['source'];
   let matteSec = 0;
   const matteWarnings: string[] = [];
+  let providedLocal: string | null = null;
   if (gate.route === 'provided') {
     matteUrl = input.providedCutoutUrl;
     source = 'provided';
     matteWarnings.push('subject_stage:matte:provided');
+    if (input.providedVerify && matteUrl) {
+      let downloaded = false;
+      try {
+        await input.providedVerify.download(matteUrl, input.providedVerify.path);
+        downloaded = true;
+      } catch {
+        matteWarnings.push('subject_stage:matte:provided_unverified');
+      }
+      if (downloaded) {
+        const sanity = chromaSanity({bytes: await input.deps.fileBytes(input.providedVerify.path).catch(() => 0), meanAlpha: await input.deps.probeAlpha(input.providedVerify.path).catch(() => null)});
+        if (!sanity.ok) return skipped('matte_unavailable', [...plan.warnings, ...matteWarnings, `subject_stage:matte:provided_rejected:${sanity.reason}`]);
+        providedLocal = input.providedVerify.path;
+        matteWarnings.push('subject_stage:matte:provided_verified');
+      }
+    }
   } else {
     const outcome = await obtainPersonMatte({
       needs: collectMatteNeeds({stageRun: {start: 0, end: input.durationSec}}),
@@ -277,8 +299,8 @@ export async function runSubjectStage(input: RunSubjectStageInput): Promise<Subj
   let editorialStatus: EditorialItemStatus[] | undefined;
   if (input.design) {
     const fps = input.design.fps ?? 30;
-    // the matte's own coverage: the local whole-run file the route produced (a provided cutout has no local file: unmeasured, never behind)
-    const localMatte = source === 'rvm' ? input.rvmPath : source === 'chroma' ? input.chromaPath : null;
+    // the matte's own coverage: the local whole-run file the route produced (a provided cutout has a local file only when `providedVerify` downloaded it; otherwise it is unmeasured, never behind)
+    const localMatte = source === 'rvm' ? input.rvmPath : source === 'chroma' ? input.chromaPath : source === 'provided' ? providedLocal : null;
     const meanAlpha = localMatte ? await input.deps.probeAlpha(localMatte).catch(() => null) : null;
     const {speaker, ...frame} = input.design;
     // Phase 5.25: the person matte in COMPOSITION space (the Kinetic V2 grid), for the speaker protection, the measured area and the reliable intervals

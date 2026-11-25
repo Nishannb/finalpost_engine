@@ -7,6 +7,7 @@ import {env} from '../../config/env.ts';
 import {stageLogger} from '../../lib/logger.ts';
 import {resolvePoolSize} from './flags.ts';
 import {r2Configured, sourceObjectExists, uploadPublicFile} from '../../storage/r2.ts';
+import {localPublicUrlFor, localStorageActive} from '../../storage/localStorage.ts';
 
 const log = stageLogger('music');
 
@@ -59,6 +60,8 @@ export function bedLoopObjectKey(cacheKey: string, dry = false): string {
 }
 
 export function publicUrlForKey(key: string): string {
+  // development-only local store (STORAGE_BACKEND=local, refused in production): the same URL every other storage call uses
+  if (localStorageActive()) return localPublicUrlFor(key);
   return `${env.R2_PUBLIC_BASE_URL.replace(/\/+$/, '')}/${key}`;
 }
 

@@ -12,6 +12,8 @@ import {sampleStillGrid} from '../media/ffmpeg.ts';
 import type {DirectorCall} from '../stages/kinetic/director.ts';
 import {plateFromRgb} from '../stages/kinetic/plate.ts';
 import {buildProductionKinetic, type ProductionKineticReport} from '../stages/kinetic/productionStage.ts';
+import {composeKinetic, type ComposerReport} from '../stages/kinetic/composer/composeKinetic.ts';
+import {geminiDirectorCall} from '../stages/kinetic/director.ts';
 import type {RenderSpec} from '../stages/kinetic/schema.ts';
 import type {SpeakerBoxSource} from '../stages/kinetic/speakerBox.ts';
 import {behindWindows, foregroundSpans, spansCover} from '../stages/kinetic/matteMap.ts';
@@ -47,6 +49,13 @@ export type KineticEngineInput = {
   /** V1: the user's caption identity derived from the selected CaptionKit preset (stages/kinetic/presetIdentity.ts). Absent = Kinetic's own look. */
   identity?: import('../stages/kinetic/presetIdentity.ts').KineticIdentity;
   placementPolicy?: {observationBudget?: import('../stages/kinetic/speakerGeometry.ts').ObservationBudget | null; fitHeroFace?: boolean; relocateBeforeFloor?: boolean; refuseBelowFloor?: boolean; keepSwallowingMatchCuts?: boolean};
+  /**
+   * Kinetic Composer (POLISH_KINETIC_COMPOSER, default off): the beat-driven composition engine runs first (with the matte when one is given: behind-the-speaker words) and owns the edit when it returns a verified spec; it also returns the
+   * final zoom list (beat punch-ins). Any composer failure = the V2 engine below, exactly as before.
+   */
+  composer?: boolean;
+  /** the composer's colours come from the Director's palette choice (POLISH_KINETIC_AI_PALETTE) */
+  aiPalette?: boolean;
 };
 
 /**
@@ -188,6 +197,8 @@ export function planKineticForeground(spec: RenderSpec, fps: number, durationFra
 export type KineticEngineOutcome = {
   spec: RenderSpec | null;
   report: ProductionKineticReport | null;
+  /** Kinetic Composer only: its report, and the final zoom list the blueprint must carry (the type was solved against these zooms) */
+  composer?: {report: ComposerReport; zoomTriggers: Array<{start: number; end: number; scale: number; focus?: {x: number; y: number}; sentenceIndex: number}>};
   /** blueprint warnings, in the existing `family:detail` style */
   warnings: string[];
 };
@@ -196,8 +207,9 @@ export async function runKineticEngineStage(input: KineticEngineInput): Promise<
   const warnings: string[] = [];
   try {
     let plate: {luminance: number; color: string} | null = null;
+    let plateGrid: Uint8Array | null = null;
     if (input.stillPath) {
-      try { plate = plateFromRgb(await sampleStillGrid(input.stillPath, 16)); } catch { warnings.push('kinetic_engine:plate_unmeasured'); }
+      try { plateGrid = new Uint8Array(await sampleStillGrid(input.stillPath, 16)); plate = plateFromRgb(plateGrid); } catch { warnings.push('kinetic_engine:plate_unmeasured'); }
       await fs.rm(`${input.stillPath}.grid16.rgb`, {force: true}).catch(() => undefined);
     }
     let motion = input.speaker.motion;
@@ -207,6 +219,31 @@ export async function runKineticEngineStage(input: KineticEngineInput): Promise<
         motion = mp.motion;
         warnings.push(`kinetic_engine:speaker_motion:samples=${mp.report.usable}/${mp.report.offered},conservative=${Math.round(mp.report.conservativeFraction * 100)}%`);
       } else warnings.push(`kinetic_engine:speaker_static_box:no_usable_samples(${input.speaker.samples.length} offered)`);
+    }
+    if (input.composer) {
+      const director = input.director !== undefined ? input.director : await geminiDirectorCall();
+      const composed = await composeKinetic({
+        captionWords: input.captionWords, fps: input.fps, width: input.width, height: input.height, durationSec: input.durationSec,
+        speaker: {box: input.speaker.box, source: input.speaker.source, srcW: input.sourceSize.width, srcH: input.sourceSize.height, objectPosition: FULLSCREEN_OBJECT_POSITION},
+        zoomTriggers: input.zoomTriggers, zoomEnabled: input.zoomEnabled, ...(plate ? {plate: {...plate, ...(plateGrid ? {grid: plateGrid} : {})}} : {}), ...(input.identity ? {identity: input.identity} : {}), director,
+        matchCut: input.placementPolicy?.keepSwallowingMatchCuts === true,
+        ...(input.aiPalette ? {aiPalette: true} : {}),
+        // with a matte, a few high-impact words may sit behind the speaker (analyzeVideo then ships the foreground, or re-runs front-only)
+        ...(input.matte ? {matte: input.matte} : {}),
+      });
+      if (composed.spec && composed.report.ok) {
+        const m = composed.report.metrics;
+        warnings.push('kinetic_engine:on', 'kinetic_composer:on', `kinetic_composer:direction:${composed.report.direction.source}:${composed.report.direction.tone}`,
+          ...(composed.report.direction.palette ? [`kinetic_composer:palette:${composed.report.direction.palette}`] : []),
+          ...(m ? [`kinetic_composer:variety:score=${m.varietyScore},designed=${Math.round(m.designedShare * 100)}%,distinct=${m.distinct},max_share=${Math.round(m.maxShare * 100)}%,repeats=${m.repeats}`] : []),
+          `kinetic_composer:zooms:+${composed.report.zooms.added}/${composed.report.zooms.total}`, `kinetic_composer:coverage:${composed.report.coverage.drawn}/${composed.report.coverage.words}`,
+          ...(composed.report.matchCut.kept ? [`kinetic_composer:match_cut:${composed.report.matchCut.kept}`] : []),
+          // the AI's text-behind / match-cut suggestions and what the engine did with them, and the coverage splits (auditable per edit)
+          ...composed.report.notes.filter(n => /^(match_cut:|behind:ai|coverage_)/.test(n)).map(n => `kinetic_composer:${n.slice(0, 140)}`),
+          ...(composed.report.motion ? [`kinetic_composer:motion:enter=${composed.report.motion.enterDistinct},exit=${composed.report.motion.exitDistinct},flips=${composed.report.motion.dirFlips},angled=${composed.report.motion.angled},behind=${composed.report.motion.behind}`] : []));
+        return {spec: composed.spec, report: null, warnings, composer: {report: composed.report, zoomTriggers: composed.zoomTriggers}};
+      }
+      warnings.push(`kinetic_composer_failed:${(composed.report.failure ?? 'no_spec').slice(0, 120)}`);
     }
     const {spec, report} = await buildProductionKinetic({
       captionWords: input.captionWords, fps: input.fps, width: input.width, height: input.height, durationSec: input.durationSec,

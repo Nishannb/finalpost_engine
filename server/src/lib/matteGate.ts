@@ -27,6 +27,17 @@ export type MatteGateInput = {
 
 export const MIN_MATTE_CONFIDENCE = 0.5;
 
+/**
+ * 0..1 confidence of an RVM matte from its own report: how consistently the person was found (`detected_ratio`), scaled down when the mean area drifts toward the implausible ends
+ * (a speck, or the whole frame). Full weight for 3 %..60 % of the frame; linear to 0 at the quality-gate limits (1.5 % / 80 %). Pure.
+ */
+export function matteConfidence(report: {detected_ratio: number; mean_area: number}): number {
+  const detected = Math.max(0, Math.min(1, report.detected_ratio));
+  const a = report.mean_area;
+  const areaScore = a < 0.03 ? Math.max(0, (a - 0.015) / 0.015) : a > 0.6 ? Math.max(0, (0.8 - a) / 0.2) : 1;
+  return Math.round(detected * areaScore * 1000) / 1000;
+}
+
 export function decideMatteGate(input: MatteGateInput): MatteGate {
   if (input.occupancy.unmeasured) return {usable: false, reason: 'unmeasured'};
   if (input.occupancy.source !== 'vision') return {usable: false, reason: 'fallback_box'};

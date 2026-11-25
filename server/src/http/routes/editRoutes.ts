@@ -88,9 +88,9 @@ const EDIT_STYLES_REFRESH_WINDOW_SEC = 10;
 function editStyleConfig(): EditStyleConfig {
   // V1 release mode (V1_KINETIC_RELEASE): styles are always on and only Basic Captions + Kinetic Typography are startable or listed, whatever EDIT_STYLES_AVAILABLE says.
   if (env.V1_KINETIC_RELEASE) {
-    return {enabled: true, availableOverride: V1_RELEASE_STYLES.join(','), orderOverride: V1_RELEASE_STYLES.join(','), engineFlags: env.EDIT_STYLES_ENGINE_FLAGS};
+    return {enabled: true, availableOverride: V1_RELEASE_STYLES.join(','), orderOverride: V1_RELEASE_STYLES.join(','), engineFlags: env.EDIT_STYLES_ENGINE_FLAGS, subjectStagePicker: env.SUBJECT_STAGE_PICKER};
   }
-  return {enabled: env.EDIT_STYLES_ENABLED, availableOverride: env.EDIT_STYLES_AVAILABLE, orderOverride: env.EDIT_STYLES_ORDER, engineFlags: env.EDIT_STYLES_ENGINE_FLAGS};
+  return {enabled: env.EDIT_STYLES_ENABLED, availableOverride: env.EDIT_STYLES_AVAILABLE, orderOverride: env.EDIT_STYLES_ORDER, engineFlags: env.EDIT_STYLES_ENGINE_FLAGS, subjectStagePicker: env.SUBJECT_STAGE_PICKER};
 }
 
 /**

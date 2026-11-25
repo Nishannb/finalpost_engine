@@ -1,7 +1,7 @@
 /** Edit-style registry (pure): catalog shape, lock state, overrides, and request resolution. */
 import {describe, expect, it} from 'vitest';
 
-import {buildEditStyleCatalog, EDIT_STYLE_IDS, EDIT_STYLES, isStyleAvailable, resolveRequestedStyle, styleTier} from './editStyles.ts';
+import {buildEditStyleCatalog, EDIT_STYLE_IDS, EDIT_STYLES, isStyleAvailable, resolveRequestedStyle, styleTier, v1ReleaseViolation, V1_RELEASE_STYLES} from './editStyles.ts';
 
 const ON = {enabled: true, availableOverride: '', orderOverride: ''};
 
@@ -68,5 +68,45 @@ describe('edit-style registry', () => {
     expect(resolveRequestedStyle('explainer', {...ON, availableOverride: 'explainer', engineFlags: true})).toMatchObject({degraded: false, degradedReasons: [], styleNotes: []});
     expect(styleTier('explainer')).toBe('pro');
     expect(styleTier(undefined)).toBeUndefined();
+  });
+});
+
+describe('Subject Stage picker option (SUBJECT_STAGE_PICKER; separate from Kinetic Typography)', () => {
+  const PICKER = {...ON, subjectStagePicker: true};
+  const V1 = {enabled: true, availableOverride: V1_RELEASE_STYLES.join(','), orderOverride: V1_RELEASE_STYLES.join(',')};
+
+  it('flag off (default): not listed, not startable; the V1 catalog is exactly Basic Captions + Kinetic', () => {
+    expect(buildEditStyleCatalog({config: ON, hasPro: true}).map(e => e.id)).toEqual(['basic_captions', 'ai_clean_cut', 'kinetic_typography', 'explainer']);
+    expect(buildEditStyleCatalog({config: V1, hasPro: true}).filter(e => e.available).map(e => e.id).sort()).toEqual(['basic_captions', 'kinetic_typography']);
+    expect(resolveRequestedStyle('subject_stage', ON)).toEqual({error: 'style_unavailable', style: 'subject_stage'});
+    expect(resolveRequestedStyle('subject_stage', V1)).toEqual({error: 'style_unavailable', style: 'subject_stage'});
+  });
+
+  it('flag on: listed as its own Pro option next to Kinetic; Kinetic stays selectable on its own', () => {
+    const catalog = buildEditStyleCatalog({config: PICKER, hasPro: false});
+    const ids = catalog.map(e => e.id);
+    expect(ids).toContain('subject_stage');
+    expect(ids).toContain('kinetic_typography');
+    const stage = catalog.find(e => e.id === 'subject_stage')!;
+    expect(stage).toMatchObject({tier: 'pro', available: true, locked: true});
+    expect(buildEditStyleCatalog({config: PICKER, hasPro: true}).find(e => e.id === 'subject_stage')!.locked).toBe(false);
+    expect(resolveRequestedStyle('kinetic_typography', PICKER)).toMatchObject({style: 'kinetic_typography', mode: 'full_edit'});
+    expect(resolveRequestedStyle('subject_stage', PICKER)).toMatchObject({style: 'subject_stage', tier: 'pro', mode: 'full_edit'});
+  });
+
+  it('flag on also lists it under the V1 release config, which still only offers the V1 styles otherwise', () => {
+    const ids = buildEditStyleCatalog({config: {...V1, subjectStagePicker: true}, hasPro: true}).filter(e => e.available).map(e => e.id).sort();
+    expect(ids).toEqual(['basic_captions', 'kinetic_typography', 'subject_stage']);
+    expect(isStyleAvailable('ai_clean_cut', {availableOverride: V1.availableOverride, subjectStagePicker: true})).toBe(false);
+  });
+
+  it('V1 release gate: Subject Stage needs camera footage and the engine flags; Kinetic rules are unchanged', () => {
+    const base = {release: true, mode: 'full_edit', engineFlags: true};
+    expect(v1ReleaseViolation({...base, style: 'subject_stage', footageKind: 'camera'})).toBeNull();
+    expect(v1ReleaseViolation({...base, style: 'subject_stage', footageKind: 'screen_recording'})).toMatchObject({code: 'footage_unsupported'});
+    expect(v1ReleaseViolation({...base, style: 'subject_stage', footageKind: undefined})).toMatchObject({code: 'footage_unsupported'});
+    expect(v1ReleaseViolation({...base, engineFlags: false, style: 'subject_stage', footageKind: 'camera'})).toMatchObject({code: 'style_unavailable'});
+    expect(v1ReleaseViolation({...base, engineFlags: false, style: 'kinetic_typography', footageKind: 'camera'})).toMatchObject({code: 'kinetic_unavailable'});
+    expect(v1ReleaseViolation({release: false, style: 'subject_stage', mode: 'full_edit', footageKind: undefined, engineFlags: true})).toBeNull();
   });
 });

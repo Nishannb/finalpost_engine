@@ -188,6 +188,8 @@ export type EditStyleConfig = {
   orderOverride: string;
   /** EDIT_STYLES_ENGINE_FLAGS: off = styles run exactly as in Phase 1 (their mode on the server profile; `needsEngineFlags` styles as `degradesTo`). Default off. */
   engineFlags?: boolean;
+  /** SUBJECT_STAGE_PICKER: list Subject Stage in the catalog and make it startable (a separate option from Kinetic Typography). Default off. */
+  subjectStagePicker?: boolean;
 };
 
 const csv = (raw: string) =>
@@ -197,7 +199,8 @@ const csv = (raw: string) =>
     .filter(Boolean);
 
 /** Whether a style can be started right now (registry default, or the env override when it is set). */
-export function isStyleAvailable(id: EditStyleId, config: Pick<EditStyleConfig, 'availableOverride'>): boolean {
+export function isStyleAvailable(id: EditStyleId, config: Pick<EditStyleConfig, 'availableOverride' | 'subjectStagePicker'>): boolean {
+  if (id === 'subject_stage' && config.subjectStagePicker) return true;
   const override = csv(config.availableOverride);
   return override.length > 0 ? override.includes(id) : EDIT_STYLES[id].available;
 }
@@ -215,13 +218,14 @@ export type EditStyleCatalogEntry = {
 };
 
 /** The catalog the app renders, sorted, with each style's lock state for one creator. */
-export function buildEditStyleCatalog(input: {config: Pick<EditStyleConfig, 'availableOverride' | 'orderOverride'>; hasPro: boolean}): EditStyleCatalogEntry[] {
+export function buildEditStyleCatalog(input: {config: Pick<EditStyleConfig, 'availableOverride' | 'orderOverride' | 'subjectStagePicker'>; hasPro: boolean}): EditStyleCatalogEntry[] {
   const order = csv(input.config.orderOverride).filter(isEditStyleId);
   const rank = (id: EditStyleId) => {
     const index = order.indexOf(id);
     return index >= 0 ? index : order.length + EDIT_STYLES[id].sortOrder;
   };
-  return EDIT_STYLE_IDS.map(id => EDIT_STYLES[id])
+  const listed: readonly EditStyleId[] = input.config.subjectStagePicker ? [...EDIT_STYLE_IDS, 'subject_stage'] : EDIT_STYLE_IDS;
+  return listed.map(id => EDIT_STYLES[id])
     .slice()
     .sort((a, b) => rank(a.id) - rank(b.id))
     .map((style, index) => ({
@@ -303,7 +307,7 @@ export function styleTier(id: EditStyleId | undefined): EditStyleTier | undefine
 /** The only styles a V1 release exposes: Free = Basic Captions, Pro = Kinetic Typography (cleanup runs inside it). Every other style stays in the registry for later versions. */
 export const V1_RELEASE_STYLES = ['basic_captions', 'kinetic_typography'] as const satisfies readonly EditStyleId[];
 
-export type V1ReleaseViolation = {code: 'bad_request' | 'footage_unsupported' | 'kinetic_unavailable'; message: string; details: {reason: string}};
+export type V1ReleaseViolation = {code: 'bad_request' | 'footage_unsupported' | 'kinetic_unavailable' | 'style_unavailable'; message: string; details: {reason: string}};
 
 /**
  * V1 release gate for POST /v1/edits/captions, evaluated after the request's style was resolved. Pure. Null = the request may proceed.
@@ -331,6 +335,16 @@ export function v1ReleaseViolation(input: {
   if (input.style === null) {
     if (input.mode === 'basic_captions') return null;
     return {code: 'bad_request', message: 'Update FinalPost to continue: this edit needs the latest app version.', details: {reason: 'style_required'}};
+  }
+  // Subject Stage (only startable here when SUBJECT_STAGE_PICKER is on; the style resolver refuses it otherwise): a talking-head cutout needs camera footage, and without the engine flags it would run as AI Clean Cut.
+  if (input.style === 'subject_stage') {
+    if (input.footageKind !== 'camera') {
+      return {code: 'footage_unsupported', message: 'This video cannot be edited in Subject Stage. Use a video recorded with your camera.', details: {reason: `footage_${input.footageKind ?? 'unknown'}`}};
+    }
+    if (!input.engineFlags) {
+      return {code: 'style_unavailable', message: 'Subject Stage is not available right now. Please try again later.', details: {reason: ENGINE_FLAGS_OFF_REASON}};
+    }
+    return null;
   }
   if (input.style !== 'kinetic_typography') return null;
   if (input.footageKind !== 'camera') {

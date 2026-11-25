@@ -40,6 +40,8 @@ export type AutoTrimResult = {
 
 /** Cuts shorter than this are not worth the extra timeline seam. */
 const MIN_CUT_SEC = 0.05;
+/** a trailing keep segment shorter than this (under one frame at 30 fps) is dropped instead of becoming an empty segment */
+const MIN_TAIL_SEGMENT_SEC = 1 / 30;
 /** Whisper on music/animation often returns 1–2 tokens; that map is not a silence timeline. */
 const MIN_WORDS_TO_TRIM = 6;
 /** Never throw away most of the source because ASR missed the speech. */
@@ -315,7 +317,9 @@ export function keepSegmentsFor(
     cursor = Math.max(cursor, range.end);
   }
 
-  if (cursor < sourceDurationSec) {
+  // a tail shorter than one frame (an exclusion ending a hair before the file end) is not a segment: rounded it is EMPTY (start == end), which the
+  // renderer still places for one frame past the source's last frame, and the kinetic matte then rejects the whole edit (matte_short)
+  if (sourceDurationSec - cursor >= MIN_TAIL_SEGMENT_SEC) {
     segments.push({
       sourceStart: round(cursor),
       sourceEnd: round(sourceDurationSec),

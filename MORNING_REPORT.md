@@ -1,3 +1,251 @@
+# 2026-11-25 (night) — aicut.mp4 review fixes + paid Kinetic run
+
+Owner-approved paid run (runner `server/src/scripts/kineticRun.ts`). Changes are uncommitted.
+
+## Spend
+Run aicut-20261125-174812: 10 Gemini calls (est. $0.0026), Groq transcript cached, one Runware bed $0.009 (failed QC on the loop seam alone, not used). Spend log: `out/kinetic-v2/aicut-20261125-174812/music/spend.log`. No Claude, no Lambda, no R2 writes.
+
+## Fixed
+- Slanted rows touching (COMPLETELY / DIFFERENT): rows are spaced on their projected (turned) edges (`slant.ts spaceRows`), new verifier rule `slant-row-gap`.
+- Missing words (first 3 words, "know about it"): composer splits a beat whose lead-in / tail a designed composition cannot draw into a caption-lane beat; new rule `word-coverage` (an edit with an unshown word fails closed). Result 71/71 (was 65/71).
+- Lane handover collision (one-frame overlap), takeover-spacing counted a slanted card's own rows, repair re-solve could repeat a neighbour's composition, slant history recorded the asked (not drawn) yaw.
+- Director (same single call, now memoised across re-solves) suggests text-behind beats and at most one Match Cut; `matchCut.ts directorMatchCut` keeps the structural rules (a setup with no reveal after it is refused). Decisions are logged as `kinetic_composer:match_cut:*` / `behind:ai:*`.
+- Matte rejected for a sub-frame empty tail keep segment (`autoTrim.ts`, `kineticMatteStage.ts`): behind text now runs (2 behind beats in the new edit).
+- AI colours on for the Pro style (`styleRun.ts kineticAiPalette`). Takes effect only where the Composer runs.
+- Music: `publicUrlForKey` follows local storage (dev); a bed failing ONLY the loop seam is used without its loop when it is longer than the video (never pooled). Local bed URLs allowed only with STORAGE_BACKEND=local.
+
+## Tests
+kinetic + filters + pipeline + lib vitest: all pass except known baseline (mattingRunner needs the RVM venv; assembler missing north-star fixture; layout determinism flake under load, passes alone). Music vitest 319/319, music pytest 92 passed. Server tsc clean.
+
+## Needs a human decision
+- Production does not list `POLISH_KINETIC_COMPOSER` in its env template: without it Pro edits use the plain V2 engine (no Composer, no AI colours, no AI behind / match cut).
+- Text-behind needs RVM on the server (not provisioned).
+- BGM for aicut.mp4 needs one more Runware generation (~$0.009) and clearing this video's local ledger record.
+
+# 2026-11-24 (afternoon) — Composer: one slant per frame, AI-chosen colours
+
+Changes are uncommitted. No paid calls (local compose and render only). `spend.log` does not exist in this checkout.
+
+## Slant
+- Cause: in the "AND THIRD / THEY ARE OFFERING / EXCLUSIVE HELP" frame the chip was flat, the plain words were turned as one block about its centre, so each row leaned at a different angle.
+- Fix: new `composer/slant.ts`.
+  - A beat with a chip or highlighter is entirely flat.
+  - A slanted multi-row block is split into rows, each turned about its own centre with the same yaw and pitch.
+  - New verifier rules: `slant-rows` and `slant-mixed`.
+  - `listItem` was removed from the slantable set, and the motion gate now counts only the treatments that can slant.
+- Local proof: the paid run's transcript and cuts recomposed without Gemini and rendered, at `out/renders/slant-fix-2026-11-24/live-slant.composer.mp4`. It shows 0 violations, and the "third" beat is flat.
+
+## Colour
+- Before this change, colours were not decided by AI. They came from the selected caption preset (Punchline is white with a yellow accent, and `#FFD400` is the fallback accent).
+- New flag `POLISH_KINETIC_AI_PALETTE`, default off. With it on, the Director picks a curated palette using the footage colour. It is in the same Gemini call, with no extra calls.
+
+## Tests
+- `vitest src/stages/kinetic`: 202/202 pass, including 4 new tests.
+- `src/lib`: passes except the existing `assembler.test.ts` failure, caused by the missing fixture `director-dump-northstar/04-blueprint-applied.json`.
+- Server `tsc`: clean.
+
+## Needs a decision
+- Should the AI palette be on by default for Pro? It overrides the preset's colours, and the V1 rule says the preset sets the identity.
+
+# 2026-11-24 — Full-pipeline Kinetic run: pre-flight fixes (paid run not yet re-run)
+
+Branch: `main`. Changes are uncommitted.
+
+## Spend so far
+One live attempt: 1 Groq call and 10 Gemini calls, about $0.005–0.01. It failed closed at the end with `v1_release_off`. No Claude, Runware, R2 or Lambda.
+
+## Fixed before the next paid run
+The runner is a scratchpad script modelled on `styleVerify.ts`:
+- It forces safe settings after the `.env` loads (it loads with override): `STORAGE_BACKEND=local`, R2/Claude/Runware keys blank, `MUSIC_SPECIALIST=off`, no Lambda, Gemini cap 12.
+- A fetch guard allows only Gemini, Groq and this machine.
+
+What changed:
+1. `V1_KINETIC_RELEASE=1` for the run. Without it the style ran the old polish path, not Kinetic V2 or the Composer.
+2. `footageKind: 'camera'` plus a caption preset (Punchline), as the app sends. Without `camera` the engine refuses at the end.
+3. The input `ai-render-….MP4` is an earlier render with burned-in captions. The clean original `Downloads/r.mp4` is used instead.
+4. **Engine fix (`compositions.ts`).** A highlighter or list chip drew before its word arrived (an empty yellow box for about 0.2 s). It now starts at the word's built entry. New test added.
+5. **Transcript cache.** The rehearsal's local transcript was removed from `kinmel-asr-cache`, so the live run calls Groq.
+
+## Free rehearsal (dummy keys, Gemini answered locally, transcript from local whisper)
+- The full pipeline completed and rendered: Kinetic V2 and the Composer ran (variety 81, 0 overlapping words, every box draws with its word).
+- Rehearsal output: `out/renders/full-pipeline-2026-11-24/rehearsal/edit.mp4`.
+
+## Tests
+`vitest src/stages/kinetic`: 198 of 198 pass. Server `tsc`: clean.
+
+## Live paid run (done, 13:39)
+- **Calls:** 1 Groq call and 11 Gemini calls (cap 12). The engine estimates $0.00528. Nothing else was called.
+- **Cleanup:** AI cleanup took the clip from 43.3 s to 40.3 s.
+- **Matte:** the RVM matte was ready (area 0.359), with 3 behind-the-speaker moments ("BETTER", "EASIER" and one more).
+- **Composer:** variety 75, 6 distinct treatments. It used the deterministic direction because the Gemini Kinetic Director call hit the cap. No Match Cut was planned.
+- **Remaining defect:** a 1-frame overlap of "way" with "best" in `b4` (`markerHighlight`, plain event against backed event). Not fixed yet.
+- **Output:** `out/renders/full-pipeline-2026-11-24/live/edit.mp4`.
+
+# 2026-11-23 — Composer: no overlapping words, uniform callout boxes, no underlines
+
+Branch: `main`. Changes are uncommitted. Spend: none: no paid calls, no R2, no render. `agents/music_specialist/spend.log` does not exist in this checkout.
+
+## Overlapping words (user screenshots: "findsensekes", "yousomeoneith", "BECATHREEF THE")
+- **Cause.** A regression from the earlier "settle before exit" change: a short-lived word was pulled to enter early, before the previous caption line or swap unit had left. Words also slid or dropped across neighbours that were already on screen.
+- **Fix (`kit.ts`).**
+  - A replacing word enters only after its predecessors' exit has ended.
+  - Exits are never pushed late.
+  - Side entries come from the clear side, or travel only as far as the gap; rise and drop stop short of the next row.
+  - Split plain and backed events see each other's words.
+- **New verifier rule** `word-collision` (`verify.ts`).
+- **Proof.** An independent frame-by-frame check, across all events, of the 5 corpus specs:
+
+  | | Overlapping word-frames |
+  |---|---|
+  | Old review specs | 459 |
+  | Specs after the fix | 0 |
+
+## Uneven boxes ("YOUR" and "LOSSES" in different boxes)
+`calloutBar` now draws one bar per visual row (grouped by overlap, not by exact centre), with one shared height and padding, and every word at one size.
+
+## Underline removed
+- Removed from `lineWipe` and `ctaCard`.
+- `shapeEl` no longer accepts `'underline'`; the renderer still draws it for old specs.
+- The Director prompt text was updated.
+
+## Tests
+- `vitest src/stages/kinetic`: 197 of 197 pass, including 2 new tests (no underlines with uniform bars; no collisions plus the rule firing on a forced overlap).
+- Server `tsc --noEmit`: clean.
+- Not re-rendered, by request.
+
+# 2026-11-23 — Composer: perspective slant and behind-the-speaker via RVM
+
+Branch: `main`. Changes are uncommitted. Spend: none.
+- RVM was installed in the session scratchpad only: torch from PyPI, plus the official `rvm_mobilenetv3.pth` from the RVM project's GitHub release (sha256 `3c7c1d92…cf4f8`).
+- Nothing was added to the repo or the `.env` files.
+- `POLISH_KINETIC_COMPOSER` and `POLISH_KINETIC_ENGINE_MATTE` stay off.
+
+## Slant
+- The in-plane rotation is replaced by perspective yaw: rotateY 20–40° by tone, sometimes with rotateX pitch, at a perspective of 950 px.
+- The projected block is fitted inside its free region: the yaw is trimmed if needed, then the block slides a few pixels.
+- Words on flat backings stay flat. In a list item, the item words slant while the chip stays flat.
+
+## Behind the speaker
+- The composer takes the RVM matte and places giant-word or hero-stack moments behind the head (intensity 0.6 or more, at most one every 6 s). Each word slides down onto the real head, measured on the matte, until 8–26% of it is covered.
+- Lead-in words stay in front.
+- Punch-ins are off when a matte is used.
+- `--matte` in the corpus CLI runs the production `prepareKineticMatte` stage, and the render layers the person foreground over the text.
+
+## Corpus
+| Clip | Matte | Behind moments |
+|---|---|---|
+| Kensington | Yes, area 0.36 | 3 |
+| Overtrading | Yes, area 0.46 | 2 |
+| Relationship | Yes, area 0.57 | 0 (the speaker fills more than 55% of the frame, so it is refused by rule) |
+| Three things | No: off-by-one frame (CLI bug, fixed) | — |
+| Thought of the day | No: off-by-one frame (CLI bug, fixed) | — |
+
+- The render was stopped by the system (low memory) after 2 of 5 MP4s.
+- The metric bug that counted `.b` backed events as repeats is fixed.
+
+## Tests
+- Composer vitest: 19 of 19 passed.
+- Server `tsc`: clean.
+
+# 2026-11-22 (later) — Kinetic Composer craft fixes and motion variety
+
+Branch: `main`. Changes are uncommitted. Spend: none. There were no Gemini, Claude, Lambda or R2 calls, and `spend.log` is absent. `POLISH_KINETIC_COMPOSER` stays off.
+
+## Fixes
+
+- **Backed text** (chips, highlighters, callout bars, question cards, takeover cards):
+  - Each backed word is split into its own event with no outline, no glow and no push. A new verifier rule, `backed-stroke`, enforces this.
+  - Padding is at least 0.34× the font size vertically and 0.24–0.30× horizontally, with wider row and word gaps.
+  - Colours come from curated pairs (`BACKED_PAIRS`). Mid-tone preset accents, such as salmon, are refused.
+- **Contrast:** the strike line is removed. The old word dims and leaves about 0.35 s after the new word lands.
+- **Motion:**
+  - A new optional `RenderEvent.rotateDeg` gives an in-plane angle (both schema copies updated; the Remotion `KineticEventView` applies it only when present).
+  - Type and its shapes turn about one pivot. The angle is trimmed until the rotated group stays in its free region; new verifier rules `rotated-safe-rect` and `rotated-face-keepout` check it.
+  - New `slide` and `slideOut` motions. Entry and exit sides are separate. Supporting words use their own motion pool per tone.
+  - A motion gate requires at least 5 entries, 3 exits, 2 side flips and 2 angled treatments. It re-plans with another seed up to twice, then fails closed to V2.
+- **Behind the speaker:** with a matte, a high-impact giant word can sit behind the speaker's head (at most one every 8 s), and the existing occlusion verifier judges it. A refused placement goes back to the front. Without a matte, which is V1 today and every local review, nothing is drawn behind.
+
+## Results (5 clips)
+
+| Measure | Range across the 5 clips |
+|---|---|
+| Distinct entries | 8–10 |
+| Distinct exits | 4–5 |
+| Side flips | 11–16 |
+| Angled treatments | 4–9 |
+| Variety score | 79–82 |
+
+Behind: 0 on every clip, because there is no matte.
+
+## Tests
+
+- Composer vitest: 19 of 19 passed.
+- Kinetic plus pipeline and flag suites: 275 passed.
+- Server `tsc` and Remotion `tsc`: clean.
+
+## Outputs
+
+- MP4s overwrite `out/renders/composer-review/*.composer.mp4`.
+- Proof stills are in `out/renders/composer-review/proof/<clip>/`.
+
+# 2026-11-22 — Kinetic Composer (varied kinetic typography engine, P0–P10)
+
+Branch: `main`. HEAD is `a3760bb1fa914624b275cd87fe78c40a9b3be9f4`. Changes are uncommitted. Nothing was pushed, merged or deployed.
+
+## Spend proof
+
+- `agents/music_specialist/spend.log` was absent at the start and absent at the end.
+- No Runware, Gemini, Groq, Claude, Lambda, R2, `first-video` or `analyzeVideo` run.
+- Transcripts for the corpus came from local faster-whisper (base.en, CPU) installed in the session scratchpad, which is free.
+- Renders used local Remotion only.
+
+## What was built
+
+Kinetic Composer is a beat-driven planning layer inside the Kinetic V2 engine, behind `POLISH_KINETIC_COMPOSER` (default **OFF**). Full description is in `server/src/stages/kinetic/composer/README.md`.
+
+| Phase | What was built |
+|---|---|
+| P0 | Variety metrics (`metrics.ts`) and a corpus harness (`cli.ts`) running on 5 real clips. |
+| P1 | Optional `RenderSpec.scene` and `RenderEvent.composition` fields (both schema copies kept identical), plus the Remotion `SceneLayer.tsx` for plates, shapes and counters. |
+| P2 | Beat analysis (`beats.ts`). |
+| P3 | 14 compositions plus the reduced-take ladder. |
+| P4 | Beat punch-ins solved against the zoomed face; a punch-in that displaces its beat is removed and the edit re-solved. |
+| P5 | Typography voice: preset identity plus companion faces. |
+| P6 | Edit direction (deterministic, with one optional Director call) and the variety controller. |
+| P7 | Caption lane. |
+| P8 | Composer guardrails (`verify.ts`) on top of `verifyRenderSpec`, with a repair loop. |
+| P9 | Flag, `kineticEngineStage` composer path with V2 fallback, `analyzeVideo` zoom handoff, cache key suffix `c`, B-roll split also drops scene elements. |
+| P10 | Corpus specs, stills and MP4 renders in `out/renders/composer-review/`. |
+
+## Results (same clips, same speaker box, deterministic, no Director)
+
+| Clip | Composer score | V2 baseline score | Designed time (composer / baseline) | Distinct treatments (composer / baseline) |
+|---|---|---|---|---|
+| Kensington | 75 | 25 | 55% / 22% | 8 / 2 |
+| Relationship | 77 | 19 | 55% / 24% | 7 / 1 |
+| Three things | 78 | 20 | 59% / 23% | 7 / 1 |
+| Thought of the day | 84 | 23 | 63% / 33% | 8 / 1 |
+| Overtrading | 73 | 24 | 53% / 24% | 7 / 2 |
+
+- Pairwise sameness across videos: 0.78 for the composer, 0.87 for the V2 baseline (designed treatments only).
+- All 15 treatments appear across the corpus. The composer has 0 back-to-back repeats; the baseline has 9–13 per clip.
+- The baseline's most-used treatment covers 86–100% of its lockups; the composer's covers 18–33%.
+
+## Tests
+
+- Composer vitest: 14 of 14 passed.
+- `src/stages/kinetic`, including the composer: 190 passed (final run).
+- `src/stages/kinetic` together with v1Release, styleRun, effectiveFlags and editStyles: 235 passed (run before the last composer fixes).
+- Pipeline and eval set (effectiveFlagsParity, phase523, finalizeEdits, editStyles pipeline and runner, kineticIdentity, fullEditLifecycle, wp57, editExecutionContracts, kineticAccess, capabilityAudit, recoverySwitch): all passed after one pin update. The pin was for the `muteRanges` line changed by the earlier Kinetic + B-roll task, a pin I had missed then.
+- `src/stages/broll`: 36 failures, the same count as the earlier baseline (missing proof artifacts and source pins).
+- Server `tsc` and Remotion `tsc`: clean.
+- Pytest was not run, because `agents/.venv` does not exist.
+
+## Needs a human decision
+
+- Turning `POLISH_KINETIC_COMPOSER` on for V1 Kinetic.
+- One live test with the Director on real clips. This is a paid Gemini call, one per edit, the same as V2 today.
+
 # 2026-11-18 — Kinetic entitlement access
 
 Branch: `main`. HEAD is still `9cf6c65431d115e10faa1e934cd9867ce26e1c2b`. Changes are uncommitted. Not pushed, merged or deployed.

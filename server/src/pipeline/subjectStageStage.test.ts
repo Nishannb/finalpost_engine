@@ -194,6 +194,54 @@ describe('runSubjectStage: flag matrix with a mocked matte', () => {
     expect(deps.extractRvm).not.toHaveBeenCalled();
     expect(deps.extractChroma).not.toHaveBeenCalled();
   });
+  describe('provided cutout verification (plan P2/P5)', () => {
+    const provided = {providedCutout: true, providedCutoutUrl: 'https://cdn.example/provided.webm', rvmConfigured: false} as const;
+    const verify = (download: (url: string, path: string) => Promise<void>) => ({providedVerify: {download, path: '/work/provided.webm'}});
+    it('a downloaded, sane asset is verified and used as the local matte', async () => {
+      const download = vi.fn(async () => {});
+      const deps = makeDeps();
+      const r = await runSubjectStage(runInput({...provided, ...verify(download)}, deps));
+      expect(r.active).toBe(true);
+      expect(download).toHaveBeenCalledWith('https://cdn.example/provided.webm', '/work/provided.webm');
+      expect(deps.probeAlpha).toHaveBeenCalledWith('/work/provided.webm');
+      expect(r.warnings).toContain('subject_stage:matte:provided_verified');
+    });
+    it('an empty / opaque / tiny asset makes the style skip (fail closed)', async () => {
+      for (const [alpha, bytes, reason] of [[0.0, 100_000, 'empty_alpha'], [0.99, 100_000, 'opaque_alpha'], [0.4, 100, 'tiny_file']] as const) {
+        const deps = makeDeps({probeAlpha: vi.fn(async () => alpha), fileBytes: vi.fn(async () => bytes)});
+        const r = await runSubjectStage(runInput({...provided, ...verify(async () => {})}, deps));
+        expect(r).toMatchObject({active: false, skipReason: 'matte_unavailable'});
+        expect(r.payload).toBeUndefined();
+        expect(r.warnings).toContain(`subject_stage:matte:provided_rejected:${reason}`);
+      }
+    });
+    it('a failed download keeps the old behaviour: used unverified', async () => {
+      const r = await runSubjectStage(runInput({...provided, ...verify(async () => { throw new Error('net'); })}, makeDeps()));
+      expect(r.active).toBe(true);
+      expect(r.source).toBe('provided');
+      expect(r.warnings).toContain('subject_stage:matte:provided_unverified');
+    });
+    it('a verified provided cutout is decoded into the matte grid for speaker protection; unverified stays on the speaker box', async () => {
+      const frames = Array.from({length: 40}, () => Uint8Array.from({length: 16 * 16}, (_, i) => ((i % 16) >= 4 && (i % 16) < 12 ? 255 : 0)));
+      const design = (decodeAlpha: (path: string, w: number, h: number) => Promise<unknown>) => ({
+        speaker: {box: {x: 0.25, y: 0.2, w: 0.5, h: 0.7}, source: 'vision' as const}, srcW: 1080, srcH: 1920, outW: 1080, outH: 1920, objectPosition: {x: 0.5, y: 0.42}, plate: null,
+        decodeAlpha: decodeAlpha as never, fps: 30,
+      });
+      const decode = vi.fn(async () => ({cols: 16, rows: 16, frames}));
+      const verified = await runSubjectStage(runInput({...provided, ...verify(async () => {}), design: design(decode)}, makeDeps()));
+      expect(decode).toHaveBeenCalledWith('/work/provided.webm', 1080, 1920);
+      expect(verified.warnings.some(w => w.startsWith('subject_stage:design:matte_grid:samples='))).toBe(true);
+      const decodeUnverified = vi.fn(async () => ({cols: 16, rows: 16, frames}));
+      await runSubjectStage(runInput({...provided, design: design(decodeUnverified)}, makeDeps()));
+      expect(decodeUnverified).not.toHaveBeenCalled();
+    });
+    it('no providedVerify = exactly as before (no download, no probe)', async () => {
+      const deps = makeDeps();
+      const r = await runSubjectStage(runInput({...provided}, deps));
+      expect(r.active).toBe(true);
+      expect(deps.probeAlpha).not.toHaveBeenCalled();
+    });
+  });
   it('RVM busy / failed -> the style is skipped with the matte reason, never half-on', async () => {
     const deps = makeDeps({extractRvm: vi.fn(async (args: {onSkip?: (r: string) => void}) => { args.onSkip?.('busy'); return null; })});
     const r = await runSubjectStage(runInput({rvmDevice: 'mps'}, deps));

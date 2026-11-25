@@ -14,6 +14,18 @@ These rules apply to every task in this repo, even if a later prompt forgets to 
 - **Spend check:** `agents/music_specialist/spend.log` must not change during your work. Check it at the start and end of every task, and report it.
 - **If a task seems to need a paid call, stop and ask.** Give the reason, the number of calls and the estimated cost.
 
+### Approved paid run: Kinetic Typography edit (owner approval, 2026-11-25)
+
+The one exception to the rules above. When the human asks for a kinetic typography edit of a clip, run it without asking again:
+
+    cd server && node --experimental-strip-types src/scripts/kineticRun.ts /path/to/clip.mp4 [--preset=punchline] [--no-matte]
+
+- Style `kinetic_typography` -> pipeline `kinetic_v2` + Composer, as the app requests it (`V1_KINETIC_RELEASE` on, footage `camera`). No engine or `.env` changes.
+- Calls Groq (1), Gemini (cap 12) and the production music path: pool first ($0, read-only GET of the public pool), else ONE Runware bed per video (cap `MUSIC_SPECIALIST_MAX_USD`, local file ledger `out/kinetic-v2/music-ledger/`). Storage and render are local (no R2 writes, no Lambda); Claude and stock search are blanked; a fetch guard refuses other hosts.
+- It fails (exit 1, no video) unless `editing_pipeline:kinetic_v2:selected`, `kinetic_composer:on` and `blueprint.kinetic` are all present.
+- Output: `out/kinetic-v2/<clip>-<timestamp>/edited.mp4` plus `report.json` (cost, Gemini calls) and `warnings.txt`. Give the human the absolute path of `edited.mp4`.
+- One run per request. Do not retry a run that made paid calls without asking.
+
 ## Storage
 
 - Do not write to R2 unless the task names the exact keys.

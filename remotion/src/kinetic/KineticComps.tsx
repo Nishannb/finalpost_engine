@@ -9,6 +9,8 @@ import React from 'react';
 import {AbsoluteFill, OffthreadVideo, staticFile} from 'remotion';
 import {z} from 'zod';
 
+import {zoomTriggerSchema} from '../blueprintSchema';
+import {ZoomFrame} from '../components/ZoomFrame';
 import {KineticTrack} from './KineticTrack';
 import {renderSpecSchema, type RenderSpec} from './spec';
 import {useCurrentFrame} from 'remotion';
@@ -21,12 +23,18 @@ export const kineticEditSchema = z.object({
   matteSrc: z.string().optional(),
   /** plain colour plate when there is no video */
   plateColor: z.string().default('#1b1f27'),
+  /** Kinetic Composer previews: the edit's punch-in zooms, applied to the plate exactly like ShortVideo (ZoomFrame). Default none = the plate as before. */
+  zoomTriggers: z.array(zoomTriggerSchema).default([]),
 });
 export type KineticEditProps = z.infer<typeof kineticEditSchema>;
 
-export const KineticEdit: React.FC<KineticEditProps> = ({spec, videoSrc, matteSrc, plateColor}) => (
+export const KineticEdit: React.FC<KineticEditProps> = ({spec, videoSrc, matteSrc, plateColor, zoomTriggers}) => (
   <AbsoluteFill style={{backgroundColor: plateColor}}>
-    {videoSrc ? <OffthreadVideo src={srcOf(videoSrc)} style={{position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover'}} /> : null}
+    {videoSrc ? (
+      <ZoomFrame triggers={zoomTriggers ?? []} enabled={(zoomTriggers ?? []).length > 0}>
+        <OffthreadVideo src={srcOf(videoSrc)} style={{position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: '50% 42%'}} />
+      </ZoomFrame>
+    ) : null}
     <KineticTrack spec={spec} layer="behind" foreground={Boolean(matteSrc)} />
     {matteSrc ? <OffthreadVideo src={srcOf(matteSrc)} muted transparent style={{position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover'}} /> : null}
     <KineticTrack spec={spec} layer="front" foreground={Boolean(matteSrc)} />

@@ -52,6 +52,15 @@ const KNOWN_BRAND =
 export const MAX_LOGO_GROUPS = 2;
 export const LOGO_GROUP_QUANTITIES = [3, 2] as const;
 export const DEFAULT_MAX_SLOTS = 12;
+/** Kinetic jobs ask for fewer, concrete cutaways: the talking head plus Kinetic type stays the edit. */
+export const KINETIC_MAX_BROLL_SLOTS = 5;
+const KINETIC_BROLL_SPACING_SEC = 8;
+const KINETIC_BROLL_SEC = 3.5;
+
+/** Concrete, showable things (not abstractions). `screen` cues ask for a screenshot, the rest for a clip or image. */
+const SCREEN_CUE = /^(app|dashboard|website|site|screen|interface|software|platform|browser|inbox|feed|page)$/i;
+const SHOWABLE_CUE =
+  /^(product|office|customer|customers|client|clients|team|store|shop|restaurant|factory|kitchen|gym|studio|stage|crowd|event|meeting|laptop|phone|desk|car|house|home|city|street|building|warehouse|garden|patient|students|classroom|class|results|result|demo|prototype|package|packaging|delivery|workshop|farm|beach|mountain|travel|workout|recipe|invoice|receipt|chart|graph)$/i;
 
 const slugOf = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'brand';
 
@@ -96,6 +105,8 @@ export function buildLabeledAssetBrief(input: {
   outputDurationSec: number;
   maxSlots?: number;
   windowSec?: number;
+  /** Kinetic Typography job: concrete B-roll asks first (grounded in the spoken line), no generic "optional B-roll" filler. */
+  kinetic?: boolean;
 }): LabeledAssetBrief {
   const maxSlots = input.maxSlots ?? DEFAULT_MAX_SLOTS;
   const windowSec = input.windowSec ?? 12;
@@ -111,6 +122,10 @@ export function buildLabeledAssetBrief(input: {
   const fullSpoken = input.words.map(word => word.text).join(' ').toLowerCase();
   const mentions = (label: string) => fullSpoken.split(label.toLowerCase()).length - 1;
   const brandGroups = new Set<string>();
+
+  if (input.kinetic) {
+    for (const slot of kineticBrollSlots(input.words, input.outputDurationSec)) push(slot);
+  }
 
   const windows = Math.max(1, Math.floor(input.outputDurationSec / windowSec));
   for (let index = 0; index < windows && slots.length < maxSlots; index++) {
@@ -219,7 +234,7 @@ export function buildLabeledAssetBrief(input: {
   }
 
   // Always offer one open slot for creator-chosen B-roll if the edit is long enough.
-  if (input.outputDurationSec >= 20 && slots.length < maxSlots) {
+  if (!input.kinetic && input.outputDurationSec >= 20 && slots.length < maxSlots) {
     push({
       id: 'asset_broll_1',
       label: 'Optional B-roll clip',
@@ -233,6 +248,44 @@ export function buildLabeledAssetBrief(input: {
   }
 
   return {version: 1, outputDurationSec: input.outputDurationSec, slots};
+}
+
+/**
+ * Kinetic: B-roll slots on the CLEANED timeline. A slot is a concrete showable thing the speaker names (a place, a thing, a screen),
+ * placed 3.5 s from the word, never in the opening 2 s or the last 1.5 s, at least 8 s apart, at most KINETIC_MAX_BROLL_SLOTS.
+ * Ids are deterministic from the transcript (`asset_broll_<n>`), so the resume pass (same cleaned words) binds the same slots.
+ */
+export function kineticBrollSlots(words: readonly CaptionWordLike[], outputDurationSec: number): Array<Omit<LabeledAssetSlot, 'status'>> {
+  const out: Array<Omit<LabeledAssetSlot, 'status'>> = [];
+  let lastStart = -Infinity;
+  const clean = (text: string) => text.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+  for (let i = 0; i < words.length && out.length < KINETIC_MAX_BROLL_SLOTS; i++) {
+    const word = words[i]!;
+    const cue = clean(word.text);
+    const screen = SCREEN_CUE.test(cue);
+    if (!screen && !SHOWABLE_CUE.test(cue)) continue;
+    const start = word.start;
+    if (start < 2 || start + KINETIC_BROLL_SEC > outputDurationSec - 1.5 || start - lastStart < KINETIC_BROLL_SPACING_SEC) continue;
+    const lineWords = words.filter(w => w.start >= start - 3 && w.start <= start + 3).map(w => w.text);
+    const line = lineWords.join(' ').slice(0, 100);
+    const prev = i > 0 && words[i - 1]!.end >= start - 0.4 ? clean(words[i - 1]!.text) : '';
+    const noun = prev && prev.length > 2 && !STOP_BRAND.test(prev) && !/^(the|your|our|their|and|for|with|from|into|that|this|these|those|its)$/.test(prev) ? `${prev} ${cue}` : cue;
+    const n = out.length + 1;
+    out.push({
+      id: `asset_broll_${n}`,
+      label: screen ? `Screenshot: ${noun}` : `Clip or image: ${noun}`,
+      kind: screen ? 'screenshot' : 'broll_clip',
+      reason: `You say "${line}" around ${start.toFixed(1)}s. Show it full-screen here; the edit cuts away from you to this for ~${KINETIC_BROLL_SEC}s.`,
+      startSec: start,
+      endSec: Math.min(outputDurationSec, start + KINETIC_BROLL_SEC),
+      accept: screen ? ['image'] : ['video', 'image'],
+      spokenHint: line,
+      required: false,
+      motionIntent: 'kinetic_broll_cutaway',
+    });
+    lastStart = start;
+  }
+  return out;
 }
 
 /** Bind an uploaded user asset id onto a slot (immutable update). */
