@@ -141,6 +141,23 @@ ensure_captionkit_deps() {
   fi
 }
 
+# Background music (systemd route only; the Docker image builds /app/agents/.venv itself). Without agents/.venv the engine runs the
+# system python3, which lacks the audio libraries: every edit then has no music (music.summary fallbackReason=no_bed). 2026-11-26.
+ensure_music_deps() {
+  local mode
+  mode="$(grep -E '^MUSIC_SPECIALIST=' .env 2>/dev/null | tail -1 | cut -d= -f2- | sed 's/#.*//' | tr -d '"' | tr -d "'" | xargs || true)"
+  if [[ -z "$mode" || "$mode" == "off" || "$mode" == "0" ]]; then
+    return 0
+  fi
+  if agents/.venv/bin/python -c 'import pydub, pyloudnorm, numpy, scipy, librosa' >/dev/null 2>&1; then
+    echo "==> Music specialist deps OK (agents/.venv)"
+    return 0
+  fi
+  echo "==> Music specialist deps missing; installing agents/.venv (one time, a few minutes)"
+  ./deploy/setup-music.sh >/dev/null || { echo "ERROR: ./deploy/setup-music.sh failed; music stays off until it succeeds" >&2; return 0; }
+  echo "==> Music specialist deps installed"
+}
+
 if [[ "$BUILD" -eq 1 ]]; then
   if [[ "$ROUTE" == "docker" ]]; then
     echo "==> Building Docker image kinmel-video-engine:$GIT_SHA"
@@ -148,6 +165,7 @@ if [[ "$BUILD" -eq 1 ]]; then
     docker build -t "kinmel-video-engine:$GIT_SHA" -t kinmel-video-engine:latest -t kinmel-video-engine .
   else
     ensure_captionkit_deps
+    ensure_music_deps
     echo "==> npm install"
     npm install
     echo "==> npm run build --workspace=server"

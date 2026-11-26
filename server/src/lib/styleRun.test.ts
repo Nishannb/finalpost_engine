@@ -105,7 +105,9 @@ describe('per-style Gemini cap (never uncapped)', () => {
   it('polish styles use the polish priority order (occupancy may use the pool); Clean Cut reserves its slot for the keep plan', () => {
     expect(run('kinetic_typography').geminiPlan).toBe(STYLED_POLISH_BUDGET_PLAN);
     expect(run('explainer').geminiPlan).toBe(STYLED_POLISH_BUDGET_PLAN);
-    expect(STYLED_POLISH_BUDGET_PLAN.order).toEqual(POLISH_BUDGET_PLAN.order);
+    // the polish order, plus one reserved slot for the B-roll opportunity detector (2026-11-26)
+    expect(STYLED_POLISH_BUDGET_PLAN.order).toEqual([...POLISH_BUDGET_PLAN.order, 'broll_opportunities']);
+    expect(createGeminiEditBudget(12, {plan: STYLED_POLISH_BUDGET_PLAN}).reserve('Gemini broll opportunities').ok).toBe(true);
     expect(STYLED_POLISH_BUDGET_PLAN.noPool).toBeUndefined();
     expect(POLISH_BUDGET_PLAN.noPool).toEqual(['occupancy']); // the env path is unchanged
     const styled = createGeminiEditBudget(12, {plan: STYLED_POLISH_BUDGET_PLAN});

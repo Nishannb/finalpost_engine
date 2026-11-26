@@ -335,8 +335,9 @@ export async function extractStillJpeg(
       '-loglevel',
       'error',
       '-y',
-      '-ss',
-      t.toFixed(2),
+      // 2026-11-26 ROOT CAUSE of "Could not extract a still frame" on every creator photo: an input seek (`-ss 0.00` before `-i`) on a
+      // single-image .jpg makes ffmpeg drop its only frame and exit 0 with no output. Frame 0 needs no seek, so none is passed.
+      ...(t > 0 ? ['-ss', t.toFixed(2)] : []),
       '-i',
       inputPath,
       '-frames:v',

@@ -102,6 +102,36 @@ function brandLabelsIn(spoken: string): string[] {
  * Brands → logo; capitalized full names → person; "screenshot/app/dashboard" → screenshot; product nouns → product.
  * Caps at `maxSlots` (default 12; WP26: a strong brand asks for a GROUP of 2-3 logo slots, one per upload). Does not invent stock URLs.
  */
+/**
+ * The asset an ask is really for: its kind plus its label without the generic words ("logo", "photo", "clip or image:", "1 of 3"),
+ * so "YouTube logo", "YouTube logo 2 of 3" and "Clip or image: YouTube logo" are one asset.
+ */
+export function askKey(slot: Pick<LabeledAssetSlot, 'kind' | 'label'>): string {
+  const core = slot.label
+    .toLowerCase()
+    .replace(/^(clip or image|screenshot):\s*/, '')
+    .replace(/\b\d+\s+of\s+\d+\b/g, '')
+    .replace(/\b(logo|logos|icon|photo|photos|picture|image|images|headshot|portrait|clip|video|screenshot|official|the|a|an)\b/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+  // a logo of a known brand is that brand, whatever words came with it ("On YouTube logo" = "YouTube logo")
+  const brand = slot.kind === 'logo' ? core.split(' ').find(word => KNOWN_BRAND.test(word)) : undefined;
+  if (brand) return `logo:${brand}`;
+  const trimmed = core.replace(/^((on|in|at|with|for|to|of|from|by|and|or|so|but)\s+)+/, '');
+  return `${slot.kind}:${trimmed || core || slot.label.toLowerCase().trim()}`;
+}
+
+/** One ask per asset (2026-11-26: the same YouTube logo was asked for 4-5 times). The first ask of each asset is kept. */
+export function uniqueAsks<T extends Pick<LabeledAssetSlot, 'kind' | 'label'>>(slots: readonly T[]): T[] {
+  const seen = new Set<string>();
+  return slots.filter(slot => {
+    const key = askKey(slot);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export function buildLabeledAssetBrief(input: {
   words: readonly CaptionWordLike[];
   outputDurationSec: number;
@@ -116,7 +146,7 @@ export function buildLabeledAssetBrief(input: {
   aiSlots?: ReadonlyArray<Omit<LabeledAssetSlot, 'status'>>;
 }): LabeledAssetBrief {
   if (input.aiSlots) {
-    return {version: 1, outputDurationSec: input.outputDurationSec, slots: input.aiSlots.slice(0, input.maxSlots ?? DEFAULT_MAX_SLOTS).map(slot => ({...slot, status: 'needed' as const}))};
+    return {version: 1, outputDurationSec: input.outputDurationSec, slots: uniqueAsks(input.aiSlots).slice(0, input.maxSlots ?? DEFAULT_MAX_SLOTS).map(slot => ({...slot, status: 'needed' as const}))};
   }
   const maxSlots = input.maxSlots ?? DEFAULT_MAX_SLOTS;
   const windowSec = input.windowSec ?? 12;
@@ -148,7 +178,9 @@ export function buildLabeledAssetBrief(input: {
 
     for (const label of brandLabelsIn(spoken)) {
       const groupIndex = brandGroups.size;
+      // Kinetic never asks for logo VARIANTS (the same brand 2-3 times for a logo cloud): one ask per asset (2026-11-26)
       const strong =
+        !input.kinetic &&
         groupIndex < MAX_LOGO_GROUPS &&
         !brandGroups.has(label.toLowerCase()) &&
         (KNOWN_BRAND.test(label) || mentions(label) >= 2);
@@ -257,7 +289,7 @@ export function buildLabeledAssetBrief(input: {
     });
   }
 
-  return {version: 1, outputDurationSec: input.outputDurationSec, slots};
+  return {version: 1, outputDurationSec: input.outputDurationSec, slots: input.kinetic ? uniqueAsks(slots) : slots};
 }
 
 /**

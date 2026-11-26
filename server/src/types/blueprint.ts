@@ -1373,6 +1373,8 @@ export type CaptionsEditJob = {
   assetBrief?: import('../stages/broll/labeledAssetBrief.ts').LabeledAssetBrief;
   /** `full_edit`: bindings the creator submitted (uploaded / skipped). Present = the gate was answered. */
   labeledAssetBindings?: import('../stages/broll/labeledAssetBrief.ts').LabeledAssetBinding[];
+  /** 2026-11-26: the FIRST analysis' diagnostics (the re-analysis after uploads replaces the saved blueprint, and with it why the first pass fell back). */
+  firstPassWarnings?: string[];
   /** `full_edit`: options captured at creation so a restarted engine can resume the same job. */
   fullEdit?: {
     userBrollUrls?: string[];

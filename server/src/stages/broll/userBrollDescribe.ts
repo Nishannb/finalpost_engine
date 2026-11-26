@@ -103,7 +103,8 @@ async function describeOne(
 ): Promise<UserBrollAsset | null> {
   const ext = extensionOf(url);
   const isImage = IMAGE_EXT.has(ext);
-  const localPath = workspace.file(`${id}_src${isImage ? ext || '.jpg' : ext || '.mp4'}`);
+  // a still is saved WITHOUT an extension: ffmpeg then detects the real format from the bytes (a PNG / WebP / GIF uploaded as .jpg decodes; with the .jpg name the mjpeg decoder was forced and failed)
+  const localPath = workspace.file(isImage ? `${id}_src_still` : `${id}_src${ext || '.mp4'}`);
   if (isLocalMediaPath(url)) {
     await copyLocalFile(url, localPath, {maxBytes: MAX_BYTES});
   } else {
@@ -132,7 +133,12 @@ async function describeOne(
   const frameA = workspace.file(`${id}_a.jpg`);
   const frameB = workspace.file(`${id}_b.jpg`);
   if (isImage) {
-    await extractStillJpeg(localPath, frameA, 0);
+    try {
+      await extractStillJpeg(localPath, frameA, 0);
+    } catch (error) {
+      // 2026-11-26: say WHAT the file really is (an iPhone HEIC saved as .jpg, an HTML error page, an empty upload ...), not just "no frame"
+      throw new Error(`${error instanceof Error ? error.message : String(error)} [${await sniffMedia(localPath)}]`);
+    }
     await fs.copyFile(frameA, frameB).catch(() => undefined);
   } else {
     await extractStillJpeg(localPath, frameA, durationSec * 0.2);
@@ -401,4 +407,27 @@ export function matchRegionToSpeech(
     }
   }
   return bestHits > 0 || asset.kind === 'document' ? best : null;
+}
+
+/** First bytes of a downloaded upload, as a short label for logs: heic / jpeg / png / webp / gif / html / empty / unknown(<hex>) plus the size. */
+export async function sniffMedia(file: string): Promise<string> {
+  try {
+    const stat = await fs.stat(file);
+    if (stat.size === 0) return 'empty:0B';
+    const fh = await fs.open(file, 'r');
+    const buf = Buffer.alloc(16);
+    await fh.read(buf, 0, 16, 0);
+    await fh.close();
+    const ascii = buf.toString('latin1');
+    const kind = ascii.slice(4, 8) === 'ftyp' ? (/heic|heix|mif1|msf1|heim|heis|hevc/.test(ascii.slice(8, 12)) ? 'heic' : `ftyp:${ascii.slice(8, 12)}`)
+      : buf[0] === 0xff && buf[1] === 0xd8 ? 'jpeg'
+      : buf[0] === 0x89 && ascii.slice(1, 4) === 'PNG' ? 'png'
+      : ascii.startsWith('RIFF') && ascii.slice(8, 12) === 'WEBP' ? 'webp'
+      : ascii.startsWith('GIF8') ? 'gif'
+      : /^\s*<(?:!doctype|html|\?xml)/i.test(ascii) ? 'html_or_xml'
+      : `unknown:${buf.subarray(0, 8).toString('hex')}`;
+    return `${kind}:${stat.size}B`;
+  } catch {
+    return 'unreadable';
+  }
 }

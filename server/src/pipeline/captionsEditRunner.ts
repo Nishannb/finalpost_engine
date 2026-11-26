@@ -718,6 +718,11 @@ async function continueFullEditAfterAnalysis(job: CaptionsEditJob): Promise<void
   if (brief && Array.isArray(brief.slots)) {
     job.assetBrief = brief;
   }
+  // keep the first pass' diagnostics for support (the post-upload re-analysis overwrites the saved blueprint)
+  if (!job.firstPassWarnings) {
+    const stats = (blueprint as {stats?: {warnings?: unknown}}).stats;
+    if (Array.isArray(stats?.warnings)) job.firstPassWarnings = (stats.warnings as unknown[]).filter((w): w is string => typeof w === 'string').slice(0, 200);
+  }
   job.updatedAt = new Date().toISOString();
   // Keep the plan with the job: the KV blueprint can expire long before the creator answers the asset gate.
   await saveDurableBlueprint(job, blueprint);

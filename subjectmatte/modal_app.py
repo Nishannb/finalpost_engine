@@ -21,8 +21,6 @@ The printed URL (…modal.run) + /matte goes to the engine env as RVM_REMOTE_URL
 Costs: billed per GPU-second while a request runs (plus a short idle window). The container scales to zero.
 """
 
-from __future__ import annotations
-
 import base64
 import hmac
 import os
@@ -75,6 +73,15 @@ app = modal.App("finalpost-rvm")
 )
 @modal.asgi_app()
 def web():
+    return build_api()
+
+
+def build_api():
+    """The worker's FastAPI app (no Modal objects here, so it can be tested locally).
+
+    No `from __future__ import annotations` in this file: FastAPI resolves the `Request` hint at definition time, and a string
+    annotation for a name imported inside this function made it read `request` as a required QUERY field (HTTP 422, 2026-11-26).
+    """
     import requests
     from fastapi import FastAPI, Header, HTTPException, Request
     from fastapi.responses import Response

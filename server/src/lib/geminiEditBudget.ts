@@ -98,7 +98,12 @@ export const CUTS_BUDGET_PLAN: BudgetPlan = {
  * one-attempt limit was set for an 8-request Gate 1 cap; under a style's own cap (12) it would stop occupancy's second call on every job and report a
  * fallback that the cap did not need. Used only by styled jobs; POLISH_BUDGET_PLAN (the env path) is unchanged.
  */
-export const STYLED_POLISH_BUDGET_PLAN: BudgetPlan = {order: POLISH_BUDGET_PLAN.order, labels: POLISH_BUDGET_PLAN.labels};
+export const STYLED_POLISH_BUDGET_PLAN: BudgetPlan = {
+  // 2026-11-26: the B-roll opportunity detector (one call, late in the pipeline) keeps its own slot: on a busy job the pool was spent before it ran
+  // and the edit fell back to the keyword asks (the same logo asked for several times).
+  order: [...POLISH_BUDGET_PLAN.order, 'broll_opportunities'],
+  labels: {...POLISH_BUDGET_PLAN.labels, 'Gemini broll opportunities': 'broll_opportunities'},
+};
 
 /** The budget plan for a profile: polish gets the polish plan, every other profile the default one. */
 export function geminiBudgetPlanFor(profile: ProductEditProfile | undefined): BudgetPlan {

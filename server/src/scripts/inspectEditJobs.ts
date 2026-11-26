@@ -10,7 +10,7 @@
  */
 import {env} from '../config/env.ts';
 
-const DIAG = /^(editing_pipeline:|style_|kinetic_|asset_brief:|refusal:|labeled_|broll_opportunit|v1_|polish_assets:|user_broll)/;
+const DIAG = /^(editing_pipeline:|style_|kinetic_|asset_brief:|refusal:|labeled_|broll_opportunit|v1_|polish_assets:|user_broll|music|gemini_)/;
 
 type Row = {edit_job_id: string; status: string; mode: string; created_at: string; asset_brief: unknown; job: Record<string, unknown>; blueprint?: Record<string, unknown> | null};
 
@@ -44,6 +44,11 @@ async function main(): Promise<void> {
     console.log(`  error: ${String(job.errorCode ?? '')} ${String(job.errorMessage ?? '')}`.trimEnd());
     console.log(`  blueprint saved: ${row.blueprint ? 'yes' : 'no'}  kinetic spec: ${kinetic ? `yes (${kinetic.events?.length ?? '?'} events)` : 'no'}`);
     console.log(`  B-roll asks: ${brief?.slots?.length ?? 0}${brief?.slots?.length ? `  [${brief.slots.map(s => `${s.kind}:${s.label}`).join(' | ')}]` : ''}`);
+    const first = Array.isArray(job.firstPassWarnings) ? (job.firstPassWarnings as unknown[]).filter((w): w is string => typeof w === 'string') : [];
+    if (first.length) {
+      console.log('  first pass (before uploads):');
+      for (const w of all ? first : first.filter(w => DIAG.test(w))) console.log(`    ${w.slice(0, 200)}`);
+    }
     console.log('  diagnostics:');
     for (const w of all ? warnings : warnings.filter(w => DIAG.test(w))) console.log(`    ${w.slice(0, 200)}`);
   }

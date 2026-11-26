@@ -1,3 +1,15 @@
+# 2026-11-26 (5): root causes of unplaced photos, missing music, failed Modal cutout
+
+Spend: none. Uncommitted.
+
+- **Photos never placed (root cause, reproduced):** `media/ffmpeg.ts extractStillJpeg` put `-ss 0.00` before `-i`. On a single-image `.jpg` that makes ffmpeg drop its only frame and exit 0 with no file, so every creator photo failed "Could not extract a still frame" (both production runs, all uploads).
+    - Reproduced with real ffmpeg on an Apple-encoded JPEG and on an ffmpeg-made JPEG. PNG and extensionless files were unaffected.
+    - Fix: no seek at frame 0. Test `media/stillFrame.test.ts` fails on the old code and passes now.
+- **No background music:** the droplet has `MUSIC_SPECIALIST=live` and a Runware key, but no `agents/.venv` (systemd route), so the specialist ran the system python3 without its audio libraries and every edit fell back to `no_bed`. The inline `.env` comments are harmless (dotenv strips them, loaded with override).
+    - Fix: `deploy.sh` now installs `agents/.venv` via `deploy/setup-music.sh` whenever music is on.
+- **Modal cutout HTTP 422:** `from __future__ import annotations` made FastAPI read `request: Request` as a query field. Removed; `build_api()` is tested locally with TestClient. Needs `modal deploy`.
+- **B-roll asks from the keyword fallback:** the detector has a reserved Gemini slot. First-pass diagnostics are kept on the job (`firstPassWarnings`) and the inspector shows them.
+
 # 2026-11-26 (4): uploaded-asset reuse, photo cropping, readable captions, one font
 
 Spend: none. Uncommitted. Needs the engine deploy AND `npm run remotion:deploy` (renderer changes).

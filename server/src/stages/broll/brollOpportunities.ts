@@ -17,7 +17,7 @@
 import {z} from 'zod';
 
 import type {DirectorCall} from '../kinetic/director.ts';
-import type {LabeledAssetKind, LabeledAssetSlot} from './labeledAssetBrief.ts';
+import {askKey, type LabeledAssetKind, type LabeledAssetSlot} from './labeledAssetBrief.ts';
 
 export type BrollWord = {text: string; start: number; end: number};
 
@@ -257,9 +257,14 @@ export function slotKindFor(o: Pick<BrollOpportunity, 'visual_type' | 'category'
 /** The creator's upload tags: one per uploadable opportunity, labelled with what to upload, timed on the real words. */
 export function brollOpportunitiesToSlots(opportunities: readonly BrollOpportunity[]): Array<Omit<LabeledAssetSlot, 'status'>> {
   const out: Array<Omit<LabeledAssetSlot, 'status'>> = [];
+  const asked = new Set<string>();
   for (const o of opportunities) {
     const ask = slotKindFor(o);
     if (!ask) continue;
+    // one ask per asset: two moments that need the same picture (the YouTube logo twice) ask for it once
+    const key = askKey({kind: ask.kind, label: o.upload_label || o.detected_entity || ''});
+    if (asked.has(key)) continue;
+    asked.add(key);
     const n = out.length + 1;
     out.push({
       id: `asset_ai_${n}`,
