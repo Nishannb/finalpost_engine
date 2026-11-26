@@ -724,6 +724,11 @@ export type VisualOverlay = {
   speakerSide?: 'top' | 'bottom';
   /** How the asset moves in — card spring, scroll, suspense blur, document focus. */
   treatment?: OverlayTreatment;
+  /**
+   * 2026-11-26 (Kinetic): a creator photo shown WHOLE (never cropped) as a full-frame backdrop: the photo contained in the upper frame over a blurred fill of itself.
+   * With the Kinetic person matte the presenter is drawn in front of it (subjectForeground spans cover its window). Only on `cutaway` + `image`.
+   */
+  backdrop?: boolean;
   cornerRadius?: number;
   glow?: boolean;
   focusRegion?: FocusRegion | null;

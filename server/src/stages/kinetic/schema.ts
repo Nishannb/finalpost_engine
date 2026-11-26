@@ -104,6 +104,8 @@ export const matchCutPropsSchema = z.strictObject({
   variant: matchCutVariantSchema,
   /** V1: camera-shutter treatment (scene cuts on the shutter click grid, directional motion blur on the moving text only). Absent = the original Match Cut, byte for byte. */
   shutter: z.boolean().optional(),
+  /** 2026-11-26 one font per edit: every glyph of the montage (keyword box included) is set in this face, the edit's own. Absent = the original per-scene typefaces, byte for byte. */
+  font: fontKeySchema.optional(),
 });
 export type MatchCutProps = z.infer<typeof matchCutPropsSchema>;
 

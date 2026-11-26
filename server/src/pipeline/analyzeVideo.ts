@@ -77,6 +77,7 @@ import {
 } from '../stages/broll/labeledAssetBrief.ts';
 import type {LabeledAssetSlot} from '../stages/broll/labeledAssetBrief.ts';
 import {BROLL_DETECTOR_LABEL, detectBrollOpportunities, type BrollOpportunity} from '../stages/broll/brollOpportunities.ts';
+import {mergeSpans, useEachUserAssetOnce} from '../stages/broll/userAssetOnce.ts';
 import {geminiDirectorCall, type DirectorCall} from '../stages/kinetic/director.ts';
 import {clampStickyEnds, dedupeStatKinetic, dropBubbleOverlays, dropDoubleStatEmphasis, paletteRepeats, refuseOverlappingImages} from '../stages/broll/craftMutualExclusion.ts';
 import {planKlipyOverlays} from '../stages/broll/klipyOverlayPlanner.ts';
@@ -1308,7 +1309,17 @@ async function analyzeVideoUnguarded(
       if (engine.composer) zoomTriggers = engine.composer.zoomTriggers.map(z => ({start: z.start, end: z.end, scale: z.scale, ...(z.focus ? {focus: z.focus} : {}), sentenceIndex: z.sentenceIndex}));
       if (engine.spec && kineticMatte?.ok) {
         const fg = planKineticForeground(engine.spec, outputFps, Math.ceil(timeline.outputDurationSec * outputFps));
-        if (fg.behindEvents === 0) warnings.push('kinetic_engine:matte_unused:no_behind_events');
+        // 2026-11-26: creator photos become backdrops BEHIND the presenter (labeledAssetPlacement backdrop); their windows are added to the spans after placement,
+        // so the foreground is kept whenever uploads were bound, even with no behind-text event.
+        const backdropsExpected = (input.labeledAssetBindings ?? []).some(binding => binding.status === 'uploaded');
+        if (fg.behindEvents === 0 && backdropsExpected) {
+          try {
+            kineticEngineForeground = {videoUrl: (await uploadSourceVideo(kineticMatte.foregroundPath, '.webm')).publicUrl, spans: []};
+            warnings.push('kinetic_engine:foreground_kept_for_backdrops');
+          } catch (error) {
+            warnings.push(`kinetic_engine:foreground_upload_failed:${(error instanceof Error ? error.message : String(error)).slice(0, 80)}`);
+          }
+        } else if (fg.behindEvents === 0) warnings.push('kinetic_engine:matte_unused:no_behind_events');
         else {
           let url = '';
           if (!fg.ok) warnings.push('kinetic_engine:foreground_spans_incomplete');
@@ -2081,6 +2092,14 @@ async function analyzeVideoUnguarded(
       }
       if (placedOverlays.length > 0) broll.overlays = [...broll.overlays, ...placedOverlays];
       warnings.push(...labeledAssetWarnings(placement));
+      // 2026-11-26: a photo backdrop sits BEHIND the presenter: the Kinetic person matte is drawn over its whole window (else it is a plain uncropped cutaway).
+      const backdrops = placedOverlays.filter(overlay => overlay.backdrop).map(overlay => ({start: overlay.start, end: overlay.end}));
+      if (backdrops.length > 0 && kineticEngineForeground) {
+        kineticEngineForeground = {...kineticEngineForeground, spans: mergeSpans([...kineticEngineForeground.spans, ...backdrops])};
+        warnings.push(`polish_assets:backdrop_behind_presenter:${backdrops.length}`);
+      } else if (backdrops.length > 0) {
+        warnings.push(`polish_assets:backdrop_no_matte:${backdrops.length}`);
+      }
     }
     // WP36: FACELESS DOCUMENTARY LANE (opt-in, POLISH_FACELESS_DOC=1; default off, so talking-head polish is unchanged): the talking head is not the world. One literal stock still per WP33 cut-plan shot
     // (hard cuts, push-in, ~15 % framed fly-out cards) covers ~100 % of the runtime; chapter cards stay on their own span. It REPLACES the WP30 montage (below), runs after the WP33 plan (the clock) and before
@@ -2277,7 +2296,8 @@ async function analyzeVideoUnguarded(
       const boundVideoIds = new Set((assetBrief?.slots ?? []).filter(slot => slot.status === 'uploaded' && slot.kind === 'broll_clip' && slot.userAssetId).map(slot => slot.userAssetId!));
       const usedUrls = new Set([...broll.overlays.map(overlay => overlay.assetUrl), ...broll.clips.map(clip => clip.assetUrl)]);
       const videos = [...userAssetIdByUrl].map(([url, id]) => ({url, userAssetId: id, mediaKind: mediaKindOfUrl(url)})).filter(item => item.mediaKind === 'video');
-      const sources = [...videos.filter(item => boundVideoIds.has(item.userAssetId)), ...videos.filter(item => !boundVideoIds.has(item.userAssetId) && !usedUrls.has(item.url))];
+      // every creator asset is used ONCE (2026-11-26: a bound clip was placed for its ask and again as a filler cutaway)
+      const sources = [...videos.filter(item => boundVideoIds.has(item.userAssetId) && !usedUrls.has(item.url)), ...videos.filter(item => !boundVideoIds.has(item.userAssetId) && !usedUrls.has(item.url))];
       const fullScreen = [
         ...broll.clips.map(clip => ({start: clip.start, end: clip.end})),
         ...(broll.mediaContainers ?? []).map(item => ({start: item.start, end: item.end})),
@@ -2974,6 +2994,13 @@ async function analyzeVideoUnguarded(
         audioDesign = {...audioDesign, ducking: audioDesign?.ducking ?? true, sfx: audioDesign?.sfx ?? [], hits: [...(audioDesign?.hits ?? []), ...shutter.hits].sort((a, b) => a.at - b.at)};
       }
     }
+    // 2026-11-26: every creator asset appears ONCE. Any later lane that re-placed an upload (filler clips, the director) loses to the first placement.
+    if (polishPath) {
+      const once = useEachUserAssetOnce(broll.clips, broll.overlays);
+      broll.clips = once.clips;
+      broll.overlays = once.overlays;
+      if (once.removed > 0) warnings.push(`polish_assets:duplicate_use_removed:${once.removed}`);
+    }
     let stageCutaways: NonNullable<SubjectStageBlueprint['cutaways']> = [];
     if (kineticEngineSpec) {
       // Phase 5.13: last line of defence, after every stage that can append text and immediately before the blueprint is assembled. A correct run changes nothing here; anything removed was added
@@ -3076,7 +3103,7 @@ async function analyzeVideoUnguarded(
       // WP55 phase 2: the cut-aware person foreground drawn above kinetic environmental type (separate from speakerCutout: a range-limited matte must not drive the full-length depth / behind-subject tracks)
       ...(kineticEngineSpec ? {kinetic: kineticEngineSpec} : {}),
       ...(kineticForeground ? {subjectForeground: {videoUrl: kineticForeground.videoUrl, spans: kineticForeground.spans}} : {}),
-      ...(!kineticForeground && kineticEngineSpec && kineticEngineForeground ? {subjectForeground: kineticEngineForeground} : {}), // Phase 5: the Kinetic V2 matte foreground (the template path above never runs when the engine owns the edit)
+      ...(!kineticForeground && kineticEngineSpec && kineticEngineForeground && kineticEngineForeground.spans.length > 0 ? {subjectForeground: kineticEngineForeground} : {}), // Phase 5: the Kinetic V2 matte foreground (the template path above never runs when the engine owns the edit)
       // SUBJECT STAGE (only when POLISH_SUBJECT_STAGE ran with a usable matte; absent otherwise)
       ...(subjectStagePayload ? {subjectStage: subjectStagePayload} : {}),
       // Phase 5.24: the full-screen cutaways the Subject Stage adopted into its own plan (subjectStagePictureOwnership)

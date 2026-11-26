@@ -143,6 +143,20 @@ const OverlayView: React.FC<{
     config: {damping: 20, mass: 1.05, stiffness: 72},
   });
 
+  if (overlay.layout === 'cutaway' && overlay.backdrop && overlay.mediaKind === 'image' && overlay.assetUrl) {
+    // 2026-11-26 (Kinetic): the creator's photo exactly as given (contain, never cropped), in the upper frame over a blurred fill of itself.
+    // The person matte (SubjectForegroundTrack, drawn above this track) covers the window, so the presenter stands in front of the photo.
+    const src = resolveMediaSrc(overlay.assetUrl);
+    return (
+      <AbsoluteFill style={{opacity}}>
+        <Img src={src} style={{width: '100%', height: '100%', objectFit: 'cover', transform: 'scale(1.12)', filter: 'blur(28px) saturate(1.1) brightness(0.5)'}} />
+        <div style={{position: 'absolute', left: width * 0.04, right: width * 0.04, top: height * 0.1, height: height * 0.5, display: 'flex', alignItems: 'center', justifyContent: 'center', transform: `scale(${0.96 + pop * 0.04})`}}>
+          <Img src={src} style={{maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: Math.round(width * 0.02), boxShadow: '0 24px 60px rgba(0,0,0,0.45)'}} />
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
   if (overlay.layout === 'cutaway') {
     return (
       <AbsoluteFill style={{opacity}}>

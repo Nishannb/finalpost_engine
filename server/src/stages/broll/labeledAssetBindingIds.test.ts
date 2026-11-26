@@ -44,3 +44,33 @@ describe('labeled asset bindings use the engine asset ids', () => {
     expect(placement.placed).toBe(1);
   });
 });
+
+import {mergeSpans, useEachUserAssetOnce} from './userAssetOnce.ts';
+
+describe('Kinetic creator photos and asset reuse (2026-11-26)', () => {
+  const bound = applyLabeledAssetBindings(brief, bindings, idByUrl);
+  const assets = new Map([['ub_1', {url: URL_A, mediaKind: 'image' as const}], ['ub_2', {url: URL_B, mediaKind: 'image' as const}]]);
+
+  it('in Kinetic every photo is a whole (uncropped) full-frame backdrop, never a square card over the face', () => {
+    const placement = planLabeledAssetPlacements({brief: bound, assets, outputDurationSec: 28, fullFrameBrollStills: true});
+    expect(placement.runs).toHaveLength(0); // no slideshow / image run that would crop it into a card
+    expect(placement.overlays.map(o => [o.layout, o.backdrop])).toEqual([['cutaway', true], ['cutaway', true]]);
+  });
+
+  it('outside Kinetic the old card placement is unchanged', () => {
+    const placement = planLabeledAssetPlacements({brief: bound, assets, outputDurationSec: 28});
+    expect(placement.overlays.every(o => !o.backdrop && o.layout !== 'cutaway')).toBe(true);
+  });
+
+  it('an upload placed twice keeps only its first placement; slideshow slides count', () => {
+    const clip = (start: number, url: string, provider = 'user') => ({start, provider, assetUrl: url});
+    const out = useEachUserAssetOnce([clip(10, URL_A)], [clip(2, URL_A), clip(5, URL_B), {...clip(12, 'https://x/c.jpg'), slides: [{assetUrl: URL_B}]}, clip(14, URL_A, 'pexels')]);
+    expect(out.removed).toBe(2);
+    expect(out.overlays.map(o => o.start)).toEqual([2, 5, 14]);
+    expect(out.clips).toHaveLength(0);
+  });
+
+  it('matte spans merge', () => {
+    expect(mergeSpans([{start: 4, end: 6}, {start: 1, end: 2}, {start: 5.5, end: 8}])).toEqual([{start: 1, end: 2}, {start: 4, end: 8}]);
+  });
+});

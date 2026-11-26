@@ -1,3 +1,21 @@
+# 2026-11-26 (4): uploaded-asset reuse, photo cropping, readable captions, one font
+
+Spend: none. Uncommitted. Needs the engine deploy AND `npm run remotion:deploy` (renderer changes).
+
+- **Assets used once:** the WP20 filler lane put bound `broll_clip` uploads first without checking `usedUrls`, so a clip played for its ask and again as filler. Now every source must be unused. A final guard (`stages/broll/userAssetOnce.ts useEachUserAssetOnce`) keeps only the first placement of each creator URL (`polish_assets:duplicate_use_removed:N`).
+- **Photos whole and behind the presenter (Kinetic):** the asset step hardcoded 1080x1080 cards (person / screenshot = top-right card over the face).
+    - Now every photo is a `cutaway` with `backdrop: true`. `VisualOverlayTrack` draws the photo with contain (never cropped) in the upper frame over a blurred fill of itself.
+    - The windows are added to the Kinetic `subjectForeground` spans, so the person matte (drawn above overlays) stands in front. The foreground is now kept whenever uploads were bound, even with no behind-text event.
+    - Without a matte it is an uncropped cutaway (`polish_assets:backdrop_no_matte`). Non-Kinetic placement is unchanged.
+- **Readable captions (caption lane):** lines revealed word by word and were cut when the next line's word began, so a line's last word showed for about one word's length (8 frames; 3 with long caps words that split one per row).
+    - A lane unit now appears whole, stays up about 1 s or until 2 rows / 6 words, and a short closing unit joins the previous one. Touching coverage ranges merge, so there is no 1-word 8-frame lane beat.
+    - Measured on a 0.3 s/word script: minimum on-screen 17 frames (was 8).
+    - Lane beats also get at least 0.75 s after the last word starts, when the next beat allows.
+- **One font per edit:** `voice.ts oneFace` sets every role in the preset's face (no preset: Anton, caps). The Match Cut carries `font` (new optional `matchCutProps.font`; absent = the old per-scene typefaces, byte for byte) and its keyword line uses the edit face. The keyword was hardcoded `poppins`, likely the "one word in a different font".
+- **Counter:** a too-long context keeps the words next to the number (never scattered content words, whose middle gap sent the whole beat to the lane), and "0 to 10k" counts as shown by the counter.
+- **Known limitation:** about 270 wpm synthetic speech still fails the Composer (V2 fallback), as before these changes.
+- **Tests:** kinetic 212, pipeline, the broll asset suites and the full-edit lifecycle pass (the `mattingRunner` baseline is the only failure). Engine and remotion tsc are clean.
+
 # 2026-11-26 (3): speaker cutout on a Modal GPU; droplet was never updated
 
 Spend: none. Modal was not called or deployed; `modal` was only pip-installed in the scratchpad to import-check the app.

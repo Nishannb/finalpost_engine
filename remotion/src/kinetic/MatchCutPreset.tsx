@@ -8,6 +8,7 @@ import {Sequence, useVideoConfig} from 'remotion';
 
 import {TypeTextMatchCut} from '../motion/compositions/templates/TextMatchCut';
 import type {PresetProps} from './primitives';
+import {FONT_STACK as KINETIC_FONT_STACK} from './fonts';
 
 export const TypeMatchCutPreset: React.FC<PresetProps> = ({event}) => {
   const {width, height} = useVideoConfig();
@@ -27,6 +28,7 @@ export const TypeMatchCutPreset: React.FC<PresetProps> = ({event}) => {
         variant={m.variant}
         durationInFrames={dur}
         {...(m.shutter ? {shutter: true} : {})}
+        {...(m.font ? {fontFamily: KINETIC_FONT_STACK[m.font]} : {})}
       />
     </Sequence>
   );

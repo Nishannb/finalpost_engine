@@ -40,6 +40,8 @@ export type TypeTextMatchCutProps = {
   durationInFrames?: number;
   /** V1 camera-shutter treatment (see lib/textMatchCut.ts). Absent / false = the original Match Cut, unchanged. */
   shutter?: boolean;
+  /** 2026-11-26 one font per edit: a CSS font stack every row (keyword box included) is set in. Absent = the per-scene typefaces, unchanged. */
+  fontFamily?: string;
 };
 
 const FONT_STACK: Record<MatchFont, string> = {
@@ -80,7 +82,7 @@ const Decor: React.FC<{d: MatchDecor; width: number; height: number; ay: number;
  * TEXT MATCH CUT (kinetic_text, full-frame, hard cuts only; silent). One spoken keyword stays locked inside a sharp highlight box at a fixed anchor while the whole layout (typeface, scale, rotation, background) is replaced
  * on every cut. Surrounding type is the speaker's own words, cropped by the frame and blurred by distance. Three grammars: memo (T1, mono/serif/sans, static), editorial (T2, linear 1.00 -> 1.14 push-in), newsprint (T3, per-cut background tint).
  */
-export const TypeTextMatchCut: React.FC<TypeTextMatchCutProps> = ({width, height, keyword, swapKeyword, phrase, before, after, variant, durationInFrames, shutter}) => {
+export const TypeTextMatchCut: React.FC<TypeTextMatchCutProps> = ({width, height, keyword, swapKeyword, phrase, before, after, variant, durationInFrames, shutter, fontFamily}) => {
   const frame = useCurrentFrame();
   const cfg = useVideoConfig();
   const fps = cfg.fps;
@@ -120,7 +122,7 @@ export const TypeTextMatchCut: React.FC<TypeTextMatchCutProps> = ({width, height
   };
 
   const renderRow = (row: MatchRow, i: number) => {
-    const fam = FONT_STACK[row.font];
+    const fam = fontFamily ?? FONT_STACK[row.font];
     const px = row.size * F;
     const blur = BLUR_PX(row.blur ?? 0, width);
     const common: React.CSSProperties = {fontFamily: fam, fontWeight: row.weight ?? (row.font === 'mono' ? 400 : row.font === 'script' ? 400 : 500), fontStyle: row.italic ? 'italic' : 'normal', letterSpacing: row.tracking ? `${row.tracking}em` : undefined, lineHeight: 1.05, whiteSpace: 'nowrap'};

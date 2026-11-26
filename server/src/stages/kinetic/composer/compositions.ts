@@ -436,7 +436,9 @@ const counterStat: Solver = (slot, ctx, z) => {
   const v = slot.variant;
   const rect = inset(zr.rect, 0.02 * ctx.W, 0.005 * ctx.H);
   const [a, b] = slot.beat.wordRange;
-  const allCtx = allowed(slot, idxRange(a, b)).filter(i => !st.wordIdx.includes(i));
+  // the words BETWEEN the numbers ("0 to 10k") are what the count-up itself shows: they belong to the counter, not to the context line
+  const statSpan = idxRange(Math.min(...st.wordIdx), Math.max(...st.wordIdx));
+  const allCtx = allowed(slot, idxRange(a, b)).filter(i => !statSpan.includes(i));
   const font = ctx.voice.display;
   const weight = ctx.voice.displayWeight;
   const finalText = `${st.prefix}${st.to.toLocaleString('en-US', {maximumFractionDigits: st.decimals, minimumFractionDigits: st.decimals})}${st.suffix}`;
@@ -444,8 +446,11 @@ const counterStat: Solver = (slot, ctx, z) => {
   const rh = rectH(rect), rw = rectW(rect);
   const smallPx = smallFloorPx(ctx.H);
   // ladder: every context word, then the content words (<= 3, then <= 2), then none. A context line that does not fit moves to the next take (never kills the counter).
-  const content = allCtx.filter(i => isContent(ctx.words[i]!.text));
-  const takes = [allCtx.length <= 6 ? allCtx : [], content.slice(0, 3), content.slice(0, 2), []];
+  // 2026-11-26: a shorter take keeps words NEXT TO the number (the words right after it, else right before it), never scattered content words: a gap in the middle of the
+  // beat sent the whole beat to the caption lane, a gap at its edge only moves those edge words to the lane and the counter stays
+  const after = allCtx.filter(i => i > statSpan[statSpan.length - 1]!);
+  const before = allCtx.filter(i => i < statSpan[0]!);
+  const takes = [allCtx.length <= 6 ? allCtx : [], after.slice(0, 3), after.slice(0, 2), before.slice(-3), before.slice(-2), []];
   let shown: number[] = [];
   let fontPx = 0;
   let cy0 = 0;
@@ -476,7 +481,7 @@ const counterStat: Solver = (slot, ctx, z) => {
   const counter = counterEl(`${slot.beat.id}-count`, {inFrame: countStart, outFrame: slot.outFrame, countStart, countEnd, from: st.from, to: st.to, decimals: st.decimals, prefix: st.prefix, suffix: st.suffix, cx, cy: cy0 + cH / 2, w: cW, h: cH, fontPx, font, weight, color: ctx.voice.accent,
     strokeColor: ctx.voice.outline?.color ?? (worstContrast([ctx.voice.accent], bg) < 3 ? contrastStrokeColor(ctx.scene.luminance) : null), glowColor: v.voice === 'gradient' || v.voice === 'loud' ? ctx.voice.accent : null});
   const events = ctxPlaced.length ? [buildEvent({id: `${slot.beat.id}-stat`, composition: 'counterStat', placed: ctxPlaced, words: ctx.words, inFrame: slot.inFrame, outFrame: slot.outFrame, fps: ctx.fps, exitVerb: v.exit, dir: v.dir, exitDir: v.exitDir, wordRange: slot.beat.wordRange, shadow: shadowFor(ctx, colorsOf(ctxPlaced), false, ctxPlaced), push: 1.015})] : [];
-  return result(events, [...plateFor(slot, ctx, slot.beat.id, {x: cx / ctx.W, y: (cy0 + cH / 2) / ctx.H}), counter], [...st.wordIdx, ...shown], zr.key, [`counter:${finalText}`]);
+  return result(events, [...plateFor(slot, ctx, slot.beat.id, {x: cx / ctx.W, y: (cy0 + cH / 2) / ctx.H}), counter], [...statSpan, ...shown], zr.key, [`counter:${finalText}`]);
 };
 
 /** a list item: the spoken marker in a chip, the item's words as a headline next to / under it. All items of a list share the same layout. */

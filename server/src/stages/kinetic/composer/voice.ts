@@ -29,6 +29,18 @@ export const DEFAULT_VOICE: Voice = {
   text: '#FFFFFF', accent: '#FFD400', accent2: '#FF5A36', ink: '#111111', upper: null, outline: null, shadowColor: 'rgba(0,0,0,0.55)',
 };
 
+/**
+ * ONE FONT PER EDIT (owner rule, 2026-11-26): every role is set in the edit's primary face. Hierarchy comes from size, case, colour, weight where the face has it, and motion,
+ * never from a second typeface (a single word in a condensed / serif / script companion read as a mistake). Applied by the composer to the preset voice and the default voice.
+ */
+export function oneFace(voice: Voice): Voice {
+  // the selected preset's face is THE face; with no preset, Kinetic's own display face (a text face cannot carry the heroes)
+  const face = voice.presetId === null ? voice.display : voice.primary;
+  const weight = voice.presetId === null ? voice.displayWeight : voice.primaryWeight;
+  // no preset: Kinetic's display face set in caps (a condensed display face is a caps face; the preset path keeps the preset's own case)
+  return {...voice, primary: face, primaryWeight: weight, display: face, displayWeight: weight, editorial: face, condensed: face, small: face, smallWeight: weight, ...(voice.presetId === null && voice.upper === null ? {upper: true} : {})};
+}
+
 export function voiceFromIdentity(identity: KineticIdentity | undefined): Voice {
   if (!identity) return DEFAULT_VOICE;
   const fam = FAMILY_OF[identity.font] ?? 'geometric';
@@ -80,9 +92,9 @@ export function styleFor(voice: Voice, variant: VoiceVariant, role: 'key' | 'ctx
   if (role === 'conn') return plain(voice.small, voice.smallWeight, false, voice.text);
   switch (variant) {
     case 'loud': return role === 'key' ? plain(voice.display, voice.displayWeight, true, voice.accent) : plain(voice.primary, voice.primaryWeight, true, voice.text);
-    case 'editorial': return role === 'key' ? {...plain(voice.editorial, voice.editorial === 'playfairItalic' ? 700 : 400, false, voice.text, voice.editorial === 'playfairItalic'), uppercase: voice.upper === true} : plain(voice.small, voice.smallWeight, false, voice.text);
+    case 'editorial': return role === 'key' ? {...plain(voice.editorial, voice.editorial === voice.primary ? voice.primaryWeight : voice.editorial === 'playfairItalic' ? 700 : 400, false, voice.text, voice.editorial === 'playfairItalic'), uppercase: voice.upper === true} : plain(voice.small, voice.smallWeight, false, voice.text);
     case 'clean': return role === 'key' ? plain(voice.primary, Math.max(voice.primaryWeight, 800), false, voice.accent) : plain(voice.primary, voice.primaryWeight, false, voice.text);
     case 'gradient': return role === 'key' ? {...plain(voice.display, voice.displayWeight, true, voice.accent), gradient: [voice.accent, voice.accent2]} : plain(voice.primary, voice.primaryWeight, true, voice.text);
-    case 'mixed': default: return role === 'key' ? plain(voice.display, voice.displayWeight, true, voice.text) : plain(voice.editorial, voice.editorial === 'playfairItalic' ? 700 : 400, false, voice.accent, voice.editorial === 'playfairItalic');
+    case 'mixed': default: return role === 'key' ? plain(voice.display, voice.displayWeight, true, voice.text) : plain(voice.editorial, voice.editorial === voice.primary ? voice.primaryWeight : voice.editorial === 'playfairItalic' ? 700 : 400, false, voice.accent, voice.editorial === 'playfairItalic');
   }
 }

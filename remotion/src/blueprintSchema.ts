@@ -427,6 +427,8 @@ export const visualOverlaySchema = z.object({
     .default('card'),
   cornerRadius: z.number().optional().default(28),
   glow: z.boolean().optional().default(true),
+  /** 2026-11-26 (Kinetic): a creator photo shown whole (contain, never cropped) over a blurred fill of itself; the person matte is drawn in front of it. Only on cutaway + image. */
+  backdrop: z.boolean().optional(),
   focusRegion: z
     .object({
       x: z.number(),

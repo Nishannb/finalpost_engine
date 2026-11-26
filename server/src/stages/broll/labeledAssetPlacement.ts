@@ -94,9 +94,11 @@ const overlaps = (a: TimeRange, b: TimeRange) => a.start < b.end && a.end > b.st
 /** WP19: the image_story entrance each kind of upload gets (overlay `recipeId` and ImageRun item `recipeId`). */
 export const RECIPE_BY_KIND: Readonly<Record<LabeledAssetKind, string | undefined>> = {logo: 'logo_slam', person: 'still_push_in', screenshot: 'card_tilt_in', product: 'sticker_pop', broll_clip: undefined, other: 'nested_scale_in'};
 
-type Host = {layout: VisualOverlay['layout']; anchor: VisualAnchor; weight: 'accent' | 'hero'; radius: number};
+type Host = {layout: VisualOverlay['layout']; anchor: VisualAnchor; weight: 'accent' | 'hero'; radius: number; backdrop?: boolean};
 
 function hostFor(kind: LabeledAssetKind, mediaKind: 'image' | 'video', fullFrameStills = false): Host {
+  // Kinetic (2026-11-26): every creator photo is shown WHOLE as a full-frame backdrop behind the presenter (never a cropped square card over the face).
+  if (fullFrameStills && mediaKind === 'image') return {layout: 'cutaway', anchor: 'top', weight: 'hero', radius: 0, backdrop: true};
   if (kind === 'logo') return {layout: 'pip', anchor: 'top_right', weight: 'accent', radius: 18};
   if (kind === 'person') return {layout: 'card', anchor: 'top_right', weight: 'accent', radius: 28};
   if (kind === 'screenshot') return {layout: 'card', anchor: 'top', weight: 'hero', radius: 28};
@@ -135,6 +137,7 @@ function baseOverlay(slot: LabeledAssetSlot, asset: ResolvedLabeledAsset, range:
     treatment: 'float',
     cornerRadius: host.radius,
     glow: false,
+    ...(host.backdrop ? {backdrop: true} : {}),
     visualWeight: host.weight,
     ...(RECIPE_BY_KIND[slot.kind] && asset.mediaKind === 'image' ? {recipeId: RECIPE_BY_KIND[slot.kind]} : {}),
     intent: `labeled_asset:${slot.kind}:${slot.id}`,
@@ -182,7 +185,8 @@ export function planLabeledAssetPlacements(input: {
   fullFrameBrollStills?: boolean;
 }): LabeledAssetPlacement {
   const fullFrame = input.fullFrameBrollStills === true;
-  const isFullFrameStill = (item: {slot: LabeledAssetSlot; asset: ResolvedLabeledAsset}) => fullFrame && item.slot.kind === 'broll_clip' && item.asset.mediaKind === 'image';
+  // Kinetic: every photo is its own full-frame backdrop (no slideshow / image run that would crop it into a card)
+  const isFullFrameStill = (item: {slot: LabeledAssetSlot; asset: ResolvedLabeledAsset}) => fullFrame && item.asset.mediaKind === 'image';
   const result: LabeledAssetPlacement = {overlays: [], runs: [], placed: 0, unresolved: 0, blocked: 0, solidRefused: 0};
   const uploaded = (input.brief?.slots ?? []).filter(slot => slot.status === 'uploaded');
   const taken: TimeRange[] = [];
@@ -266,7 +270,7 @@ export function planLabeledAssetPlacements(input: {
   }
 
   // WP29 backstop: a still overlay is a pip / card / slideshow, never a cover layout (cutaway / split / composite would show it full-bleed).
-  result.overlays = result.overlays.map(overlay => (overlay.mediaKind === 'image' && !(fullFrame && (overlay.intent ?? '').startsWith('labeled_asset:broll_clip:')) && (overlay.layout === 'cutaway' || overlay.layout === 'split' || overlay.layout === 'composite') ? {...overlay, layout: 'card' as const} : overlay));
+  result.overlays = result.overlays.map(overlay => (overlay.mediaKind === 'image' && !overlay.backdrop && !(fullFrame && (overlay.intent ?? '').startsWith('labeled_asset:broll_clip:')) && (overlay.layout === 'cutaway' || overlay.layout === 'split' || overlay.layout === 'composite') ? {...overlay, layout: 'card' as const} : overlay));
   result.overlays.sort((a, b) => a.start - b.start);
   return result;
 }

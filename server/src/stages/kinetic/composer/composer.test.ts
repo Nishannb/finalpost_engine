@@ -427,3 +427,33 @@ describe('Kinetic Composer: 2026-11-25 fixes (aicut.mp4 review)', () => {
     expect(calls).toBe(1);
   });
 });
+
+describe('Kinetic Composer: 2026-11-26 readability', () => {
+  const FAST = 'So here is the thing nobody tells you about growing on social media and it is honestly the most important part of the whole process because if you get this wrong nothing else you do will matter at all and you will keep wondering why your videos never take off even when you post every single day for months.';
+  it('caption-lane text stays on screen long enough to read (no line flashes in and out)', async () => {
+    const r = await composeKinetic(input(talk(FAST, 0.3, 0.2)));
+    expect(r.report.ok).toBe(true);
+    const lane = r.spec!.events.filter(e => e.composition === 'captionLane');
+    expect(lane.length).toBeGreaterThan(0);
+    const visible = lane.flatMap(e => e.lines.map(l => (l.exitFrame ?? e.outFrame - e.inFrame) - l.enterFrame));
+    expect(Math.min(...visible)).toBeGreaterThanOrEqual(15); // >= 0.5 s at 30 fps
+  });
+
+  it('touching coverage ranges become ONE lane piece (no one-word lane beat)', () => {
+    const words = toKineticWords(talk('every single day for months and months'), 30);
+    const beats = analyzeBeats(words, 30);
+    const split = splitForCoverage(beats, [[0, 0], [1, 4]], words);
+    const lanePieces = split.filter(b => b.laneOnly);
+    expect(lanePieces.some(b => b.wordRange[0] === 0 && b.wordRange[1] >= 4)).toBe(true);
+    expect(lanePieces.some(b => b.wordRange[0] === b.wordRange[1] && b.wordRange[0] === 0)).toBe(false);
+  });
+
+  it('one font per edit: every line of every event (match cut included) is set in the same face', async () => {
+    for (const text of [SCRIPT, CALM]) {
+      const r = await composeKinetic(input(talk(text)));
+      const fonts = new Set(r.spec!.events.flatMap(e => e.lines.map(l => l.font)));
+      expect([...fonts]).toHaveLength(1);
+      for (const e of r.spec!.events) if (e.matchCut) expect(e.matchCut.font).toBe([...fonts][0]);
+    }
+  });
+});

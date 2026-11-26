@@ -30,7 +30,7 @@ import {zonesFor} from './kit.ts';
 import {measureVariety, motionGate, motionStats, type MotionStats, type VarietyMetrics} from './metrics.ts';
 import {planPunchIns, type ComposerZoom} from './stagecraft.ts';
 import {verifyComposed} from './verify.ts';
-import {applyPalette, voiceFromIdentity} from './voice.ts';
+import {applyPalette, oneFace, voiceFromIdentity} from './voice.ts';
 import type {Beat, Built, ComposeCtx, CompositionName, EditDirection, Slot} from './types.ts';
 
 export type ComposerInput = {
@@ -92,7 +92,10 @@ export function splitForCoverage(beats: readonly Beat[], ranges: ReadonlyArray<[
   const out: Beat[] = [];
   for (const b of beats) {
     const [a, z] = b.wordRange;
-    const cuts = ranges.filter(([x, y]) => y >= a && x <= z).map(([x, y]) => [Math.max(a, x), Math.min(z, y)] as [number, number]).sort((p, q) => p[0] - q[0]);
+    const cuts0 = ranges.filter(([x, y]) => y >= a && x <= z).map(([x, y]) => [Math.max(a, x), Math.min(z, y)] as [number, number]).sort((p, q) => p[0] - q[0]);
+    // touching / overlapping lane ranges are ONE lane piece (2026-11-26: two coverage passes left a 1-word lane beat of 8 frames next to the rest of its line)
+    const cuts: Array<[number, number]> = [];
+    for (const c of cuts0) { const last = cuts[cuts.length - 1]; if (last && c[0] <= last[1] + 1) last[1] = Math.max(last[1], c[1]); else cuts.push([c[0], c[1]]); }
     if (!cuts.length) { out.push(b); continue; }
     const pieces: Array<{range: [number, number]; lane: boolean}> = [];
     let cur = a;
@@ -157,7 +160,8 @@ export function planWindows(beats: readonly Beat[], designed: boolean[], fps: nu
       const prev = wins[i - 1];
       const both = (j: number) => designed[j] && designed[j + 1];
       const inFrame = Math.max(prev ? prev.outFrame + (designed[i] && designed[i - 1] ? GAP : 1) : 0, b.startFrame - 3);
-      const natural = b.endFrame + Math.round((designed[i] ? 0.42 : 0.18) * fps);
+      // the last word stays readable: at least ~0.75 s from its start (entrance + READ_HOLD_SEC + the exit) when the next beat leaves room
+      const natural = Math.max(b.endFrame + Math.round((designed[i] ? 0.42 : 0.18) * fps), words[b.wordRange[1]]!.startFrame + Math.round(0.75 * fps));
       // two designed neighbours: this one holds to its last word's end, the next one starts up to LATE_START frames late
       const limit = n ? (both(i) ? Math.max(n.startFrame + LATE_START - GAP, Math.min(b.endFrame, n.startFrame - 3 - GAP)) : n.startFrame - 3 - 1) : durationFrames;
       const outFrame = Math.min(durationFrames, Math.max(inFrame + 4, Math.min(natural, limit)));
@@ -190,7 +194,7 @@ export async function composeKinetic(input: ComposerInput): Promise<ComposerResu
     const durationFrames = Math.max(Math.ceil(input.durationSec * fps), words[words.length - 1]!.endFrame + 1);
     const shot: KineticShot = {id: 'shot-0', startFrame: 0, endFrame: durationFrames};
     const beats0 = analyzeBeats(words, fps);
-    const presetVoice = voiceFromIdentity(input.identity);
+    const presetVoice = oneFace(voiceFromIdentity(input.identity)); // one font per edit (owner rule 2026-11-26)
     const direction = await resolveDirection(words, beats0, input.director, input.salt ?? '', input.aiPalette ? {...(input.plate?.color ? {footageColor: input.plate.color} : {}), ...(input.plate?.luminance !== undefined ? {footageLuminance: input.plate.luminance} : {}), presetText: presetVoice.text, presetAccent: presetVoice.accent} : undefined, {behind: Boolean(input.matte), matchCut: input.matchCut !== false});
     for (const b of beats0) { const t = direction.beatTags?.[b.id]?.type; if (t) b.type = t; }
     // every spoken word is shown: words a designed composition could not draw (a previous solve) become lane beats of their own
@@ -264,7 +268,12 @@ export async function composeKinetic(input: ComposerInput): Promise<ComposerResu
       if (mc.length) {
         const brand = input.identity ? identityToBrand(input.identity) : brandConfigSchema.parse({});
         const solved = solveLayout({plan: {version: '1', style: 'cinematicClean', events: mc}, words, shots: [shot], scenes: {[shot.id]: scene}, cameras: {[shot.id]: new StaticCamera().track(shot)}, depth: new SubjectBandDepth(), brand, ...(input.identity ? {identity: input.identity} : {}), width: W, height: H, fps, seed: 1, planSource: 'composer'});
-        matchCutEvents = solved.spec.events.filter(e => e.presetResolved === 'type.matchCut');
+        // one font per edit (2026-11-26): the montage and its keyword are set in the edit's own face, never the template's own per-scene typefaces
+        matchCutEvents = solved.spec.events.filter(e => e.presetResolved === 'type.matchCut').map(e => ({
+          ...e,
+          lines: e.lines.map(l => ({...l, font: voice.primary, weight: voice.primaryWeight})),
+          ...(e.matchCut ? {matchCut: {...e.matchCut, font: voice.primary}} : {}),
+        }));
       }
     }
     const mcWins = matchCutEvents.map(e => ({inFrame: e.inFrame, outFrame: e.outFrame}));
