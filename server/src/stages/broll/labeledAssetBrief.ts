@@ -405,7 +405,10 @@ export function applyLabeledAssetBindings(
         binding.assetUrl && urlToAssetId
           ? urlToAssetId.get(binding.assetUrl.trim())
           : undefined;
-      const userAssetId = (binding.userAssetId || fromUrl || '').trim();
+      // The engine's own id for the uploaded URL wins (describeUserBrollAssets numbers them ub_1, ub_2, ... and placement looks assets up by THAT id).
+      // 2026-11-26: the app sends its own `ub_slot_<slotId>` ids, which never match: every bound upload was "bound" but placed nothing. A client id is used
+      // only when the URL is unknown (then placement reports it unresolved).
+      const userAssetId = (fromUrl || binding.userAssetId || '').trim();
       if (!userAssetId) {
         return slot;
       }

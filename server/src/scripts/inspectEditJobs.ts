@@ -10,7 +10,7 @@
  */
 import {env} from '../config/env.ts';
 
-const DIAG = /^(editing_pipeline:|style_|kinetic_|asset_brief:|refusal:|labeled_|broll_opportunit|v1_)/;
+const DIAG = /^(editing_pipeline:|style_|kinetic_|asset_brief:|refusal:|labeled_|broll_opportunit|v1_|polish_assets:|user_broll)/;
 
 type Row = {edit_job_id: string; status: string; mode: string; created_at: string; asset_brief: unknown; job: Record<string, unknown>; blueprint?: Record<string, unknown> | null};
 

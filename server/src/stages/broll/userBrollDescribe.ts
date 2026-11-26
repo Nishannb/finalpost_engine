@@ -90,7 +90,7 @@ export async function describeUserBrollAssets(
         out.push(asset);
       }
     } catch (error) {
-      log.warn({error, url: url.slice(0, 80)}, 'user broll describe failed');
+      log.warn({error, url: url.slice(0, 80), ext: extensionOf(url) || '(none)'}, 'user broll describe failed');
     }
   }
   return out;
