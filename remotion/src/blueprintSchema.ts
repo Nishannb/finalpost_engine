@@ -429,6 +429,8 @@ export const visualOverlaySchema = z.object({
   glow: z.boolean().optional().default(true),
   /** 2026-11-26 (Kinetic): a creator photo shown whole (contain, never cropped) over a blurred fill of itself; the person matte is drawn in front of it. Only on cutaway + image. */
   backdrop: z.boolean().optional(),
+  /** 2026-11-26 (Kinetic split): the asset fills the media half's full width, uncropped (contain; a photo over a blurred fill of itself). Absent = the old cover crop. */
+  fitWidth: z.boolean().optional(),
   focusRegion: z
     .object({
       x: z.number(),

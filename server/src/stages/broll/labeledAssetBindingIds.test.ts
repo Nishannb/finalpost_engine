@@ -45,16 +45,32 @@ describe('labeled asset bindings use the engine asset ids', () => {
   });
 });
 
-import {mergeSpans, useEachUserAssetOnce} from './userAssetOnce.ts';
+import {mergeSpans, subtractSpans, useEachUserAssetOnce} from './userAssetOnce.ts';
 
 describe('Kinetic creator photos and asset reuse (2026-11-26)', () => {
   const bound = applyLabeledAssetBindings(brief, bindings, idByUrl);
   const assets = new Map([['ub_1', {url: URL_A, mediaKind: 'image' as const}], ['ub_2', {url: URL_B, mediaKind: 'image' as const}]]);
 
-  it('in Kinetic every photo is a whole (uncropped) full-frame backdrop, never a square card over the face', () => {
-    const placement = planLabeledAssetPlacements({brief: bound, assets, outputDurationSec: 28, fullFrameBrollStills: true});
-    expect(placement.runs).toHaveLength(0); // no slideshow / image run that would crop it into a card
-    expect(placement.overlays.map(o => [o.layout, o.backdrop])).toEqual([['cutaway', true], ['cutaway', true]]);
+  it('in Kinetic a vertical asset fills the frame; a landscape / square / unknown-size asset is a full-width split above the presenter', () => {
+    const sized = new Map([
+      ['ub_1', {url: URL_A, mediaKind: 'image' as const, width: 1080, height: 1920}], // vertical photo
+      ['ub_2', {url: URL_B, mediaKind: 'image' as const, width: 1920, height: 1080}], // landscape photo
+    ]);
+    const placement = planLabeledAssetPlacements({brief: bound, assets: sized, outputDurationSec: 28, fullFrameBrollStills: true});
+    expect(placement.runs).toHaveLength(0);
+    expect(placement.overlays.map(o => [o.layout, o.speakerSide ?? null, o.fitWidth ?? false, o.backdrop ?? false])).toEqual([
+      ['cutaway', null, false, false],
+      ['split', 'bottom', true, false],
+    ]);
+    // never the old small centred photo / square card
+    expect(placement.overlays.every(o => !o.backdrop && o.layout !== 'card')).toBe(true);
+    // a 4:5 photo or an asset of unknown size is not tall enough to fill a 9:16 frame: split
+    const square = planLabeledAssetPlacements({brief: bound, assets, outputDurationSec: 28, fullFrameBrollStills: true});
+    expect(square.overlays.map(o => o.layout)).toEqual(['split', 'split']);
+  });
+
+  it('the person matte is not drawn over a cutaway / split window', () => {
+    expect(subtractSpans([{start: 0, end: 10}], [{start: 2, end: 4}, {start: 8, end: 12}])).toEqual([{start: 0, end: 2}, {start: 4, end: 8}]);
   });
 
   it('outside Kinetic the old card placement is unchanged', () => {

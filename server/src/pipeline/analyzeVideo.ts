@@ -77,7 +77,7 @@ import {
 } from '../stages/broll/labeledAssetBrief.ts';
 import type {LabeledAssetSlot} from '../stages/broll/labeledAssetBrief.ts';
 import {BROLL_DETECTOR_LABEL, detectBrollOpportunities, type BrollOpportunity} from '../stages/broll/brollOpportunities.ts';
-import {mergeSpans, useEachUserAssetOnce} from '../stages/broll/userAssetOnce.ts';
+import {mergeSpans, subtractSpans, useEachUserAssetOnce} from '../stages/broll/userAssetOnce.ts';
 import {geminiDirectorCall, type DirectorCall} from '../stages/kinetic/director.ts';
 import {clampStickyEnds, dedupeStatKinetic, dropBubbleOverlays, dropDoubleStatEmphasis, paletteRepeats, refuseOverlappingImages} from '../stages/broll/craftMutualExclusion.ts';
 import {planKlipyOverlays} from '../stages/broll/klipyOverlayPlanner.ts';
@@ -895,6 +895,7 @@ async function analyzeVideoUnguarded(
     );
     let userAssetIdByUrl: Map<string, string> | undefined; // WP3B (mvp profile only)
     const solidUserUrls = new Set<string>(); // WP29: described user stills that are solid / near-solid color
+    const userAssetSize = new Map<string, {width: number; height: number}>(); // 2026-11-26: Kinetic places vertical assets full-frame, the rest as a split screen
     let broll = captionsOnlyVisualPlan(shineCaptionDirection());
     let zoomTriggers: ReturnType<typeof resolveDirectedZooms> = [];
     let resolvedCutout: SpeakerCutout = {
@@ -979,6 +980,7 @@ async function analyzeVideoUnguarded(
         userAssetIdByUrl = userBrollIdByUrl(userBrollAssets);
       }
       for (const asset of userBrollAssets) if (asset.solidLike) solidUserUrls.add(asset.url);
+      for (const asset of userBrollAssets) if (asset.width > 0 && asset.height > 0) userAssetSize.set(asset.url, {width: asset.width, height: asset.height});
       if (solidUserUrls.size > 0) warnings.push(`user_broll_solid_stills:${solidUserUrls.size}`);
       if ((input.userBrollUrls?.length ?? 0) > 0 && userBrollAssets.length === 0) {
         warnings.push('user_broll_describe_failed');
@@ -1309,17 +1311,7 @@ async function analyzeVideoUnguarded(
       if (engine.composer) zoomTriggers = engine.composer.zoomTriggers.map(z => ({start: z.start, end: z.end, scale: z.scale, ...(z.focus ? {focus: z.focus} : {}), sentenceIndex: z.sentenceIndex}));
       if (engine.spec && kineticMatte?.ok) {
         const fg = planKineticForeground(engine.spec, outputFps, Math.ceil(timeline.outputDurationSec * outputFps));
-        // 2026-11-26: creator photos become backdrops BEHIND the presenter (labeledAssetPlacement backdrop); their windows are added to the spans after placement,
-        // so the foreground is kept whenever uploads were bound, even with no behind-text event.
-        const backdropsExpected = (input.labeledAssetBindings ?? []).some(binding => binding.status === 'uploaded');
-        if (fg.behindEvents === 0 && backdropsExpected) {
-          try {
-            kineticEngineForeground = {videoUrl: (await uploadSourceVideo(kineticMatte.foregroundPath, '.webm')).publicUrl, spans: []};
-            warnings.push('kinetic_engine:foreground_kept_for_backdrops');
-          } catch (error) {
-            warnings.push(`kinetic_engine:foreground_upload_failed:${(error instanceof Error ? error.message : String(error)).slice(0, 80)}`);
-          }
-        } else if (fg.behindEvents === 0) warnings.push('kinetic_engine:matte_unused:no_behind_events');
+        if (fg.behindEvents === 0) warnings.push('kinetic_engine:matte_unused:no_behind_events');
         else {
           let url = '';
           if (!fg.ok) warnings.push('kinetic_engine:foreground_spans_incomplete');
@@ -2056,7 +2048,7 @@ async function analyzeVideoUnguarded(
     }
     // WP18: the bound labeled assets (the mobile upload loop) become overlays: logos / people / screenshots / products as pips and cards, nearby stills as one image run. Unresolved or skipped slots place nothing.
     if (polishPath && assetBrief && userAssetIdByUrl && assetBrief.slots.some(slot => slot.status === 'uploaded')) {
-      const urlById = new Map([...userAssetIdByUrl].map(([url, id]) => [id, {url, mediaKind: mediaKindOfUrl(url), ...(solidUserUrls.has(url) ? {solidLike: true} : {})}] as const));
+      const urlById = new Map([...userAssetIdByUrl].map(([url, id]) => [id, {url, mediaKind: mediaKindOfUrl(url), ...(solidUserUrls.has(url) ? {solidLike: true} : {}), ...(userAssetSize.get(url) ?? {})}] as const));
       const placement = planLabeledAssetPlacements({
         brief: assetBrief,
         assets: urlById,
@@ -2766,6 +2758,8 @@ async function analyzeVideoUnguarded(
       const split = splitKineticSpecForBroll(kineticEngineSpec, kineticBrollWindows);
       kineticEngineSpec = split.spec;
       warnings.push(...split.warnings);
+      // the person matte is never drawn over a cutaway / split window (the presenter would cover the B-roll); its text there was dropped above
+      if (kineticEngineForeground && kineticBrollWindows.length > 0) kineticEngineForeground = {...kineticEngineForeground, spans: subtractSpans(kineticEngineForeground.spans, kineticBrollWindows)};
     }
     const muteRanges: MuteRange[] = subjectStagePayload ? (stageDrawn ? mergeMuteRanges(stageDrawn.map(w => ({startSec: w.start, endSec: w.end}))) : [{startSec: 0, endSec: timeline.outputDurationSec}]) : kineticEngineSpec ? kineticCaptionMuteRanges(kineticBrollWindows, timeline.outputDurationSec) : textualMgMute.length > 0 || motionTemplateMute.length > 0 || visualBackendMute.length > 0 ? mergeMuteRanges([...muteRangesWp11a, ...textualMgMute, ...motionTemplateMute, ...visualBackendMute]) : muteRangesWp11a;
     if (muteRanges.length > 0) warnings.push(`polish_captions:muted_for_graphics:${muteRanges.length}`);

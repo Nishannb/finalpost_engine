@@ -27,3 +27,15 @@ export function useEachUserAssetOnce<C extends {start: number; provider?: string
   }
   return {clips: clips.filter(item => !drop.has(item)), overlays: overlays.filter(item => !drop.has(item)), removed: drop.size};
 }
+
+/** `spans` minus `windows` ([start, end) seconds): the pieces of each span outside every window. */
+export function subtractSpans(spans: ReadonlyArray<{start: number; end: number}>, windows: ReadonlyArray<{start: number; end: number}>): Array<{start: number; end: number}> {
+  let out = spans.map(span => ({start: span.start, end: span.end}));
+  for (const w of windows) {
+    out = out.flatMap(span => {
+      if (w.end <= span.start || w.start >= span.end) return [span];
+      return [{start: span.start, end: Math.min(span.end, w.start)}, {start: Math.max(span.start, w.end), end: span.end}].filter(piece => piece.end - piece.start > 1e-6);
+    });
+  }
+  return out;
+}

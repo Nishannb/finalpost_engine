@@ -46,15 +46,21 @@ describe('Kinetic asset brief + placement', () => {
     const starts = kineticBrollSlots(words, 30).map(s => s.startSec);
     starts.slice(1).forEach((t, i) => expect(t - starts[i]!).toBeGreaterThanOrEqual(8));
   });
-  it('a creator still for a broll slot is a full-frame cutaway (so its window is B-roll), a video too', () => {
+  it('Kinetic: a vertical still / clip is a full-frame cutaway, a landscape or unknown-size one a split; both windows are B-roll', () => {
     const brief = buildLabeledAssetBrief({words, outputDurationSec: 30, kinetic: true});
     const [a] = brief.slots.filter(s => s.kind === 'broll_clip');
     const bound = {...brief, slots: [{...a!, status: 'uploaded' as const, userAssetId: 'ub_1'}]};
-    const place = (mediaKind: 'image' | 'video', fullFrameBrollStills?: boolean) =>
-      planLabeledAssetPlacements({brief: bound, assets: new Map([['ub_1', {url: 'https://cdn/x', mediaKind}]]), outputDurationSec: 30, ...(fullFrameBrollStills ? {fullFrameBrollStills} : {})});
-    expect(place('image', true).overlays[0]!.layout).toBe('cutaway');
-    expect(place('video', true).overlays[0]!.layout).toBe('cutaway');
+    const place = (mediaKind: 'image' | 'video', fullFrameBrollStills?: boolean, size?: {width: number; height: number}) =>
+      planLabeledAssetPlacements({brief: bound, assets: new Map([['ub_1', {url: 'https://cdn/x', mediaKind, ...(size ?? {})}]]), outputDurationSec: 30, ...(fullFrameBrollStills ? {fullFrameBrollStills} : {})});
+    const tall = {width: 1080, height: 1920};
+    const wide = {width: 1920, height: 1080};
+    expect(place('image', true, tall).overlays[0]!.layout).toBe('cutaway');
+    expect(place('video', true, tall).overlays[0]!.layout).toBe('cutaway');
+    expect(place('image', true, wide).overlays[0]!.layout).toBe('split');
+    expect(place('video', true, wide).overlays[0]!.layout).toBe('split');
+    expect(place('image', true).overlays[0]!.layout).toBe('split'); // unknown size: never cropped to fill the frame
     expect(place('image').overlays[0]!.layout).toBe('pip'); // non-Kinetic behaviour unchanged
-    expect(brollCoverageWindows(place('image', true).overlays)).toHaveLength(1);
+    expect(brollCoverageWindows(place('image', true, tall).overlays)).toHaveLength(1);
+    expect(brollCoverageWindows(place('image', true, wide).overlays)).toHaveLength(1);
   });
 });

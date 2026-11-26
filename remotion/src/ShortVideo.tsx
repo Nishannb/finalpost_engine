@@ -689,7 +689,9 @@ const SplitStage: React.FC<{
         transform: `translateY(${relatedShift}px)`,
         opacity: progress,
       }}>
-      {overlay.mediaKind === 'video' && overlay.assetUrl && !overlayHasSlideshow(overlay) ? (
+      {overlay.fitWidth && overlay.assetUrl && !overlayHasSlideshow(overlay) ? (
+        <FitWidthPlate overlay={overlay} />
+      ) : overlay.mediaKind === 'video' && overlay.assetUrl && !overlayHasSlideshow(overlay) ? (
         <SplitVideoPlate overlay={overlay} />
       ) : (
         // SlideshowPlate times its slides from the frame it sees and splits the available duration between them, so it
@@ -763,6 +765,36 @@ const splitVideoStyle: React.CSSProperties = {
 };
 
 /** Slide in first; play the clip only after enter hits 100%; then slide off. */
+/**
+ * 2026-11-26 (Kinetic split): the creator's asset across the media half's FULL width, never cropped: a landscape photo / clip is contained
+ * (its width = the frame width) and the rest of the half is a blurred, darkened fill of the same picture (a dark fill for a clip). A slow
+ * push-in keeps it alive; the SplitStage seam animates it in and out.
+ */
+const FitWidthPlate: React.FC<{overlay: VisualOverlay}> = ({overlay}) => {
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  const startFrame = secToFrame(overlay.start, fps);
+  const dur = Math.max(1, framesBetween(overlay.start, overlay.end, fps));
+  const push = interpolate(frame - startFrame, [0, dur], [1, 1.04], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const src = resolveMediaSrc(overlay.assetUrl);
+  const contain: React.CSSProperties = {width: '100%', height: '100%', objectFit: 'contain', transform: `scale(${push})`};
+  if (overlay.mediaKind === 'video') {
+    return (
+      <AbsoluteFill style={{backgroundColor: '#0b0b0d'}}>
+        <Sequence from={startFrame} durationInFrames={dur} layout="none">
+          <OffthreadVideo src={src} muted style={contain} />
+        </Sequence>
+      </AbsoluteFill>
+    );
+  }
+  return (
+    <AbsoluteFill style={{backgroundColor: '#0b0b0d'}}>
+      <Img src={src} style={{width: '100%', height: '100%', objectFit: 'cover', transform: 'scale(1.15)', filter: 'blur(26px) saturate(1.1) brightness(0.45)'}} />
+      <Img src={src} style={contain} />
+    </AbsoluteFill>
+  );
+};
+
 const SplitVideoPlate: React.FC<{overlay: VisualOverlay}> = ({overlay}) => {
   const {fps} = useVideoConfig();
   const startFrame = secToFrame(overlay.start, fps);

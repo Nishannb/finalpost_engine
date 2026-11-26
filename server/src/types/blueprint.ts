@@ -729,6 +729,8 @@ export type VisualOverlay = {
    * With the Kinetic person matte the presenter is drawn in front of it (subjectForeground spans cover its window). Only on `cutaway` + `image`.
    */
   backdrop?: boolean;
+  /** 2026-11-26 (Kinetic split): the asset fills the media half's full WIDTH, uncropped (contain; a photo over a blurred fill of itself). Absent = the old cover crop. */
+  fitWidth?: boolean;
   cornerRadius?: number;
   glow?: boolean;
   focusRegion?: FocusRegion | null;
