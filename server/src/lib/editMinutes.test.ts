@@ -89,3 +89,14 @@ describe('billable completion callback', () => {
     expect(state.bodies[1]).not.toHaveProperty('outputDurationSec');
   });
 });
+
+describe('2026-11-27: edit minutes are charged on the RAW upload', () => {
+  it('reads the original length through delivery shaping, else the blueprint source', async () => {
+    const {rawSourceDurationSec, billableExtra} = await import('./editMinutes.ts');
+    expect(rawSourceDurationSec({sourceDurationSec: 30.1, deliveryShaping: {timeRemap: {sourceDurationSec: 33}}})).toBe(33);
+    expect(rawSourceDurationSec({sourceDurationSec: 33})).toBe(33);
+    expect(rawSourceDurationSec({sourceDurationSec: 0})).toBeUndefined();
+    expect(billableExtra({mode: 'full_edit', outputDurationSec: 28.2, sourceDurationSec: 33})).toEqual({billable: true, outputDurationSec: 28.2, sourceDurationSec: 33});
+    expect(billableExtra({mode: 'basic_captions', sourceDurationSec: 33})).toEqual({});
+  });
+});

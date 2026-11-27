@@ -1370,6 +1370,8 @@ export type CaptionsEditJob = {
   renderJobId?: string;
   outputUrl?: string;
   outputDurationSec?: number;
+  /** The raw upload's length (edit minutes are charged on it). */
+  sourceDurationSec?: number;
   errorCode?: string;
   errorMessage?: string;
   /** `full_edit`: the persisted blueprint and its labeled-asset brief (the gate reads these, never an in-memory response). */

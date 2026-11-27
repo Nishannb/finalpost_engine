@@ -42,7 +42,7 @@ import type {
 } from '../types/blueprint.ts';
 import {burnCaptionKitVideo} from './captionKitBurn.ts';
 import {startAnalysis} from './analysisRunner.ts';
-import {isBillableEditMode} from '../lib/editMinutes.ts';
+import {billableExtra, rawSourceDurationSec} from '../lib/editMinutes.ts';
 import {
   loadRenderJob,
   refreshRenderJob,
@@ -410,6 +410,10 @@ async function waitForAnalysis(
         job.degradedReasons = analysis.degradedReasons ?? [];
         job.styleNotes = analysis.styleNotes ?? [];
       }
+      const rawSec = rawSourceDurationSec(analysis.blueprint);
+      if (rawSec !== undefined) {
+        job.sourceDurationSec = rawSec;
+      }
       job.progress = 0.52;
       job.updatedAt = new Date().toISOString();
       await saveCaptionsEditJob(job);
@@ -591,20 +595,11 @@ const fullEditActive = new Set<string>();
  */
 const isKineticJob = (job: Pick<CaptionsEditJob, 'style'>): boolean => job.style === 'kinetic_typography';
 
-/** Pro edit minutes: a finished paid edit (never Basic Captions) is billable; the Creators API charges it once per editJobId. */
-function billableExtra(job: Pick<CaptionsEditJob, 'mode' | 'outputDurationSec'>): {billable?: boolean; outputDurationSec?: number} {
-  if (!isBillableEditMode(job.mode)) {
-    return {};
-  }
-  const sec = job.outputDurationSec;
-  return {billable: true, ...(typeof sec === 'number' && Number.isFinite(sec) && sec > 0 ? {outputDurationSec: sec} : {})};
-}
-
 /** The push for the end of a job. Captions jobs keep the original `edit_done` message; full edits add types and dedupe. */
 async function notifyEnd(
   job: CaptionsEditJob,
   status: 'done' | 'failed',
-  extra: {outputUrl?: string; errorMessage?: string; billable?: boolean; outputDurationSec?: number},
+  extra: {outputUrl?: string; errorMessage?: string; billable?: boolean; outputDurationSec?: number; sourceDurationSec?: number},
 ): Promise<void> {
   if (status === 'done') {
     extra = {...extra, ...billableExtra(job)};
@@ -628,7 +623,7 @@ async function notifyOnce(
   job: CaptionsEditJob,
   type: EditNotificationType,
   status: 'done' | 'failed' | 'awaiting_assets',
-  extra: {outputUrl?: string; errorMessage?: string; billable?: boolean; outputDurationSec?: number} = {},
+  extra: {outputUrl?: string; errorMessage?: string; billable?: boolean; outputDurationSec?: number; sourceDurationSec?: number} = {},
 ): Promise<void> {
   const fresh = (await loadCaptionsEditJob(job.editJobId)) ?? job;
   const sent = new Set([...(fresh.notified ?? []), ...(job.notified ?? [])]);

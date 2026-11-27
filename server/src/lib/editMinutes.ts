@@ -5,8 +5,8 @@
  *  - Start: a new paid edit (create / retry) is refused with `edit_minutes_exhausted` when the balance is 0. Soft check only: a job
  *    already running finishes and is charged. A balance that cannot be read does NOT block (a metering outage must not lock out a
  *    creator the entitlement check already verified as Pro).
- *  - Charge: the `done` completion callback carries `billable: true` + `outputDurationSec` for paid modes; the Creators API charges
- *    the exact `outputDurationSec / 60` (2 decimals: 1 min 23 s = 1.38) once per editJobId, published or not (idempotent ledger), so callback redelivery never double-charges.
+ *  - Charge: the `done` completion callback carries `billable: true` + `sourceDurationSec` (the RAW upload) for paid modes; the Creators API charges
+ *    the exact `sourceDurationSec / 60` (2 decimals: 1 min 23 s = 1.38) once per editJobId, published or not (idempotent ledger), so callback redelivery never double-charges.
  *  - Basic Captions are never checked and never billable.
  */
 
@@ -61,4 +61,30 @@ export async function assertEditMinutesAvailable(auth: Pick<AuthContext, 'userId
       usageMonth: balance.usageMonth,
     });
   }
+}
+
+/**
+ * The RAW upload's length (2026-11-27): edit minutes are charged on what the creator recorded, not the shorter cleaned-up output
+ * (45 minutes = 45 minutes of raw video). Delivery shaping replaces the blueprint's source with a re-timed copy, so its time remap
+ * holds the original length.
+ */
+export function rawSourceDurationSec(blueprint: {sourceDurationSec?: number; deliveryShaping?: {timeRemap?: {sourceDurationSec?: number}}}): number | undefined {
+  const sec = blueprint.deliveryShaping?.timeRemap?.sourceDurationSec ?? blueprint.sourceDurationSec;
+  return typeof sec === 'number' && Number.isFinite(sec) && sec > 0 ? sec : undefined;
+}
+
+const positive = (sec: unknown): sec is number => typeof sec === 'number' && Number.isFinite(sec) && sec > 0;
+
+/** Pro edit minutes: a finished paid edit (never Basic Captions) is billable; the Creators API charges it once per editJobId, by the raw length. */
+export function billableExtra(
+  job: {mode?: string | null; outputDurationSec?: number; sourceDurationSec?: number},
+): {billable?: boolean; outputDurationSec?: number; sourceDurationSec?: number} {
+  if (!isBillableEditMode(job.mode)) {
+    return {};
+  }
+  return {
+    billable: true,
+    ...(positive(job.outputDurationSec) ? {outputDurationSec: job.outputDurationSec} : {}),
+    ...(positive(job.sourceDurationSec) ? {sourceDurationSec: job.sourceDurationSec} : {}),
+  };
 }

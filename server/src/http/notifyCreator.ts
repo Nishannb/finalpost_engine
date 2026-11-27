@@ -35,6 +35,8 @@ export type CreatorCallback = {
   billable?: boolean;
   /** Finished video length (seconds) the charge is computed from. */
   outputDurationSec?: number;
+  /** Raw upload length (seconds): what the edit-minutes charge is computed from (the Creators API falls back to outputDurationSec). */
+  sourceDurationSec?: number;
   /** Stable event identity; derived when absent. */
   eventId?: string;
   occurredAt?: string;
@@ -102,6 +104,8 @@ async function post(input: CreatorCallback & {eventId: string; occurredAt: strin
         ...(input.errorMessage ? {errorMessage: input.errorMessage} : {}),
         ...(input.billable ? {billable: true} : {}),
         ...(typeof input.outputDurationSec === 'number' ? {outputDurationSec: input.outputDurationSec} : {}),
+    ...(typeof input.sourceDurationSec === 'number' ? {sourceDurationSec: input.sourceDurationSec} : {}),
+        ...(typeof input.sourceDurationSec === 'number' ? {sourceDurationSec: input.sourceDurationSec} : {}),
       }),
       signal: AbortSignal.timeout(env.CALLBACK_TIMEOUT_MS),
     });
@@ -134,6 +138,7 @@ export function stageCallback(input: CreatorCallback, eventId: string): {eventId
     ...(input.errorMessage ? {errorMessage: input.errorMessage} : {}),
     ...(input.billable ? {billable: true} : {}),
     ...(typeof input.outputDurationSec === 'number' ? {outputDurationSec: input.outputDurationSec} : {}),
+    ...(typeof input.sourceDurationSec === 'number' ? {sourceDurationSec: input.sourceDurationSec} : {}),
   };
   return {eventId, record: {type: input.type ?? 'edit_done', status: 'pending', attempts: 0, lastCode: 0, firstAt: now, lastAt: now, nextAttemptAt: now, payload}};
 }
