@@ -20,7 +20,7 @@ import {
   isLocalMediaPath,
   type Workspace,
 } from '../../lib/tempFiles.ts';
-import {extractStillJpeg, probeMedia, sampleStillGrid} from '../../media/ffmpeg.ts';
+import {extractStillJpeg, probeImageSize, probeMedia, sampleStillGrid} from '../../media/ffmpeg.ts';
 import {analyzeRgbSamples, isSolidFixtureUrl} from './solidStill.ts';
 
 const log = stageLogger('stage-c-user-broll');
@@ -114,6 +114,7 @@ async function describeOne(
   let width = 1080;
   let height = 1920;
   let durationSec = 0;
+  let stillProbed = false;
   if (!isImage) {
     const probe = await probeMedia(localPath);
     durationSec = probe.durationSec;
@@ -123,10 +124,11 @@ async function describeOne(
       return null;
     }
   } else {
-    const probe = await probeMedia(localPath).catch(() => null);
+    const probe = await probeImageSize(localPath).catch(() => null);
     if (probe) {
-      width = probe.width || width;
-      height = probe.height || height;
+      width = probe.width;
+      height = probe.height;
+      stillProbed = true;
     }
   }
 
@@ -147,6 +149,25 @@ async function describeOne(
       frameB,
       Math.min(durationSec * 0.65, Math.max(0.4, durationSec - 0.3)),
     );
+  }
+
+  // 2026-11-27 ROOT CAUSE of "a landscape logo filled the whole frame": probeMedia throws on every still (no duration), so photos kept the 1080x1920 default and were
+  // classed as VERTICAL (full-frame) assets. The extracted frame keeps the aspect and is auto-rotated (an iPhone clip stored sideways reads upright), so its size is the
+  // display orientation. Unknown size = square (not vertical: the Kinetic placement then uses a split screen, which never crops), never a guessed vertical size.
+  const frameSize = await probeImageSize(frameA).catch(() => null);
+  if (frameSize) {
+    // the frame is scaled to 720 wide: keep the source's pixel size when it was read, in the frame's (rotated) orientation
+    const sourceRead = !isImage || stillProbed;
+    const frameTall = frameSize.height > frameSize.width;
+    if (sourceRead && width > 0 && height > 0) {
+      if (frameTall !== height > width) [width, height] = [height, width];
+    } else {
+      width = frameSize.width;
+      height = frameSize.height;
+    }
+  } else if (isImage && !stillProbed) {
+    width = 1080;
+    height = 1080;
   }
 
   let solidLike: boolean | undefined;

@@ -56,6 +56,10 @@ export function nudgeForContrast(hex: string, bgHex: string, min = 3): {hex: str
   if (contrastRatio(hex, bgHex) >= min) return {hex, nudged: false};
   const hsl = hexToHsl(hex);
   const bgDark = contrastRatio('#000000', bgHex) < contrastRatio('#FFFFFF', bgHex);
+  // 2026-11-27: NEVER darken a type colour for a light plate. A bright wall made the frame mean "light", gold #FFC21A / #FFD400 was darkened to an olive (#997F00)
+  // and that word then sat on the speaker's dark jacket, unreadable. Kinetic type carries its own shadow and a contrast stroke (black on a light plate), so on a light
+  // plate the colour stays as designed and the stroke does the work.
+  if (!bgDark) return {hex, nudged: false};
   let best = hex;
   let bestC = contrastRatio(hex, bgHex);
   for (let step = 1; step <= 14; step += 1) {

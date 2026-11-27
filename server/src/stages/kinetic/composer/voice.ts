@@ -7,6 +7,8 @@
 import type {FontKey} from '../schema.ts';
 import type {KineticIdentity} from '../presetIdentity.ts';
 import type {Voice, VoiceVariant} from './types.ts';
+import {contrastRatio} from '../../../lib/contrast.ts';
+import {hexToHsl, hueDistance, nudgeForContrast} from '../accent.ts';
 
 type Family = 'condensed' | 'heavy' | 'geometric' | 'serif' | 'script' | 'technical' | 'fat';
 const FAMILY_OF: Record<FontKey, Family> = {
@@ -97,4 +99,61 @@ export function styleFor(voice: Voice, variant: VoiceVariant, role: 'key' | 'ctx
     case 'gradient': return role === 'key' ? {...plain(voice.display, voice.displayWeight, true, voice.accent), gradient: [voice.accent, voice.accent2]} : plain(voice.primary, voice.primaryWeight, true, voice.text);
     case 'mixed': default: return role === 'key' ? plain(voice.display, voice.displayWeight, true, voice.text) : plain(voice.editorial, voice.editorial === voice.primary ? voice.primaryWeight : voice.editorial === 'playfairItalic' ? 700 : 400, false, voice.accent, voice.editorial === 'playfairItalic');
   }
+}
+
+const linC = (v: number) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+
+/**
+ * 2026-11-27: the luminance of the plate's DARK areas (20th percentile of the 16x16 still grid), e.g. a dark jacket under a bright wall. The frame MEAN hid it:
+ * a bright wall made the plate read "light", and type over the speaker's dark clothes was then judged readable. Undefined without a grid.
+ */
+export function plateDarkLuminance(grid: ArrayLike<number> | null | undefined): number | undefined {
+  if (!grid || grid.length < 768) return undefined;
+  const cells: number[] = [];
+  for (let k = 0; k + 2 < Math.min(grid.length, 768); k += 3) cells.push(0.2126 * linC(grid[k]!) + 0.7152 * linC(grid[k + 1]!) + 0.0722 * linC(grid[k + 2]!));
+  cells.sort((a, b) => a - b);
+  return cells[Math.floor(cells.length * 0.2)];
+}
+
+/**
+ * Every running colour must read on the plate's darkest areas (type often lands on the speaker's hair / clothes): text >= 4.5:1, accents >= 3:1 against the dark
+ * luminance. A colour that fails keeps its HUE and is lifted in brightness (the preset / palette identity stays); one that still fails becomes the safe default.
+ * Light areas are covered by the stroke / shadow (shadowFor). A dark-text preset (designed for a light caption box, which Kinetic does not draw) is lifted here.
+ */
+export function readableVoice(voice: Voice, darkLum: number | undefined, notes?: string[], plateColor?: string): Voice {
+  voice = accentOffPlateHue(voice, plateColor, notes);
+  if (darkLum === undefined) return voice;
+  const bg = lumHex(darkLum);
+  // only ever LIFTS colours for dark areas; a plate with no dark areas leaves the identity alone (the stroke covers light areas)
+  if (contrastRatio('#000000', bg) > contrastRatio('#FFFFFF', bg)) return voice;
+  const fix = (hex: string, min: number, fallback: string, role: string): string => {
+    if (!/^#[0-9a-fA-F]{6}$/.test(hex) || contrastRatio(hex, bg) >= min) return hex;
+    const lifted = nudgeForContrast(hex, bg, min);
+    const out = contrastRatio(lifted.hex, bg) >= min ? lifted.hex : fallback;
+    notes?.push(`colour:${role}:${hex}->${out}:dark_plate_${darkLum.toFixed(3)}`);
+    return out;
+  };
+  return {...voice, text: fix(voice.text, 4.5, '#FFFFFF', 'text'), accent: fix(voice.accent, 3, '#FFD400', 'accent'), accent2: fix(voice.accent2, 3, '#FFD400', 'accent2')};
+}
+
+function lumHex(lum: number): string {
+  const l = Math.min(1, Math.max(0, lum));
+  const v = l <= 0.0031308 ? 12.92 * l : 1.055 * l ** (1 / 2.4) - 0.055;
+  const h = Math.round(Math.min(1, Math.max(0, v)) * 255).toString(16).padStart(2, '0');
+  return `#${h}${h}${h}`;
+}
+
+/**
+ * The accent must stand out from the footage's own colour: a yellow accent on a warm yellow wall blends in. When the accent's hue sits within 35 deg of a saturated plate
+ * colour and the second accent is clearly further away, the two swap (both are the preset's / palette's own colours, so the identity is kept).
+ */
+export function accentOffPlateHue(voice: Voice, plateColor: string | undefined, notes?: string[]): Voice {
+  if (!plateColor || !/^#[0-9a-fA-F]{6}$/.test(plateColor)) return voice;
+  const p = hexToHsl(plateColor);
+  if (p.s < 0.2 || p.l < 0.12) return voice; // a grey / near-black plate has no hue to clash with
+  const d1 = hueDistance(hexToHsl(voice.accent).h, p.h);
+  const d2 = hueDistance(hexToHsl(voice.accent2).h, p.h);
+  if (d1 >= 35 || d2 < d1 + 40 || hexToHsl(voice.accent2).s < 0.35) return voice;
+  notes?.push(`colour:accent_swap:${voice.accent}<->${voice.accent2}:plate_${plateColor}`);
+  return {...voice, accent: voice.accent2, accent2: voice.accent};
 }

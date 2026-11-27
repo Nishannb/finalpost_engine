@@ -14,6 +14,7 @@ import {HERO_FLOOR_FRAC, SUPPORT_FLOOR_FRAC} from '../motion.ts';
 import {boxAt, type ShotScene} from '../scene.ts';
 import type {KineticShot, RenderSpec, SceneElement} from '../schema.ts';
 import {isPartId, slantViolations} from './slant.ts';
+import {TAKEOVER_SPACING_SEC} from './controller.ts';
 
 export const TAKEOVER_MAX_SEC = 2.7;
 
@@ -69,7 +70,7 @@ export function verifyComposed(spec: RenderSpec, scene: ShotScene, shots: Kineti
   }
   // one card per BEAT: the extra rows of a slanted card (`.rN`) and its backed words (`.b`) are parts of the same card, not a second takeover
   const cards = takeovers.filter(t => !isPartId(t.id));
-  for (let i = 0; i < cards.length; i += 1) for (let j = i + 1; j < cards.length; j += 1) if (Math.abs(cards[i]!.inFrame - cards[j]!.inFrame) < 15 * spec.fps) out.push({eventId: cards[j]!.id, rule: 'takeover-spacing', detail: 'two takeover cards < 15 s apart'});
+  for (let i = 0; i < cards.length; i += 1) for (let j = i + 1; j < cards.length; j += 1) if (Math.abs(cards[i]!.inFrame - cards[j]!.inFrame) < TAKEOVER_SPACING_SEC * spec.fps - 1) out.push({eventId: cards[j]!.id, rule: 'takeover-spacing', detail: `two takeover cards < ${TAKEOVER_SPACING_SEC} s apart`});
   // one text system at a time
   const evs = [...spec.events].sort((a, b) => a.inFrame - b.inFrame);
   for (let i = 1; i < evs.length; i += 1) {

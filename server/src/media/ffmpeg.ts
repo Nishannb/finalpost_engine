@@ -190,6 +190,22 @@ export async function probeMedia(filePath: string): Promise<ProbeResult> {
   };
 }
 
+/**
+ * Pixel size of an image (or a video's first stream) WITHOUT requiring a duration. `probeMedia` throws on a still ("Could not read video duration"),
+ * so a photo's size was never read (2026-11-27). Use it on a frame ffmpeg already extracted: that frame is auto-rotated, so its size is the DISPLAY orientation.
+ */
+export async function probeImageSize(filePath: string): Promise<{width: number; height: number} | null> {
+  const {stdout} = await run(env.FFPROBE_PATH, ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'json', filePath], 15_000);
+  try {
+    const stream = (JSON.parse(stdout) as {streams?: Array<{width?: number; height?: number}>}).streams?.[0];
+    const width = Number(stream?.width ?? 0);
+    const height = Number(stream?.height ?? 0);
+    return width > 0 && height > 0 ? {width, height} : null;
+  } catch {
+    return null;
+  }
+}
+
 function parseFrameRate(raw?: string): number {
   const text = (raw || '').trim();
   if (!text || text === '0/0') {

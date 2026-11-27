@@ -30,7 +30,7 @@ import {zonesFor} from './kit.ts';
 import {measureVariety, motionGate, motionStats, type MotionStats, type VarietyMetrics} from './metrics.ts';
 import {planPunchIns, type ComposerZoom} from './stagecraft.ts';
 import {verifyComposed} from './verify.ts';
-import {applyPalette, oneFace, voiceFromIdentity} from './voice.ts';
+import {applyPalette, oneFace, plateDarkLuminance, readableVoice, voiceFromIdentity} from './voice.ts';
 import type {Beat, Built, ComposeCtx, CompositionName, EditDirection, Slot} from './types.ts';
 
 export type ComposerInput = {
@@ -195,13 +195,15 @@ export async function composeKinetic(input: ComposerInput): Promise<ComposerResu
     const shot: KineticShot = {id: 'shot-0', startFrame: 0, endFrame: durationFrames};
     const beats0 = analyzeBeats(words, fps);
     const presetVoice = oneFace(voiceFromIdentity(input.identity)); // one font per edit (owner rule 2026-11-26)
-    const direction = await resolveDirection(words, beats0, input.director, input.salt ?? '', input.aiPalette ? {...(input.plate?.color ? {footageColor: input.plate.color} : {}), ...(input.plate?.luminance !== undefined ? {footageLuminance: input.plate.luminance} : {}), presetText: presetVoice.text, presetAccent: presetVoice.accent} : undefined, {behind: Boolean(input.matte), matchCut: input.matchCut !== false});
+    const darkLum = plateDarkLuminance(input.plate?.grid);
+    const direction = await resolveDirection(words, beats0, input.director, input.salt ?? '', input.aiPalette ? {...(darkLum !== undefined ? {footageDark: darkLum} : {}), ...(input.plate?.color ? {footageColor: input.plate.color} : {}), ...(input.plate?.luminance !== undefined ? {footageLuminance: input.plate.luminance} : {}), presetText: presetVoice.text, presetAccent: presetVoice.accent} : undefined, {behind: Boolean(input.matte), matchCut: input.matchCut !== false});
     for (const b of beats0) { const t = direction.beatTags?.[b.id]?.type; if (t) b.type = t; }
     // every spoken word is shown: words a designed composition could not draw (a previous solve) become lane beats of their own
     const beats = splitForCoverage(beats0, input.coverageLane ?? [], words);
     const aiBehind = new Set(direction.behindBeats ?? []);
     if (input.director && input.matte) notes.push(aiBehind.size ? `behind:ai:${[...aiBehind].join('+')}` : 'behind:ai:none');
-    const voice = input.aiPalette ? applyPalette(presetVoice, direction.palette) : presetVoice;
+    // 2026-11-27: every colour must read on the plate's DARK areas (a dark jacket under a bright wall), not only on the frame mean (hue kept, brightness lifted)
+    const voice = readableVoice(input.aiPalette ? applyPalette(presetVoice, direction.palette) : presetVoice, darkLum, notes, input.plate?.color);
 
     // dry assignment (geometry-free) -> punch-ins
     const dry = assign(beats, direction, fps);

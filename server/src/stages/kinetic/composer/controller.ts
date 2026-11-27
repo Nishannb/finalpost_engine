@@ -7,7 +7,8 @@
  *   - at least MIN_DISTINCT_PER_30S distinct compositions per 30 s where the content allows,
  *   - zone / alignment / motion / voice never repeat back to back,
  *   - quiet beats between loud runs (an arc, not a wall),
- *   - takeover cards rare (one per TAKEOVER_SPACING_SEC, hook or peak only).
+ *   - takeover cards (a plain card + kinetic type: the edit's own B-roll) at least TAKEOVER_SPACING_SEC apart; when the picture has not changed for FRESH_PICTURE_SEC
+ *     (2026-11-27, owner: "something new every few seconds") the next beat that fits a card is pulled toward one.
  */
 import {hashString, rng} from './kit.ts';
 import {ANGLE_OK} from './slant.ts';
@@ -15,7 +16,11 @@ import type {Align, Beat, BeatType, CompositionName, EditDirection, ExitVerb, Pl
 
 export const MAX_SHARE = 0.34;
 export const MAX_DESIGNED_RUN = 4;
-export const TAKEOVER_SPACING_SEC = 18;
+export const TAKEOVER_SPACING_SEC = 8;
+/** seconds without a full-frame change (a takeover card) after which a card is strongly preferred on the next beat that fits one */
+export const FRESH_PICTURE_SEC = 7;
+/** the pull a stale picture gives a takeover card (larger than any affinity gap except a tagged / typed composition) */
+export const FRESH_PICTURE_BOOST = 2.2;
 export const MIN_DISTINCT_PER_30S = 6;
 
 type Designable = Exclude<CompositionName, 'captionLane' | 'matchCut'>;
@@ -119,6 +124,13 @@ export function rankCandidates(b: Beat, prevBeat: Beat | undefined, direction: E
     let s = (aff[c] ?? 0.35) * (direction.weights[c] ?? 1);
     if (direction.toolkit.includes(c)) s += 0.3;
     if (tag === c) s += 2.5;
+    // the picture has been the same talking head for a while: a plain type card changes the palette (it fits only 2-7 words / 0.8-2.6 s; the solver refuses otherwise)
+    if (c === 'takeover') {
+      const lastChange = hist.takeoverAt.length ? Math.max(...hist.takeoverAt) : 0;
+      const words = b.wordRange[1] - b.wordRange[0] + 1;
+      const len = (b.endFrame - b.startFrame) / fps;
+      if ((b.startFrame - lastChange) / fps >= FRESH_PICTURE_SEC && words >= 2 && words <= 7 && len >= 0.8 && len <= 2.6) s += FRESH_PICTURE_BOOST;
+    }
     if (continuingList) s += 3;
     s *= 1 - Math.abs(ENERGY[c] - (0.5 * b.intensity + 0.5 * direction.energy)) * 0.7;
     const recent = hist.comps.slice(-3).filter(x => x === c).length;

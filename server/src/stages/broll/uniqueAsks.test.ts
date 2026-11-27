@@ -42,6 +42,15 @@ describe('one ask per asset', () => {
     const slots = brollOpportunitiesToSlots([o('a', 3, 'YouTube logo'), o('b', 9, 'YouTube logo'), o('c', 15, 'Official YouTube logo'), o('d', 21, 'Instagram logo')]);
     expect(slots.map(s => s.label)).toEqual(['YouTube logo', 'Instagram logo']);
   });
+
+  it('2026-11-27: the same picture filed under different kinds (logo / product / clip) is still ONE ask', () => {
+    expect(askKey({kind: 'logo', label: 'YouTube logo'})).toBe(askKey({kind: 'product', label: 'YouTube'}));
+    expect(askKey({kind: 'logo', label: 'YouTube logo'})).toBe(askKey({kind: 'broll_clip', label: 'Clip or image: YouTube'}));
+    expect(askKey({kind: 'person', label: 'Elon Musk photo'})).toBe(askKey({kind: 'broll_clip', label: 'Elon Musk clip'}));
+    // a different picture of the same subject names its difference and keeps its own ask
+    expect(askKey({kind: 'logo', label: 'YouTube logo'})).not.toBe(askKey({kind: 'screenshot', label: 'YouTube Studio analytics'}));
+    expect(uniqueAsks([{kind: 'logo', label: 'YouTube logo'}, {kind: 'product', label: 'YouTube'}, {kind: 'broll_clip', label: 'Clip or image: YouTube logo'}, {kind: 'screenshot', label: 'YouTube Studio analytics'}])).toHaveLength(2);
+  });
 });
 
 describe('sniffMedia (why an upload could not be read)', () => {

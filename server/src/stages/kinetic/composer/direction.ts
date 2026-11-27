@@ -95,7 +95,7 @@ You decide how this video should FEEL and which typographic compositions suit it
 {"tone":"hype"|"educational"|"business"|"story"|"calm","energy":0..1,"toolkit":[4-7 composition names],"beats":[{"id":"b3","type":"<beat type>","composition":"<composition name>"}]}
 Compositions: giantWord (one word fills the width), wordSwap (rapid words replace each other in one spot), lineWipe (editorial sentence reveal with a larger key word), sideStack (vertical stack on one side),
 topHeadline (headline above the head), contrastSplit (the old word dims away as the new word lands), counterStat (a spoken number counts up), listItem (spoken list marker in a chip + the item),
-questionCard (question in a card), calloutBar (lower-third accent bars), markerHighlight (highlighter swipe behind the key word), ctaCard (call to action), takeover (full-frame type card for the hook or the peak, rare), heroStack (lead-in small, key word big).
+questionCard (question in a card), calloutBar (lower-third accent bars), markerHighlight (highlighter swipe behind the key word), ctaCard (call to action), takeover (full-frame plain card with big type: the edit's own B-roll, a change of picture for the hook, the peak, or when the talking head has run several seconds unchanged), heroStack (lead-in small, key word big).
 Beat types: ${BEAT_TYPES.join(', ')}. Tag only beats whose meaning you are sure of (a number that matters, a real contrast, a list item, a question, the call to action, the hook, the peak). Do not tag every beat.
 Variety matters: a strong edit uses 6+ different compositions, never the same one twice in a row, with quiet beats between loud ones.`;
 
@@ -114,7 +114,7 @@ genuinely happens; otherwise "matchCut":null. A keyword that is merely important
 
 /** the colour brief, sent only when the composer's colours are the Director's to choose (POLISH_KINETIC_AI_PALETTE) */
 export const COLOUR_BRIEF = `COLOUR: also add "palette":"<name>" to the JSON: the text colours that best suit THIS video (its subject, its mood, and the footage colour above; pick an accent that stands out
-against the footage, not one that blends into it), or "preset" to keep the creator's preset colours when they already suit it. Palettes: ${Object.entries(PALETTES).map(([k, p]) => `${k} (accent ${p.accent}, ${p.mood})`).join('; ')}.`;
+against the footage, not one that blends into it: never an accent close to the background's colour (no yellow / gold on a warm yellow wall) and never a dark one when the speaker wears dark clothes), or "preset" to keep the creator's preset colours when they already suit it. Palettes: ${Object.entries(PALETTES).map(([k, p]) => `${k} (accent ${p.accent}, ${p.mood})`).join('; ')}.`;
 
 const directorSchema = z.object({
   tone: z.enum(['hype', 'educational', 'business', 'story', 'calm']),
@@ -130,11 +130,11 @@ const directorSchema = z.object({
 export type DirectorOffers = {behind?: boolean; matchCut?: boolean};
 
 /** what the Director knows about the footage and the preset when it picks colours */
-export type ColourContext = {footageColor?: string; footageLuminance?: number; presetText?: string; presetAccent?: string};
+export type ColourContext = {footageColor?: string; footageLuminance?: number; /** brightness of the plate's darkest areas (often the speaker's clothes / hair) */ footageDark?: number; presetText?: string; presetAccent?: string};
 
 export function buildComposerDirectorPrompt(words: readonly KineticWord[], beats: readonly Beat[], colour?: ColourContext, offers: DirectorOffers = {}): string {
   const look = colour
-    ? `FOOTAGE: average colour ${colour.footageColor ?? 'unknown'}, brightness ${colour.footageLuminance !== undefined ? colour.footageLuminance.toFixed(2) : 'unknown'} (0 dark .. 1 bright). PRESET COLOURS: text ${colour.presetText ?? '#FFFFFF'}, accent ${colour.presetAccent ?? '#FFD400'}.\n${COLOUR_BRIEF}\n\n`
+    ? `FOOTAGE: average colour ${colour.footageColor ?? 'unknown'}, brightness ${colour.footageLuminance !== undefined ? colour.footageLuminance.toFixed(2) : 'unknown'} (0 dark .. 1 bright)${colour.footageDark !== undefined ? `, darkest areas ${colour.footageDark.toFixed(2)} (the type often sits over the speaker's clothes / hair: every colour must read there too)` : ''}. PRESET COLOURS: text ${colour.presetText ?? '#FFFFFF'}, accent ${colour.presetAccent ?? '#FFD400'}.\n${COLOUR_BRIEF}\n\n`
     : '';
   const extra = `${offers.behind ? `${BEHIND_BRIEF}\n\n` : ''}${offers.matchCut ? `${MATCH_CUT_BRIEF}\n\n` : ''}`;
   return `${look}${extra}BEATS (id | detected type | words):\n${beats.map(b => `${b.id} | ${b.type} | ${words.slice(b.wordRange[0], b.wordRange[1] + 1).map(w => w.text).join(' ')}`).join('\n')}\n\nReturn the JSON.`;

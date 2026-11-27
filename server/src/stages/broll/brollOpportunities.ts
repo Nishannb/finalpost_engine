@@ -79,7 +79,7 @@ RULES
 5. Rhythm: do not interrupt every sentence; let important moments breathe. Keep related visuals of ONE explanation together in one continuity_group (a transformation = an ordered sequence of shots).
 6. Keep the speaker on screen (set talking_head_moment=true and it will be skipped) for emotional statements, personal stories, punchlines, strong opinions, direct-to-camera asks, and moments where the face carries meaning.
 7. Scientific and historical accuracy: never a misleading but pretty visual. factuality_requirement "exact" when only the real thing is acceptable.
-8. Do not repeat the same person, logo or product unless the story returns to it on purpose.
+8. ONE ask per picture: never return two opportunities that need the same upload (the YouTube logo once, not as a logo, a product and a clip). If a later moment needs a DIFFERENT picture of the same subject, its upload_label must say exactly how it differs ("YouTube Studio analytics screen", not "YouTube logo").
 9. If there is no strong visual opportunity, return an empty list. Fewer, better moments beat many.
 
 TIMING: point at the transcript by WORD INDEX. start_word = the word that introduces the subject (the strongest relevant phrase), end_word = where the visual has done its job. Never start before the statement. Typical durations: person / brand 1-2.5 s, product 1.5-3 s, contextual footage or an event 2-4 s, a complex explanation 3-5 s.

@@ -116,9 +116,13 @@ export function askKey(slot: Pick<LabeledAssetSlot, 'kind' | 'label'>): string {
     .trim();
   // a logo of a known brand is that brand, whatever words came with it ("On YouTube logo" = "YouTube logo")
   const brand = slot.kind === 'logo' ? core.split(' ').find(word => KNOWN_BRAND.test(word)) : undefined;
-  if (brand) return `logo:${brand}`;
+  if (brand) return `asset:${brand}`;
   const trimmed = core.replace(/^((on|in|at|with|for|to|of|from|by|and|or|so|but)\s+)+/, '');
-  return `${slot.kind}:${trimmed || core || slot.label.toLowerCase().trim()}`;
+  const subject = trimmed || core || slot.label.toLowerCase().trim();
+  // 2026-11-27: the KIND is not part of the key. The same YouTube logo was asked 3 times because the detector filed it once as a logo, once as a product and once
+  // as a clip ("YouTube" / "YouTube logo" / "Clip or image: YouTube"): one picture, one ask. A really different picture names its difference in the label
+  // ("YouTube Studio analytics"), so it keeps its own ask.
+  return `asset:${subject}`;
 }
 
 /** One ask per asset (2026-11-26: the same YouTube logo was asked for 4-5 times). The first ask of each asset is kept. */
