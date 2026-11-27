@@ -733,6 +733,8 @@ export type VisualOverlay = {
   fitWidth?: boolean;
   /** 2026-11-27 (Kinetic B-roll): motion-designed entrance / exit timed inside the window, the asset drawn once and large, no dark caption plate. Absent = as before. */
   kineticMotion?: boolean;
+  /** 2026-11-28 (Kinetic split): where the speaker's head top is (frame fraction, from the RVM matte or the measured speaker box); the renderer frames the speaker half by it. Absent = the fixed framing. */
+  speakerHeadTopFrac?: number;
   cornerRadius?: number;
   glow?: boolean;
   focusRegion?: FocusRegion | null;

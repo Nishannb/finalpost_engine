@@ -191,12 +191,18 @@ export function captionsMutedAt(ranges: ReadonlyArray<{startSec: number; endSec:
  */
 /** the caption band of a Kinetic split with the speaker below: just under the seam (0.5), above the speaker's head */
 export const KINETIC_SPLIT_CAPTION_BAND = {top: 0.52, height: 0.14} as const;
-export function kineticSplitCaptionLayout<T extends CaptionPlacement>(layout: T, speakerSide: 'top' | 'bottom'): T {
+/** 2026-11-28: the band when the speaker is FRAMED by the measured head (its head top lands at 0.625, splitMotion.ts): a slimmer band just under the seam, above the head */
+export const KINETIC_SPLIT_FRAMED_CAPTION_BAND = {top: 0.515, height: 0.1} as const;
+export function kineticSplitCaptionLayout<T extends CaptionPlacement>(layout: T, speakerSide: 'top' | 'bottom', headFramed = false): T {
   if (speakerSide === 'top') {
     return {...layout, position: 'bottom', bottomFrac: PLATE_CAPTION_BOTTOM_FRAC, frameTopFrac: 0, frameHeightFrac: SPLIT_SEAM_FRAC};
   }
   // the split frames the speaker's head inside the lower half, so the face fills it: the open band is just BELOW the seam, above the head (rendered check
   // 2026-11-27: a caption 14% from the bottom sat on the eyes, and the caption renderer clamps bottomFrac to <= 0.22-0.34). So the caption FRAME is that band
   // (clear of the seam feather) and the caption is centred in it.
-  return {...layout, position: 'center', frameTopFrac: KINETIC_SPLIT_CAPTION_BAND.top, frameHeightFrac: KINETIC_SPLIT_CAPTION_BAND.height};
+  const band = headFramed ? KINETIC_SPLIT_FRAMED_CAPTION_BAND : KINETIC_SPLIT_CAPTION_BAND;
+  return {...layout, position: 'center', frameTopFrac: band.top, frameHeightFrac: band.height};
 }
+
+/** 2026-11-28 (owner): `direction.boxColor` sentinel: no box behind the caption words at all (also not the template's own); the words get an outline instead. */
+export const CAPTION_NO_BOX = 'none';

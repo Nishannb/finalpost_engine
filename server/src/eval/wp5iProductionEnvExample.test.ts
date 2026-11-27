@@ -60,7 +60,7 @@ describe('nothing live changed', () => {
     }
   });
   it('the existing production lines and placeholders are as they were', () => {
-    for (const line of ['NODE_ENV=production', 'PORT=8090', 'DEV_AUTH_BYPASS=0', 'PIPELINE_MODE=lean', 'REMOTION_COMPOSITION_ID=ShortVideo', 'MAX_SOURCE_DURATION_SEC=300', 'BLUEPRINT_TTL_SEC=604800', 'GEMINI_API_KEY=', 'GROQ_API_KEY=', 'R2_ACCESS_KEY_ID=', 'R2_SECRET_ACCESS_KEY=', 'AWS_SECRET_ACCESS_KEY=']) {
+    for (const line of ['NODE_ENV=production', 'PORT=8090', 'DEV_AUTH_BYPASS=0', 'PIPELINE_MODE=lean', 'REMOTION_COMPOSITION_ID=ShortVideo', 'MAX_SOURCE_DURATION_SEC=600', 'BLUEPRINT_TTL_SEC=604800', 'GEMINI_API_KEY=', 'GROQ_API_KEY=', 'R2_ACCESS_KEY_ID=', 'R2_SECRET_ACCESS_KEY=', 'AWS_SECRET_ACCESS_KEY=']) {
       expect(lines, line).toContain(line);
     }
   });

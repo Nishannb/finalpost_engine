@@ -433,6 +433,8 @@ export const visualOverlaySchema = z.object({
   fitWidth: z.boolean().optional(),
   /** 2026-11-27 (Kinetic B-roll): motion-designed entrance / exit timed INSIDE the window (split seam / cutaway push), the asset drawn once and large (no blurred copy), no dark caption plate. Absent = as before. */
   kineticMotion: z.boolean().optional(),
+  /** 2026-11-28 (Kinetic split): the speaker's head top (frame fraction, RVM matte or measured speaker box); the speaker half is framed by it. Absent = the fixed framing. */
+  speakerHeadTopFrac: z.number().min(0).max(1).optional(),
   focusRegion: z
     .object({
       x: z.number(),

@@ -16,8 +16,8 @@ import type {LabeledAssetBrief, LabeledAssetKind, LabeledAssetSlot} from './labe
 /** WP29: `solidLike` = a flat / near-solid still (pixel analysis in the describe path). Only a logo may use one (pip / logo cloud); never a full-frame world. */
 export type ResolvedLabeledAsset = {url: string; mediaKind: 'image' | 'video'; solidLike?: boolean; /** pixel size when known (describe step) */ width?: number; height?: number};
 
-/** 2026-11-26 (Kinetic): an asset at least this tall for its width (~9:16) fills the frame as a cutaway; anything wider (landscape, square, 4:5) is a split screen. */
-export const FULL_FRAME_MIN_ASPECT = 1.6;
+/** 2026-11-28 (owner): ANY portrait asset (taller than wide: 9:16, 3:4 iPhone photo, 4:5) fills the frame as a cutaway; only landscape / square is a split screen. Was 1.6 (a 3:4 photo became a split). Same rule as kineticBrollGuard.ts. */
+export const FULL_FRAME_MIN_ASPECT = 1.05;
 export const isVerticalAsset = (a: Pick<ResolvedLabeledAsset, 'width' | 'height'>): boolean => Boolean(a.width && a.height && a.height / a.width >= FULL_FRAME_MIN_ASPECT);
 export type TimeRange = {start: number; end: number};
 

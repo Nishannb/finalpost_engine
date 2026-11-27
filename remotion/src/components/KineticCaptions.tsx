@@ -84,13 +84,18 @@ const TemplateKineticCaptions: React.FC<KineticCaptionsProps> = ({
   const template = captionTemplateFor(
     style.captionTemplate || direction?.template || 'classic',
   );
+  // 2026-11-28 (owner): CAPTION_NO_BOX ('none', Kinetic B-roll windows) = no box at all: not the direction's, not the template's, not the shine pill
+  // behind the active word; the words get a dark outline so they still read on any footage.
+  const noBox = direction?.boxColor === 'none';
+  const animation0 = mapCaptionAnimation(direction?.animation) || template.animation;
   const merged = {
     ...template,
     uppercase: direction?.uppercase ?? template.uppercase,
-    animation: mapCaptionAnimation(direction?.animation) || template.animation,
+    animation: noBox && animation0 === 'highlight' ? 'scale' : animation0,
     primaryColor: direction?.textColor ?? template.primaryColor,
     highlightColor: direction?.highlightColor ?? template.highlightColor,
-    backgroundColor: direction?.boxColor ?? template.backgroundColor,
+    backgroundColor: noBox ? null : direction?.boxColor ?? template.backgroundColor,
+    ...(noBox && template.outlineWidthPt < 2 ? {outlineColor: '#000000', outlineWidthPt: 2.5} : {}),
   };
   const centerMode = direction?.position === 'center';
   const bottomFrac = captionBottomFor(
@@ -119,14 +124,15 @@ const TemplateKineticCaptions: React.FC<KineticCaptionsProps> = ({
   // WP4J: with the rail flag (blueprints with `legibility.captions`) the block's right edge ends at or before the platform button rail; flag off: the template's own width.
   const railWidthFrac = captionRailWidthFrac(template.maxWidthFrac, style.captionCenterXFrac, Boolean(railClear));
   const fontSize = scaleFromPreview(template.fontSizePt, width) * (direction?.fontScale || 1);
-  const outlineWidth = scaleFromPreview(Math.min(template.outlineWidthPt, 3.5), width);
+  const outlineWidth = scaleFromPreview(Math.min(merged.outlineWidthPt, 3.5), width);
   const topMode = direction?.position === 'top';
   // WP13C: a short-form look's type treatment (heavy stroke, no coloured glow, active word as plain fill or as ink on a marker bar) replaces the template's glowing-pill / neon-fill treatment.
   const typed: TypedCaption | undefined = direction?.activeStyle
     ? {
         strokeColor: direction.strokeColor ?? template.outlineColor,
         strokeWidth: fontSize * (direction.strokeWidthEm ?? 0.08),
-        activeStyle: direction.activeStyle,
+        // no box: the marker bar behind the active word becomes a plain fill
+        activeStyle: noBox && direction.activeStyle === 'marker' ? 'fill' : direction.activeStyle,
         activeInk: direction.activeInk ?? '#0B0B0B',
         glow: direction.glow === true,
       }

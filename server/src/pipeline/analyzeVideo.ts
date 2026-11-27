@@ -17,6 +17,8 @@ import {captionMuteRanges, mergeMuteRanges, type MuteRange} from '../lib/caption
 import type {RenderSpec} from '../stages/kinetic/schema.ts';
 import {FULLSCREEN_OBJECT_POSITION, kineticFinalTextGuard, kineticOwnedComposition, kineticOwnedLanes, kineticOwnedOpening, kineticOwnedOverlays, kineticOwnedText, ledgerDropOwnedText, planKineticForeground, runKineticEngineStage, stillnessInsetsAllowed} from './kineticEngineStage.ts';
 import {prepareKineticMatte, type KineticMatteOutcome} from './kineticMatteStage.ts';
+import {guardKineticBroll, type SpeakerHeadSource} from '../stages/broll/kineticBrollGuard.ts';
+import type {AlphaGrid} from '../stages/kinetic/scene.ts';
 import {kineticEngineAllowedFor, resolveFootageKind, type FootageKind} from '../lib/footageKind.ts';
 import {applyMatchCutShutter, matchCutShutterHits} from '../stages/kinetic/matchCutShutter.ts';
 import {brollCoverageWindows, kineticCaptionMuteRanges, splitKineticSpecForBroll} from '../stages/kinetic/brollCaptionSplit.ts';
@@ -1272,6 +1274,8 @@ async function analyzeVideoUnguarded(
     let kineticEngineSpec: RenderSpec | null = null;
     /** Phase 5: the person foreground of a matte-informed kinetic spec (only when it has behind lines) */
     let kineticEngineForeground: {videoUrl: string; spans: Array<{start: number; end: number}>} | undefined;
+    /** 2026-11-28: the RVM matte grid (composition fractions), kept for the Kinetic B-roll guard's split framing */
+    let kineticMatteGrid: AlphaGrid | undefined;
     // Final freeze: only footage the caller identified as 'camera' may enter the engine (screen recordings carry burned-in app UI the engine cannot see; unknown is never assumed to be camera).
     const kineticFootageOk = kineticEngineAllowedFor(input.footageKind);
     if (polishPath && flags.kineticEngine && flags.kineticLed && captionWords.length > 0 && !kineticFootageOk) warnings.push(`kinetic_engine:skipped_footage:${resolveFootageKind(input.footageKind)}`);
@@ -1303,6 +1307,7 @@ async function analyzeVideoUnguarded(
             durationFrames: Math.ceil(timeline.outputDurationSec * outputFps),
           });
           warnings.push(...kineticMatte.warnings);
+          if (kineticMatte.ok) kineticMatteGrid = kineticMatte.matte.grid;
         }
       }
       let engine = await runKineticEngineStage({...engineInput, ...(flags.kineticComposer ? {composer: true, ...(flags.kineticAiPalette ? {aiPalette: true} : {})} : {}), ...(kineticMatte?.ok ? {matte: kineticMatte.matte} : {})});
@@ -3008,6 +3013,17 @@ async function analyzeVideoUnguarded(
       broll.overlays = guard.overlays;
       if (guard.dropExplainerLane) explainerMount = null;
       warnings.push(...guard.warnings);
+      // 2026-11-28 (owner): every Kinetic split / cutaway asset by orientation (landscape = split, portrait = full frame), drawn once and sharp (no blurred copy, no dark
+      // caption plate), and the split's speaker half framed by the real head position (RVM matte, else the measured speaker box on 9:16 footage). No extra calls.
+      const sourceTall = originalProbe.width > 0 && originalProbe.height / originalProbe.width > 1.7 && originalProbe.height / originalProbe.width < 1.85;
+      const headSource: SpeakerHeadSource = kineticMatteGrid
+        ? {kind: 'matte', grid: kineticMatteGrid, fps: outputFps}
+        : occupancy.source === 'vision' && sourceTall
+          ? {kind: 'box', headTopFrac: occupancy.speaker.y}
+          : {kind: 'none'};
+      const brollGuard = guardKineticBroll(broll.overlays, headSource);
+      broll.overlays = brollGuard.overlays;
+      warnings.push(...brollGuard.warnings);
     } else if (subjectStagePayload) {
       // Phase 5.23: the Subject Stage pipeline owns every word on screen (its stage text is in the payload); the other text lanes are cleared here, immediately before assembly.
       // Phase 5.27C: captions are muted only where the stage actually draws (the legacy planner path keeps the whole-run ownership)

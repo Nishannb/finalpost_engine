@@ -42,7 +42,7 @@ import type {
 } from '../types/blueprint.ts';
 import {burnCaptionKitVideo} from './captionKitBurn.ts';
 import {startAnalysis} from './analysisRunner.ts';
-import {billableExtra, rawSourceDurationSec} from '../lib/editMinutes.ts';
+import {billableExtra, isBillableEditMode, rawSourceDurationSec} from '../lib/editMinutes.ts';
 import {
   loadRenderJob,
   refreshRenderJob,
@@ -54,9 +54,11 @@ const log = stageLogger('captions-edit');
 const running = new Set<string>();
 const sourceReady = new Set<string>();
 const HEAD_POLL_MS = 2500;
-const HEAD_TIMEOUT_MS = 20 * 60 * 1000;
+/** Waiting for the app's upload: a 10 minute take is ~1 GB on a phone connection. */
+const HEAD_TIMEOUT_MS = 40 * 60 * 1000;
 const STAGE_POLL_MS = 2000;
-const STAGE_TIMEOUT_MS = 12 * 60 * 1000;
+/** Per stage (analysis, render): sized for a 10 minute source (MAX_SOURCE_DURATION_SEC 600). */
+const STAGE_TIMEOUT_MS = 25 * 60 * 1000;
 
 const sleep = (ms: number) =>
   new Promise<void>(resolve => {
@@ -374,6 +376,7 @@ async function burnCaptionsWithCaptionKit(
     job.outputDurationSec = outputDurationSec;
     job.updatedAt = new Date().toISOString();
     await saveCaptionsEditJob(job);
+    await ensureRawSourceDuration(job);
     await sendCallback(job, {
       userId: job.userId,
       editJobId: job.editJobId,
@@ -595,6 +598,28 @@ const fullEditActive = new Set<string>();
  */
 const isKineticJob = (job: Pick<CaptionsEditJob, 'style'>): boolean => job.style === 'kinetic_typography';
 
+/**
+ * 2026-11-28 (owner): a paid edit is charged by the RAW upload's length, never the shorter edited output. `waitForAnalysis` records it; a finish
+ * that did not pass through it (a resumed / recovered job, a job saved before the field existed) reads it from the analysis or the saved blueprint, so
+ * the done callback always carries `sourceDurationSec`. Never throws.
+ */
+async function ensureRawSourceDuration(job: CaptionsEditJob): Promise<void> {
+  if (!isBillableEditMode(job.mode) || (typeof job.sourceDurationSec === 'number' && job.sourceDurationSec > 0)) return;
+  try {
+    const analysis = job.analysisJobId ? await loadAnalysisJob(job.analysisJobId) : null;
+    const blueprint = analysis?.blueprint ?? (job.blueprintId ? await loadBlueprint(job.blueprintId) : null);
+    const raw = blueprint ? rawSourceDurationSec(blueprint) : undefined;
+    if (raw !== undefined) {
+      job.sourceDurationSec = raw;
+      await saveCaptionsEditJob(job);
+    } else {
+      log.warn({editJobId: job.editJobId}, 'edit minutes: raw source length unknown at done');
+    }
+  } catch (error) {
+    log.warn({error, editJobId: job.editJobId}, 'edit minutes: raw source length lookup failed');
+  }
+}
+
 /** The push for the end of a job. Captions jobs keep the original `edit_done` message; full edits add types and dedupe. */
 async function notifyEnd(
   job: CaptionsEditJob,
@@ -602,6 +627,7 @@ async function notifyEnd(
   extra: {outputUrl?: string; errorMessage?: string; billable?: boolean; outputDurationSec?: number; sourceDurationSec?: number},
 ): Promise<void> {
   if (status === 'done') {
+    await ensureRawSourceDuration(job);
     extra = {...extra, ...billableExtra(job)};
   }
   if (job.mode !== 'full_edit') {

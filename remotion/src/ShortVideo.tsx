@@ -42,7 +42,7 @@ import {graphicsWithComponents} from './generated/loadFold';
 import {useGeneratedGraphicComponents} from './generated/loader';
 import {activeGeneratedSplitAt, captionsForGeneratedSplit} from './generated/placement';
 import {PACKAGE_THEME_DEFAULT_FONT_SIZE, isPackageCaptionThemeId} from './captions/packageThemes';
-import {captionBackingPlate, captionBackingPlateEnabled, captionPlateLineActive, captionPlateLines, captionSplitAt, captionsForBrollSplit, kineticSplitCaptionLayout, openingHidesCaptions, captionsMutedAt} from './lib/captionSplit';
+import {CAPTION_NO_BOX, captionBackingPlate, captionBackingPlateEnabled, captionPlateLineActive, captionPlateLines, captionSplitAt, captionsForBrollSplit, kineticSplitCaptionLayout, openingHidesCaptions, captionsMutedAt} from './lib/captionSplit';
 import {SemanticEmphasisTrack} from './components/SemanticEmphasisTrack';
 import {ImpactFxTrack, ImpactPunch} from './components/ImpactFxTrack';
 import {SmashPunch} from './components/SmashPunch';
@@ -67,7 +67,7 @@ import {
   getInsetState,
 } from './lib/insetRevealMotion';
 import {activeInsetRevealAt} from './components/InsetRevealTrack';
-import {SPLIT_ENTER_SEC, kineticPlateSize, splitPlaySec, splitTiming} from './lib/splitMotion';
+import {SPLIT_ENTER_SEC, isKineticSplitOverlay, kineticPlateSize, kineticSplitSpeakerPosition, splitPlaySec, splitTiming} from './lib/splitMotion';
 import {compositionFrames, framesBetween, resolveSegments, secToFrame} from './lib/timeline';
 
 const NO_GRAPHICS: GeneratedGraphic[] = [];
@@ -157,7 +157,7 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({blueprint, style}) => {
     legibleCaptions && !split && !generatedSplit && style.brollEnabled
       ? captionSplitAt(
           // a Kinetic split (kineticMotion) has no held plate: its captions move with the split itself
-          overlays.filter(overlay => overlay.layout === 'split' && Boolean(overlay.assetUrl) && !overlay.kineticMotion),
+          overlays.filter(overlay => overlay.layout === 'split' && Boolean(overlay.assetUrl) && !isKineticSplitOverlay(overlay)),
           frame,
           {holdFrames: legibleCaptions.splitHoldFrames, fps: blueprint.fps, durationFrames: durationInFrames},
         )
@@ -167,9 +167,12 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({blueprint, style}) => {
   const splitCaptions0 = legibleCaptions && captionSplit ? captionsForBrollSplit(generatedCaptions.layout, captionSpeakerSide, height) : undefined;
   // 2026-11-27 (owner): during a Kinetic split the captions are the NORMAL captions (the preset's own look, no dark plate, no split colours) and they stay
   // in the TALKING-HEAD half, low in the frame (the upper half is the asset). The Kinetic type itself is already dropped inside B-roll windows (server).
-  const kineticSplit = Boolean(split?.kineticMotion);
+  // 2026-11-28: also the 11-26 `fitWidth` Kinetic split (before the flag existed): never the dark plate / caption box over the asset
+  const kineticSplit = Boolean(split && isKineticSplitOverlay(split));
   const splitCaptions = kineticSplit ? undefined : splitCaptions0;
-  const captionLayout = kineticSplit ? kineticSplitCaptionLayout(generatedCaptions.layout, speakerSide) : (splitCaptions?.layout ?? generatedCaptions.layout);
+  const captionLayout = kineticSplit ? kineticSplitCaptionLayout(generatedCaptions.layout, speakerSide, split?.speakerHeadTopFrac !== undefined && speakerSide === 'bottom') : (splitCaptions?.layout ?? generatedCaptions.layout);
+  // 2026-11-28 (owner): the simple captions inside a Kinetic B-roll window (split or full-frame cutaway) never sit in a box: outlined text instead
+  const kineticBrollNow = kineticSplit || overlays.some(overlay => overlay.kineticMotion && overlay.layout === 'cutaway' && timeSec >= overlay.start && timeSec < overlay.end);
   const captionBand = blueprint.captionWords.length > 0 ? (splitCaptions?.band ?? generatedCaptions.band) : null;
   const captionTemplateId = style.captionTemplate || blueprint.captionDirection?.template;
   // WP4D (blueprints with `legibility.captions` only): outline-style captions off a split get the same dark band as a split, in the lower half at the caption's bottom edge.
@@ -210,8 +213,11 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({blueprint, style}) => {
   const stageOnNow = stageForegroundAt(stageComp, timeSec);
 
   // Keep the creator's face in the half-panel: bias toward the upper face band.
+  // 2026-11-28: a Kinetic split with a measured head (RVM matte / speaker box) frames the speaker by it, so the face and chin stay in the half.
   const speakerObjectPosition =
-    speakerSide === 'top' ? '50% 28%' : '50% 18%';
+    split?.speakerHeadTopFrac !== undefined && speakerSide === 'bottom' && isKineticSplitOverlay(split)
+      ? kineticSplitSpeakerPosition(split.speakerHeadTopFrac, height)
+      : speakerSide === 'top' ? '50% 28%' : '50% 18%';
 
   // The speaker's frame-level transforms (WP26 smash zoom, impact punch-in), shared with the person-matte foreground below so the matte is transformed exactly like the footage it was cut from.
   const speakerEffects = (children: React.ReactNode) => (
@@ -605,6 +611,7 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({blueprint, style}) => {
             position: captionLayout.position,
             bottomFrac: captionLayout.bottomFrac,
             ...(splitCaptions && legibleCaptions ? {boxColor: legibleCaptions.splitBoxColor, textColor: legibleCaptions.splitTextColor} : {}),
+            ...(kineticBrollNow ? {boxColor: CAPTION_NO_BOX} : {}),
           }}
           design={design}
         />
@@ -783,38 +790,20 @@ const FitWidthPlate: React.FC<{overlay: VisualOverlay}> = ({overlay}) => {
   const dur = Math.max(1, framesBetween(overlay.start, overlay.end, fps));
   const push = interpolate(frame - startFrame, [0, dur], [1, 1.04], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   const src = resolveMediaSrc(overlay.assetUrl);
-  if (overlay.kineticMotion) {
-    // 2026-11-27 (owner): the asset ONCE and LARGE in the media half (no blurred copy of itself behind it): as close to filling the half as possible,
-    // cropping at most KINETIC_MAX_CROP off the long side (a landscape photo loses a little of its sides, never its middle); the few pixels left are a
-    // quiet dark gradient.
-    const size = kineticPlateSize(overlay.width, overlay.height, width, height * 0.5);
-    const box: React.CSSProperties = {position: 'absolute', left: '50%', top: '50%', width: size.w, height: size.h, objectFit: 'cover', transform: `translate(-50%, -50%) scale(${push})`};
-    return (
-      <AbsoluteFill style={{background: 'linear-gradient(180deg, #1A1C22 0%, #0E0F12 100%)'}}>
-        {overlay.mediaKind === 'video' ? (
-          <Sequence from={startFrame} durationInFrames={dur} layout="none">
-            <OffthreadVideo src={src} muted style={box} />
-          </Sequence>
-        ) : (
-          <Img src={src} style={box} />
-        )}
-      </AbsoluteFill>
-    );
-  }
-  const contain: React.CSSProperties = {width: '100%', height: '100%', objectFit: 'contain', transform: `scale(${push})`};
-  if (overlay.mediaKind === 'video') {
-    return (
-      <AbsoluteFill style={{backgroundColor: '#0b0b0d'}}>
-        <Sequence from={startFrame} durationInFrames={dur} layout="none">
-          <OffthreadVideo src={src} muted style={contain} />
-        </Sequence>
-      </AbsoluteFill>
-    );
-  }
+  // 2026-11-28: every fitWidth split (also the 11-26 ones without kineticMotion) draws the asset once; the blurred-copy plate is gone (owner: a blurred asset is useless).
+  // 2026-11-27 (owner): the asset ONCE and LARGE in the media half: as close to filling the half as possible, cropping at most KINETIC_MAX_CROP off the long
+  // side (a landscape photo loses a little of its sides, never its middle); the few pixels left are a quiet dark gradient.
+  const size = kineticPlateSize(overlay.width, overlay.height, width, height * 0.5);
+  const box: React.CSSProperties = {position: 'absolute', left: '50%', top: '50%', width: size.w, height: size.h, objectFit: 'cover', transform: `translate(-50%, -50%) scale(${push})`};
   return (
-    <AbsoluteFill style={{backgroundColor: '#0b0b0d'}}>
-      <Img src={src} style={{width: '100%', height: '100%', objectFit: 'cover', transform: 'scale(1.15)', filter: 'blur(26px) saturate(1.1) brightness(0.45)'}} />
-      <Img src={src} style={contain} />
+    <AbsoluteFill style={{background: 'linear-gradient(180deg, #1A1C22 0%, #0E0F12 100%)'}}>
+      {overlay.mediaKind === 'video' ? (
+        <Sequence from={startFrame} durationInFrames={dur} layout="none">
+          <OffthreadVideo src={src} muted style={box} />
+        </Sequence>
+      ) : (
+        <Img src={src} style={box} />
+      )}
     </AbsoluteFill>
   );
 };
