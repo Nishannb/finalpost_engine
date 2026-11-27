@@ -23,6 +23,7 @@ import {
 } from '../../pipeline/captionsEditRunner.ts';
 import {labeledAssetBindingSchema} from '../schemas.ts';
 import {assertActiveProEntitlement, assertFullEditEntitlement, hasActivePaidSubscription, resolveCatalogAccess, resolveEntitlement} from '../../lib/entitlement.ts';
+import {assertEditMinutesAvailable} from '../../lib/editMinutes.ts';
 import {isCaptionKitPresetId} from '../../lib/captionKitPresets.ts';
 import {V1_RELEASE_STYLES, buildEditStyleCatalog, resolveRequestedStyle, v1ReleaseViolation, type EditStyleConfig} from '../../lib/editStyles.ts';
 import {env} from '../../config/env.ts';
@@ -191,6 +192,7 @@ editRoutes.post('/edits/captions', async (req, res) => {
   // teleprompter clean) is Pro / Pro Plus, decided from the server-verified plan, never from the request.
   if (styled?.tier === 'pro' || mode !== 'basic_captions') {
     await assertFullEditEntitlement(auth);
+    await assertEditMinutesAvailable(auth);
   }
   const {job, uploadUrl} = await createCaptionsEditJob({
     userId: auth.userId,
@@ -278,6 +280,7 @@ editRoutes.post('/edits/:editJobId/retry', async (req, res) => {
   await assertFullEditEntitlement(auth);
   // An old Kinetic job must not bypass the access gate: its style is read from the stored job (the caller's own job only).
   await requireKineticJobAccess(auth, await loadCaptionsEditJob(String(req.params.editJobId)), 'retry');
+  await assertEditMinutesAvailable(auth);
   const job = await retryFullEdit({editJobId: String(req.params.editJobId), userId: auth.userId});
   res.status(202).json({ok: true, job});
 });

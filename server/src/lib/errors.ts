@@ -33,6 +33,8 @@ export type EngineErrorCode =
   | 'kinetic_unavailable'
   /** V1 release: the footage cannot enter the Kinetic pipeline (screen recording, or the app did not say it is camera footage). Not retryable. */
   | 'footage_unsupported'
+  /** Pro edit minutes (coins) are used up for this billing period; a new paid edit is refused. Basic Captions are unaffected. */
+  | 'edit_minutes_exhausted'
   | 'internal';
 
 const STATUS_BY_CODE: Record<EngineErrorCode, number> = {
@@ -61,6 +63,7 @@ const STATUS_BY_CODE: Record<EngineErrorCode, number> = {
   ai_direction_failed: 502,
   kinetic_unavailable: 503,
   footage_unsupported: 422,
+  edit_minutes_exhausted: 403,
   internal: 500,
 };
 
