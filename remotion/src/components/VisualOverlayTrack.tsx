@@ -6,6 +6,7 @@
 import React from 'react';
 import {
   AbsoluteFill,
+  Easing,
   Img,
   OffthreadVideo,
   Sequence,
@@ -153,6 +154,28 @@ const OverlayView: React.FC<{
         <div style={{position: 'absolute', left: width * 0.04, right: width * 0.04, top: height * 0.1, height: height * 0.5, display: 'flex', alignItems: 'center', justifyContent: 'center', transform: `scale(${0.96 + pop * 0.04})`}}>
           <Img src={src} style={{maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: Math.round(width * 0.02), boxShadow: '0 24px 60px rgba(0,0,0,0.45)'}} />
         </div>
+      </AbsoluteFill>
+    );
+  }
+
+  if (overlay.layout === 'cutaway' && overlay.kineticMotion) {
+    // 2026-11-27 (Kinetic B-roll): a designed entrance and exit INSIDE the window, never a hard cut. In: the picture rises a little and settles from a
+    // slight zoom (the talking head is wiped by a soft upward reveal). Out: it lifts away and zooms past while the speaker shows through again.
+    const inF = Math.max(2, Math.min(Math.round(0.45 * fps), Math.round(durationInFrames * 0.22)));
+    const outF = Math.max(2, Math.min(Math.round(0.4 * fps), Math.round(durationInFrames * 0.2)));
+    const outStart = Math.max(inF, durationInFrames - outF);
+    const ease = Easing.bezier(0.22, 1, 0.36, 1);
+    const tIn = interpolate(frame, [0, inF], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: ease});
+    const tOut = interpolate(frame, [outStart, durationInFrames], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.in(Easing.cubic)});
+    const reveal = (1 - tIn) * 100; // % of the frame still covered from the bottom by the incoming wipe
+    return (
+      <AbsoluteFill
+        style={{
+          opacity: 1 - tOut,
+          transform: `translateY(${(1 - tIn) * height * 0.06 - tOut * height * 0.08}px) scale(${1.08 - 0.08 * tIn + 0.06 * tOut})`,
+          clipPath: `inset(${reveal}% 0 0 0 round ${Math.round((1 - tIn) * width * 0.06)}px)`,
+        }}>
+        <MediaFill overlay={overlay} kenBurns />
       </AbsoluteFill>
     );
   }

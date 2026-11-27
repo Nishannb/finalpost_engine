@@ -731,6 +731,8 @@ export type VisualOverlay = {
   backdrop?: boolean;
   /** 2026-11-26 (Kinetic split): the asset fills the media half's full WIDTH, uncropped (contain; a photo over a blurred fill of itself). Absent = the old cover crop. */
   fitWidth?: boolean;
+  /** 2026-11-27 (Kinetic B-roll): motion-designed entrance / exit timed inside the window, the asset drawn once and large, no dark caption plate. Absent = as before. */
+  kineticMotion?: boolean;
   cornerRadius?: number;
   glow?: boolean;
   focusRegion?: FocusRegion | null;

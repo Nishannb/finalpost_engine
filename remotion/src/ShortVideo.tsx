@@ -42,7 +42,7 @@ import {graphicsWithComponents} from './generated/loadFold';
 import {useGeneratedGraphicComponents} from './generated/loader';
 import {activeGeneratedSplitAt, captionsForGeneratedSplit} from './generated/placement';
 import {PACKAGE_THEME_DEFAULT_FONT_SIZE, isPackageCaptionThemeId} from './captions/packageThemes';
-import {captionBackingPlate, captionBackingPlateEnabled, captionPlateLineActive, captionPlateLines, captionSplitAt, captionsForBrollSplit, openingHidesCaptions, captionsMutedAt} from './lib/captionSplit';
+import {captionBackingPlate, captionBackingPlateEnabled, captionPlateLineActive, captionPlateLines, captionSplitAt, captionsForBrollSplit, kineticSplitCaptionLayout, openingHidesCaptions, captionsMutedAt} from './lib/captionSplit';
 import {SemanticEmphasisTrack} from './components/SemanticEmphasisTrack';
 import {ImpactFxTrack, ImpactPunch} from './components/ImpactFxTrack';
 import {SmashPunch} from './components/SmashPunch';
@@ -67,7 +67,7 @@ import {
   getInsetState,
 } from './lib/insetRevealMotion';
 import {activeInsetRevealAt} from './components/InsetRevealTrack';
-import {SPLIT_ENTER_SEC, SPLIT_EXIT_SEC, splitExitStartsAt, splitPlaySec} from './lib/splitMotion';
+import {SPLIT_ENTER_SEC, kineticPlateSize, splitPlaySec, splitTiming} from './lib/splitMotion';
 import {compositionFrames, framesBetween, resolveSegments, secToFrame} from './lib/timeline';
 
 const NO_GRAPHICS: GeneratedGraphic[] = [];
@@ -156,15 +156,20 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({blueprint, style}) => {
   const holdSplit =
     legibleCaptions && !split && !generatedSplit && style.brollEnabled
       ? captionSplitAt(
-          overlays.filter(overlay => overlay.layout === 'split' && Boolean(overlay.assetUrl)),
+          // a Kinetic split (kineticMotion) has no held plate: its captions move with the split itself
+          overlays.filter(overlay => overlay.layout === 'split' && Boolean(overlay.assetUrl) && !overlay.kineticMotion),
           frame,
           {holdFrames: legibleCaptions.splitHoldFrames, fps: blueprint.fps, durationFrames: durationInFrames},
         )
       : undefined;
   const captionSplit = split ?? holdSplit;
   const captionSpeakerSide = holdSplit ? (holdSplit.speakerSide === 'top' ? 'top' : 'bottom') : speakerSide;
-  const splitCaptions = legibleCaptions && captionSplit ? captionsForBrollSplit(generatedCaptions.layout, captionSpeakerSide, height) : undefined;
-  const captionLayout = splitCaptions?.layout ?? generatedCaptions.layout;
+  const splitCaptions0 = legibleCaptions && captionSplit ? captionsForBrollSplit(generatedCaptions.layout, captionSpeakerSide, height) : undefined;
+  // 2026-11-27 (owner): during a Kinetic split the captions are the NORMAL captions (the preset's own look, no dark plate, no split colours) and they stay
+  // in the TALKING-HEAD half, low in the frame (the upper half is the asset). The Kinetic type itself is already dropped inside B-roll windows (server).
+  const kineticSplit = Boolean(split?.kineticMotion);
+  const splitCaptions = kineticSplit ? undefined : splitCaptions0;
+  const captionLayout = kineticSplit ? kineticSplitCaptionLayout(generatedCaptions.layout, speakerSide) : (splitCaptions?.layout ?? generatedCaptions.layout);
   const captionBand = blueprint.captionWords.length > 0 ? (splitCaptions?.band ?? generatedCaptions.band) : null;
   const captionTemplateId = style.captionTemplate || blueprint.captionDirection?.template;
   // WP4D (blueprints with `legibility.captions` only): outline-style captions off a split get the same dark band as a split, in the lower half at the caption's bottom edge.
@@ -649,17 +654,18 @@ const SplitStage: React.FC<{
   const {fps} = useVideoConfig();
   const timeSec = frame / fps;
   const local = Math.max(0, timeSec - overlay.start);
+  const timing = splitTiming(overlay);
   const enter = spring({
     frame: Math.round(local * fps),
     fps,
     config: {damping: 22, stiffness: 58, mass: 1.15},
-    durationInFrames: Math.round(SPLIT_ENTER_SEC * fps),
+    durationInFrames: Math.round(timing.enter * fps),
   });
-  const exitAt = splitExitStartsAt(overlay);
+  const exitAt = timing.exitAt;
   const exit =
     local < exitAt
       ? 1
-      : interpolate(local, [exitAt, exitAt + SPLIT_EXIT_SEC], [1, 0], {
+      : interpolate(local, [exitAt, exitAt + timing.exit], [1, 0], {
           easing: Easing.inOut(Easing.cubic),
           extrapolateLeft: 'clamp',
           extrapolateRight: 'clamp',
@@ -772,11 +778,29 @@ const splitVideoStyle: React.CSSProperties = {
  */
 const FitWidthPlate: React.FC<{overlay: VisualOverlay}> = ({overlay}) => {
   const frame = useCurrentFrame();
-  const {fps} = useVideoConfig();
+  const {fps, width, height} = useVideoConfig();
   const startFrame = secToFrame(overlay.start, fps);
   const dur = Math.max(1, framesBetween(overlay.start, overlay.end, fps));
   const push = interpolate(frame - startFrame, [0, dur], [1, 1.04], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   const src = resolveMediaSrc(overlay.assetUrl);
+  if (overlay.kineticMotion) {
+    // 2026-11-27 (owner): the asset ONCE and LARGE in the media half (no blurred copy of itself behind it): as close to filling the half as possible,
+    // cropping at most KINETIC_MAX_CROP off the long side (a landscape photo loses a little of its sides, never its middle); the few pixels left are a
+    // quiet dark gradient.
+    const size = kineticPlateSize(overlay.width, overlay.height, width, height * 0.5);
+    const box: React.CSSProperties = {position: 'absolute', left: '50%', top: '50%', width: size.w, height: size.h, objectFit: 'cover', transform: `translate(-50%, -50%) scale(${push})`};
+    return (
+      <AbsoluteFill style={{background: 'linear-gradient(180deg, #1A1C22 0%, #0E0F12 100%)'}}>
+        {overlay.mediaKind === 'video' ? (
+          <Sequence from={startFrame} durationInFrames={dur} layout="none">
+            <OffthreadVideo src={src} muted style={box} />
+          </Sequence>
+        ) : (
+          <Img src={src} style={box} />
+        )}
+      </AbsoluteFill>
+    );
+  }
   const contain: React.CSSProperties = {width: '100%', height: '100%', objectFit: 'contain', transform: `scale(${push})`};
   if (overlay.mediaKind === 'video') {
     return (

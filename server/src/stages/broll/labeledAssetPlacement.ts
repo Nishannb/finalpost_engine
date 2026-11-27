@@ -98,15 +98,15 @@ const overlaps = (a: TimeRange, b: TimeRange) => a.start < b.end && a.end > b.st
 /** WP19: the image_story entrance each kind of upload gets (overlay `recipeId` and ImageRun item `recipeId`). */
 export const RECIPE_BY_KIND: Readonly<Record<LabeledAssetKind, string | undefined>> = {logo: 'logo_slam', person: 'still_push_in', screenshot: 'card_tilt_in', product: 'sticker_pop', broll_clip: undefined, other: 'nested_scale_in'};
 
-type Host = {layout: VisualOverlay['layout']; anchor: VisualAnchor; weight: 'accent' | 'hero'; radius: number; backdrop?: boolean; split?: boolean};
+type Host = {layout: VisualOverlay['layout']; anchor: VisualAnchor; weight: 'accent' | 'hero'; radius: number; backdrop?: boolean; split?: boolean; kinetic?: boolean};
 
 function hostFor(kind: LabeledAssetKind, mediaKind: 'image' | 'video', fullFrameStills = false, asset?: ResolvedLabeledAsset): Host {
   // Kinetic (2026-11-26, owner direction): a vertical asset (photo or clip) IS the frame (full-frame cutaway); anything else is a split screen, the asset in the
   // top half across the full width (never cropped, never a small card), the presenter in the bottom half, and the presenter takes the frame back after.
   if (fullFrameStills && asset) {
     return isVerticalAsset(asset)
-      ? {layout: 'cutaway', anchor: 'top', weight: 'hero', radius: 0}
-      : {layout: 'split', anchor: 'top', weight: 'hero', radius: 0, split: true};
+      ? {layout: 'cutaway', anchor: 'top', weight: 'hero', radius: 0, kinetic: true}
+      : {layout: 'split', anchor: 'top', weight: 'hero', radius: 0, split: true, kinetic: true};
   }
   if (kind === 'logo') return {layout: 'pip', anchor: 'top_right', weight: 'accent', radius: 18};
   if (kind === 'person') return {layout: 'card', anchor: 'top_right', weight: 'accent', radius: 28};
@@ -148,6 +148,7 @@ function baseOverlay(slot: LabeledAssetSlot, asset: ResolvedLabeledAsset, range:
     glow: false,
     ...(host.backdrop ? {backdrop: true} : {}),
     ...(host.split ? {speakerSide: 'bottom' as const, fitWidth: true} : {}),
+    ...(host.kinetic ? {kineticMotion: true} : {}),
     visualWeight: host.weight,
     ...(RECIPE_BY_KIND[slot.kind] && asset.mediaKind === 'image' ? {recipeId: RECIPE_BY_KIND[slot.kind]} : {}),
     intent: `labeled_asset:${slot.kind}:${slot.id}`,

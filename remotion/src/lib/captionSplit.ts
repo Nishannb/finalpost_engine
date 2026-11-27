@@ -184,3 +184,19 @@ export function openingHidesCaptions(opening: {startSec?: number; durationSec: n
 export function captionsMutedAt(ranges: ReadonlyArray<{startSec: number; endSec: number}> | null | undefined, timeSec: number): boolean {
   return (ranges ?? []).some(range => timeSec >= range.startSec && timeSec < range.endSec);
 }
+
+/**
+ * 2026-11-27 (Kinetic split, owner): the normal captions stay in the TALKING-HEAD half, never over the asset. Speaker below the seam = the top
+ * of the lower half, just under the seam and above the head; speaker above = the bottom of the upper half. Pure.
+ */
+/** the caption band of a Kinetic split with the speaker below: just under the seam (0.5), above the speaker's head */
+export const KINETIC_SPLIT_CAPTION_BAND = {top: 0.52, height: 0.14} as const;
+export function kineticSplitCaptionLayout<T extends CaptionPlacement>(layout: T, speakerSide: 'top' | 'bottom'): T {
+  if (speakerSide === 'top') {
+    return {...layout, position: 'bottom', bottomFrac: PLATE_CAPTION_BOTTOM_FRAC, frameTopFrac: 0, frameHeightFrac: SPLIT_SEAM_FRAC};
+  }
+  // the split frames the speaker's head inside the lower half, so the face fills it: the open band is just BELOW the seam, above the head (rendered check
+  // 2026-11-27: a caption 14% from the bottom sat on the eyes, and the caption renderer clamps bottomFrac to <= 0.22-0.34). So the caption FRAME is that band
+  // (clear of the seam feather) and the caption is centred in it.
+  return {...layout, position: 'center', frameTopFrac: KINETIC_SPLIT_CAPTION_BAND.top, frameHeightFrac: KINETIC_SPLIT_CAPTION_BAND.height};
+}

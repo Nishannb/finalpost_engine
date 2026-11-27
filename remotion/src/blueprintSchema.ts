@@ -431,6 +431,8 @@ export const visualOverlaySchema = z.object({
   backdrop: z.boolean().optional(),
   /** 2026-11-26 (Kinetic split): the asset fills the media half's full width, uncropped (contain; a photo over a blurred fill of itself). Absent = the old cover crop. */
   fitWidth: z.boolean().optional(),
+  /** 2026-11-27 (Kinetic B-roll): motion-designed entrance / exit timed INSIDE the window (split seam / cutaway push), the asset drawn once and large (no blurred copy), no dark caption plate. Absent = as before. */
+  kineticMotion: z.boolean().optional(),
   focusRegion: z
     .object({
       x: z.number(),
