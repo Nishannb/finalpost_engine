@@ -28,6 +28,8 @@ export const SUPPORT_OCC_MAX = 0.05;
 export const STACK_BEHIND_OCC_MAX = 0.5;
 export const lineLayerOf = (ev: Pick<RenderEvent, 'layering'>, line: {layer?: 'front' | 'behind' | undefined}): 'front' | 'behind' => line.layer ?? ev.layering;
 export const FORCE_FRONT_ALPHA_AREA = 0.55;
+/** 2026-11-27: the Composer's behind words are placed by measured occlusion (giantBehind), so it only refuses a speaker filling more than this (no room above the head) */
+export const COMPOSER_BEHIND_MAX_AREA = 0.8;
 export const FORCE_FRONT_BOX_OVERLAP = 0.7;
 /**
  * Phase 5.12 (G1-a): the CATEGORICAL behind-the-person eligibility of a shot, i.e. the scene-level part of the solver's own tests (playbook `behindFree` / `stackFree`: `!noMatte &&
@@ -153,6 +155,8 @@ export const heroReadable = (occ: {mean: number; max: number}, edge: {left: numb
   occ.max <= HERO_OCC_HARD_MAX && occ.mean <= HERO_OCC_MAX_TARGET && occ.mean >= HERO_OCC_MIN && edge.left <= HERO_EDGE_OCC_MAX && edge.right <= HERO_EDGE_OCC_MAX;
 
 export type VerifyContext = {
+  /** largest speaker area (0..1) at which a behind event is legal; default FORCE_FRONT_ALPHA_AREA (the Composer passes COMPOSER_BEHIND_MAX_AREA) */
+  behindMaxArea?: number;
   scenes: Record<string, ShotScene>;
   depth: DepthProvider;
   shots: KineticShot[];
@@ -185,7 +189,8 @@ export function verifyRenderSpec(spec: RenderSpec, ctx: VerifyContext): Violatio
     // --- matte
     if (scene?.noMatte && ev.layering === 'behind') out.push({eventId: ev.id, rule: 'no-matte-behind', detail: 'behind text without a matte'});
     if (scene && ev.layering === 'behind') {
-      if (scene.alphaAreaFrac > FORCE_FRONT_ALPHA_AREA) out.push({eventId: ev.id, rule: 'force-front-area', detail: `alpha area ${scene.alphaAreaFrac.toFixed(2)} > ${FORCE_FRONT_ALPHA_AREA}`});
+      const areaMax = ctx.behindMaxArea ?? FORCE_FRONT_ALPHA_AREA;
+      if (scene.alphaAreaFrac > areaMax) out.push({eventId: ev.id, rule: 'force-front-area', detail: `alpha area ${scene.alphaAreaFrac.toFixed(2)} > ${areaMax}`});
       const occ = lineOcclusions(ev, scene, ctx.depth, spec.width, spec.height);
       const edges = lineEdgeOcclusions(ev, scene, ctx.depth, spec.width, spec.height);
       ev.lines.forEach((l, i) => {

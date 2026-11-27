@@ -13,7 +13,7 @@ import {solveLayout} from '../layout.ts';
 import {directorMatchCut, matchCutBudget, MATCH_CUT_GAP_SEC, planMatchCuts} from '../matchCut.ts';
 import {identityToBrand, type KineticIdentity} from '../presetIdentity.ts';
 import {buildScene, type AlphaGrid, type Box, type ShotScene} from '../scene.ts';
-import {sceneBehindEligibility} from '../guardrails.ts';
+import {COMPOSER_BEHIND_MAX_AREA, sceneBehindEligibility} from '../guardrails.ts';
 import {brandConfigSchema, renderSpecSchema, type KineticShot, type KineticWord, type RenderEvent, type RenderSpec, type SceneElement} from '../schema.ts';
 import {DEFAULT_OBSERVATION_BUDGET, resolveSpeakerGeometry} from '../speakerGeometry.ts';
 import type {SpeakerBoxSource} from '../speakerBox.ts';
@@ -182,6 +182,10 @@ export function planWindows(beats: readonly Beat[], designed: boolean[], fps: nu
   return beats.map(b => ({inFrame: b.startFrame, outFrame: b.endFrame}));
 }
 
+/** seconds without a behind word after which a designed beat tries behind first */
+export const BEHIND_DUE_SEC = 12;
+export const BEHIND_DUE_MIN_INTENSITY = 0.35;
+
 export async function composeKinetic(input: ComposerInput): Promise<ComposerResult> {
   const notes: string[] = [];
   const empty = (failure: string): ComposerResult => ({spec: null, zoomTriggers: [], report: {ok: false, failure, direction: {source: 'deterministic', tone: 'educational', energy: 0, toolkit: [], designedShare: 0, plateRate: 0, seed: 0}, beats: [], metrics: null, violations: [], repairs: 0, zooms: {added: 0, keptExisting: 0, total: 0}, matchCut: {planned: 0, kept: 0}, coverage: {words: 0, drawn: 0, voiced: 0}, speakerBox: {measured: false, note: 'none'}, notes}});
@@ -244,8 +248,12 @@ export async function composeKinetic(input: ComposerInput): Promise<ComposerResu
       // the brightest cells matter most for white text: weight the max
       return n ? 0.5 * (sum / n) + 0.5 * max : scene.luminance;
     };
-    const behindOk = !scene.noMatte && sceneBehindEligibility(scene).eligible;
-    if (input.matte && !behindOk) notes.push(scene.noMatte ? 'matte_unused:no_measured_box_or_empty_grid' : 'matte_unused:speaker_fills_frame');
+    // 2026-11-27 (owner: "text behind whenever possible"): the Composer's behind placement (giantBehind) is measured word by word against the real matte (<= 26% covered,
+    // first / last letters <= 20%, else the front placement runs), so the legacy whole-frame gate (person > 55% of the frame = never behind) only switched it off for every
+    // close-up selfie. Only a speaker filling more than COMPOSER_BEHIND_MAX_AREA of the frame (no room above the head) is refused up front.
+    const behindOk = !scene.noMatte && scene.alphaAreaFrac <= COMPOSER_BEHIND_MAX_AREA;
+    if (input.matte && !behindOk) notes.push(scene.noMatte ? 'matte_unused:no_measured_box_or_empty_grid' : `matte_unused:speaker_fills_frame:${scene.alphaAreaFrac.toFixed(2)}`);
+    else if (input.matte && !sceneBehindEligibility(scene).eligible) notes.push(`matte_close_up:${scene.alphaAreaFrac.toFixed(2)}`);
     const ctx: ComposeCtx = {W, H, fps, safe, scene, words, voice, direction, durationFrames, lumAt, behindOk};
 
     // V1 Match Cut: the existing planner + solver; its window is reserved (it owns the frame, its words are voiced)
@@ -303,6 +311,9 @@ export async function composeKinetic(input: ComposerInput): Promise<ComposerResu
     /** beats whose behind-the-speaker placement the verifier refused (they go back to the front) */
     const noBehind = new Set<number>();
     const BEHIND_SPACING = Math.round(6 * fps);
+    /** no behind word for this long: the next designed beat with a usable key word tries behind first (the verifier still decides) */
+    const BEHIND_DUE = Math.round(BEHIND_DUE_SEC * fps);
+    const behindDue = (b: Beat): boolean => b.intensity >= BEHIND_DUE_MIN_INTENSITY && behindAt().every(f => b.startFrame - f >= BEHIND_DUE || f > b.startFrame);
     const behindAt = (): number[] => built.flatMap((x, j) => (x?.b.notes.includes('behind') ? [beats[j]!.startFrame] : []));
     const solveBeat = (i: number): void => {
       const b = beats[i]!;
@@ -312,7 +323,7 @@ export async function composeKinetic(input: ComposerInput): Promise<ComposerResu
       if (designed[i]) {
         const ranked = rankCandidates(b, beats[i - 1], direction, hist, (() => { let s = (direction.seed ^ (i * 2654435761)) >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; })(), fps);
         // a beat the Director picked for text-behind tries the behind-capable compositions first (only when a matte makes behind possible at all)
-        const wantsBehind = ctx.behindOk && aiBehind.has(b.id) && !noBehind.has(i);
+        const wantsBehind = ctx.behindOk && (aiBehind.has(b.id) || behindDue(b)) && !noBehind.has(i);
         // never the same treatment as the designed beat right before / after (a repair re-solves out of order, so the history alone cannot see the neighbours); lists repeat by design
         const neighbour = (j: number) => { const x = built[j]; return x && x.comp !== 'captionLane' && x.comp !== 'listItem' ? x.comp : null; };
         const nPrev = neighbour(i - 1), nNext = neighbour(i + 1);
@@ -328,7 +339,7 @@ export async function composeKinetic(input: ComposerInput): Promise<ComposerResu
           if (!tried[i]!.includes(c)) tried[i]!.push(c);
           const v0 = variants.get(c)!;
           // behind the speaker: a high-impact giant word, with a matte, spaced (the verifier still judges every placement against the matte)
-          const behind = ctx.behindOk && (c === 'giantWord' || c === 'heroStack') && !noBehind.has(i) && (b.intensity >= 0.6 || aiBehind.has(b.id)) && behindAt().every(f => Math.abs(f - b.startFrame) >= BEHIND_SPACING);
+          const behind = ctx.behindOk && (c === 'giantWord' || c === 'heroStack') && !noBehind.has(i) && (b.intensity >= 0.6 || aiBehind.has(b.id) || behindDue(b)) && behindAt().every(f => Math.abs(f - b.startFrame) >= BEHIND_SPACING);
           const variant = behind ? {...v0, behind: true} : v0;
           // the variant's region first, then every other region this composition may use (a small band above the head must not end the search)
           for (const zone of [...new Set([variant.zone, ...DEFAULT_ZONES[c]])]) {

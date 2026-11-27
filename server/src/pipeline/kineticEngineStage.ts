@@ -239,7 +239,7 @@ export async function runKineticEngineStage(input: KineticEngineInput): Promise<
           `kinetic_composer:zooms:+${composed.report.zooms.added}/${composed.report.zooms.total}`, `kinetic_composer:coverage:${composed.report.coverage.drawn}/${composed.report.coverage.words}`,
           ...(composed.report.matchCut.kept ? [`kinetic_composer:match_cut:${composed.report.matchCut.kept}`] : []),
           // the AI's text-behind / match-cut suggestions and what the engine did with them, and the coverage splits (auditable per edit)
-          ...composed.report.notes.filter(n => /^(match_cut:|behind:ai|coverage_)/.test(n)).map(n => `kinetic_composer:${n.slice(0, 140)}`),
+          ...composed.report.notes.filter(n => /^(match_cut:|behind:ai|coverage_|matte_unused|matte_close_up|colour:)/.test(n)).map(n => `kinetic_composer:${n.slice(0, 140)}`),
           ...(composed.report.motion ? [`kinetic_composer:motion:enter=${composed.report.motion.enterDistinct},exit=${composed.report.motion.exitDistinct},flips=${composed.report.motion.dirFlips},angled=${composed.report.motion.angled},behind=${composed.report.motion.behind}`] : []));
         return {spec: composed.spec, report: null, warnings, composer: {report: composed.report, zoomTriggers: composed.zoomTriggers}};
       }

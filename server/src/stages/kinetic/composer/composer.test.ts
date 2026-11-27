@@ -250,6 +250,14 @@ describe('Kinetic Composer: craft rules (backed text, contrast, motion)', () => 
     expect(verifyComposed(r.spec!, r.debug!.scene, [{id: 'shot-0', startFrame: 0, endFrame: r.spec!.durationInFrames}])).toEqual([]);
     const front = await composeKinetic(input(talk(hype)));
     expect(front.spec!.events.every(e => e.layering === 'front')).toBe(true);
+    // 2026-11-27: a close-up selfie (speaker ~62% of the frame) still gets text behind the head: the measured placement decides, not the old 55% whole-frame gate
+    const close = await composeKinetic({...input(talk(hype)), matte: {grid, alphaAreaFrac: 0.62}});
+    expect(close.report.motion!.behind).toBeGreaterThanOrEqual(1);
+    expect(verifyComposed(close.spec!, close.debug!.scene, [{id: 'shot-0', startFrame: 0, endFrame: close.spec!.durationInFrames}])).toEqual([]);
+    // a speaker filling the frame (no room above the head) stays front-only, and says why
+    const full = await composeKinetic({...input(talk(hype)), matte: {grid, alphaAreaFrac: 0.85}});
+    expect(full.spec!.events.every(e => e.layering === 'front')).toBe(true);
+    expect(full.report.notes.some(n => n.startsWith('matte_unused:speaker_fills_frame'))).toBe(true);
   });
 });
 

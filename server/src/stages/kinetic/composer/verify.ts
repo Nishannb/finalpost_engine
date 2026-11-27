@@ -9,7 +9,7 @@
 import {shortsSafeRect} from '../../broll/heroSweep.ts';
 import {SubjectBandDepth} from '../depth.ts';
 import {interpolateKeyframes, restingRange} from '../geometry.ts';
-import {verifyRenderSpec, type Violation} from '../guardrails.ts';
+import {COMPOSER_BEHIND_MAX_AREA, verifyRenderSpec, type Violation} from '../guardrails.ts';
 import {HERO_FLOOR_FRAC, SUPPORT_FLOOR_FRAC} from '../motion.ts';
 import {boxAt, type ShotScene} from '../scene.ts';
 import type {KineticShot, RenderSpec, SceneElement} from '../schema.ts';
@@ -35,7 +35,7 @@ export function verifyComposed(spec: RenderSpec, scene: ShotScene, shots: Kineti
   const out: Violation[] = [];
   const scenes = {[scene.shotId]: scene};
   const regular = spec.events.filter(e => !isTakeover(e));
-  for (const v of verifyRenderSpec({...spec, events: regular}, {scenes, depth: new SubjectBandDepth(), shots})) {
+  for (const v of verifyRenderSpec({...spec, events: regular}, {scenes, depth: new SubjectBandDepth(), shots, behindMaxArea: COMPOSER_BEHIND_MAX_AREA})) {
     if (v.rule === 'contrast') {
       const ev = spec.events.find(e => e.id === v.eventId);
       const m = /^"(.*)" </.exec(v.detail);
