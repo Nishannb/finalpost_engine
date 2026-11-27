@@ -33,18 +33,6 @@ export function splitTiming(overlay: VisualOverlay): {enter: number; exitAt: num
   return {enter, exitAt: Math.max(enter, dur - exit), exit};
 }
 
-/** at most this share of the asset's long side is cropped to fill the media half */
-export const KINETIC_MAX_CROP = 0.28;
-
-/** Drawn size of a Kinetic split asset in a `boxW` x `boxH` half: cover, unless that would crop more than KINETIC_MAX_CROP; then the largest size that crops exactly that much. */
-export function kineticPlateSize(assetW: number | undefined, assetH: number | undefined, boxW: number, boxH: number): {w: number; h: number} {
-  const w = assetW && assetW > 0 ? assetW : 16;
-  const h = assetH && assetH > 0 ? assetH : 9;
-  const contain = Math.min(boxW / w, boxH / h);
-  const cover = Math.max(boxW / w, boxH / h);
-  const scale = Math.min(cover, contain / (1 - KINETIC_MAX_CROP));
-  return {w: Math.round(w * scale), h: Math.round(h * scale)};
-}
 
 /**
  * 2026-11-28 (owner): every Kinetic split (`kineticMotion`, or the 11-26 `fitWidth` split that predates the flag) draws its asset once and sharp, never over a
@@ -71,4 +59,29 @@ export function kineticSplitSpeakerPosition(headTopFrac: number, height: number)
   const offset = headTopFrac * height - (KINETIC_SPLIT_HEAD_TARGET_FRAC * height - bottomTop);
   const p = Math.min(1, Math.max(0, offset / travel));
   return `50% ${Math.round(p * 10000) / 100}%`;
+}
+
+/**
+ * 2026-11-28 (owner): a creator asset is ALWAYS shown whole: contain, never cover. The earlier plate (kineticPlateSize: up to 28% of the long side cropped,
+ * plus a 1.00 -> 1.04 push) and the cover cutaway (plus a 1.00 -> 1.08 Ken Burns) cut the edges of screenshots and photos. Pure.
+ */
+export function kineticFitSize(assetW: number | undefined, assetH: number | undefined, boxW: number, boxH: number): {w: number; h: number} {
+  const w = assetW && assetW > 0 ? assetW : 16;
+  const h = assetH && assetH > 0 ? assetH : 9;
+  const scale = Math.min(boxW / w, boxH / h);
+  return {w: Math.floor(w * scale), h: Math.floor(h * scale)};
+}
+
+/** Settle-in motion that never exceeds the fitted size (so nothing is ever cropped): 0.97 -> 1.00 over the first 60% of the window, then held. */
+export const KINETIC_FIT_SETTLE_FROM = 0.97;
+export function kineticFitScale(localFrame: number, durationFrames: number): number {
+  const t = Math.min(1, Math.max(0, localFrame / Math.max(1, durationFrames * 0.6)));
+  const eased = 1 - Math.pow(1 - t, 3);
+  return KINETIC_FIT_SETTLE_FROM + (1 - KINETIC_FIT_SETTLE_FROM) * eased;
+}
+
+/** The media half's safe box for a split (speaker below): the top half minus the seam feather, so the asset's lower edge is never faded by the seam mask. */
+export function kineticSplitMediaBox(width: number, height: number): {w: number; h: number} {
+  const feather = Math.max(40, height * 0.075);
+  return {w: width, h: Math.round(height * 0.5 + feather * 0.55 - feather)};
 }

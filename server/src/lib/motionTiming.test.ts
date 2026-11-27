@@ -1,5 +1,5 @@
 import {kineticSplitCaptionLayout} from '../../../remotion/src/lib/captionSplit.ts';
-import {KINETIC_MAX_CROP, SPLIT_ENTER_SEC, SPLIT_EXIT_SEC, kineticPlateSize, splitExitStartsAt, splitTiming} from '../../../remotion/src/lib/splitMotion.ts';
+import {KINETIC_FIT_SETTLE_FROM, SPLIT_ENTER_SEC, SPLIT_EXIT_SEC, kineticFitScale, kineticFitSize, kineticSplitMediaBox, splitExitStartsAt, splitTiming} from '../../../remotion/src/lib/splitMotion.ts';
 import {describe, expect, it} from 'vitest';
 
 import {
@@ -68,11 +68,28 @@ describe('2026-11-27 Kinetic B-roll split: motion fits the window, asset drawn l
     expect([t.enter, t.exit]).toEqual([SPLIT_ENTER_SEC, SPLIT_EXIT_SEC]);
     expect(t.exitAt).toBe(splitExitStartsAt(ov(4, 6.5)));
   });
-  it('a landscape asset covers most of the 1080x960 half, cropping at most KINETIC_MAX_CROP of its width', () => {
-    const s = kineticPlateSize(1600, 900, 1080, 960);
-    expect(s.h / 960).toBeGreaterThan(0.8);
-    expect(1 - 1080 / s.w).toBeLessThanOrEqual(KINETIC_MAX_CROP + 1e-3);
-    expect(kineticPlateSize(1000, 900, 1080, 960)).toEqual({w: 1080, h: 972}); // near the half's shape: plain cover
+  it('2026-11-28: a creator asset is shown WHOLE (contain, never cropped), as large as the box allows', () => {
+    // landscape 16:9 in the 1080 x 960 half: full width, nothing cut
+    expect(kineticFitSize(1600, 900, 1080, 960)).toEqual({w: 1080, h: 607});
+    // 4:3 that is taller than the half allows at full width: fits the height, still whole
+    expect(kineticFitSize(1080, 1000, 1080, 960)).toEqual({w: 1036, h: 960});
+    // portrait 3:4 full frame (1080 x 1920): full width, bands above / below, no crop
+    expect(kineticFitSize(3024, 4032, 1080, 1920)).toEqual({w: 1080, h: 1440});
+    // a phone screenshot taller than 9:16: fits the height
+    const tall = kineticFitSize(1179, 2556, 1080, 1920);
+    expect(tall.h).toBe(1920);
+    expect(tall.w).toBeLessThanOrEqual(1080);
+  });
+  it('2026-11-28: the settle-in never grows past the fitted size (so it never crops), and the split box stays clear of the seam fade', () => {
+    for (const f of [0, 5, 30, 90, 300]) {
+      const s = kineticFitScale(f, 90);
+      expect(s).toBeGreaterThanOrEqual(KINETIC_FIT_SETTLE_FROM);
+      expect(s).toBeLessThanOrEqual(1);
+    }
+    expect(kineticFitScale(90, 90)).toBe(1);
+    const box = kineticSplitMediaBox(1080, 1920);
+    expect(box.w).toBe(1080);
+    expect(box.h).toBeLessThan(960);
   });
 });
 

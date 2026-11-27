@@ -67,7 +67,7 @@ import {
   getInsetState,
 } from './lib/insetRevealMotion';
 import {activeInsetRevealAt} from './components/InsetRevealTrack';
-import {SPLIT_ENTER_SEC, isKineticSplitOverlay, kineticPlateSize, kineticSplitSpeakerPosition, splitPlaySec, splitTiming} from './lib/splitMotion';
+import {SPLIT_ENTER_SEC, isKineticSplitOverlay, kineticFitScale, kineticFitSize, kineticSplitMediaBox, kineticSplitSpeakerPosition, splitPlaySec, splitTiming} from './lib/splitMotion';
 import {compositionFrames, framesBetween, resolveSegments, secToFrame} from './lib/timeline';
 
 const NO_GRAPHICS: GeneratedGraphic[] = [];
@@ -788,13 +788,13 @@ const FitWidthPlate: React.FC<{overlay: VisualOverlay}> = ({overlay}) => {
   const {fps, width, height} = useVideoConfig();
   const startFrame = secToFrame(overlay.start, fps);
   const dur = Math.max(1, framesBetween(overlay.start, overlay.end, fps));
-  const push = interpolate(frame - startFrame, [0, dur], [1, 1.04], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   const src = resolveMediaSrc(overlay.assetUrl);
-  // 2026-11-28: every fitWidth split (also the 11-26 ones without kineticMotion) draws the asset once; the blurred-copy plate is gone (owner: a blurred asset is useless).
-  // 2026-11-27 (owner): the asset ONCE and LARGE in the media half: as close to filling the half as possible, cropping at most KINETIC_MAX_CROP off the long
-  // side (a landscape photo loses a little of its sides, never its middle); the few pixels left are a quiet dark gradient.
-  const size = kineticPlateSize(overlay.width, overlay.height, width, height * 0.5);
-  const box: React.CSSProperties = {position: 'absolute', left: '50%', top: '50%', width: size.w, height: size.h, objectFit: 'cover', transform: `translate(-50%, -50%) scale(${push})`};
+  // 2026-11-28 (owner): the asset WHOLE, never cropped: contained in the media half's safe box (above the seam feather), as large as it fits; the space left
+  // is a quiet dark gradient (never a blurred copy). The settle-in only ever grows TO the fitted size, never past it.
+  const area = kineticSplitMediaBox(width, height);
+  const size = kineticFitSize(overlay.width, overlay.height, area.w, area.h);
+  const scale = kineticFitScale(frame - startFrame, dur);
+  const box: React.CSSProperties = {position: 'absolute', left: (width - size.w) / 2, top: (area.h - size.h) / 2, width: size.w, height: size.h, objectFit: 'contain', transform: `scale(${scale})`};
   return (
     <AbsoluteFill style={{background: 'linear-gradient(180deg, #1A1C22 0%, #0E0F12 100%)'}}>
       {overlay.mediaKind === 'video' ? (

@@ -24,6 +24,7 @@ import type {
 } from '../blueprintSchema';
 import {MediaCardView} from './MediaCardTrack';
 import {resolveMediaSrc} from '../lib/mediaSrc';
+import {kineticFitScale, kineticFitSize} from '../lib/splitMotion';
 import {framesBetween, secToFrame} from '../lib/timeline';
 import {fontFamilyFor, fontWeightFor} from '../styles/fonts';
 
@@ -175,7 +176,7 @@ const OverlayView: React.FC<{
           transform: `translateY(${(1 - tIn) * height * 0.06 - tOut * height * 0.08}px) scale(${1.08 - 0.08 * tIn + 0.06 * tOut})`,
           clipPath: `inset(${reveal}% 0 0 0 round ${Math.round((1 - tIn) * width * 0.06)}px)`,
         }}>
-        <MediaFill overlay={overlay} kenBurns />
+        <MediaFit overlay={overlay} />
       </AbsoluteFill>
     );
   }
@@ -479,6 +480,29 @@ function stackLines(text: string): string[] {
     words.slice(third * 2).join(' '),
   ];
 }
+
+/**
+ * 2026-11-28 (owner): a Kinetic full-frame asset shown WHOLE (contain, never cover / Ken Burns: those cut the sides of portrait photos and screenshots).
+ * As large as the frame allows; any space left is a quiet dark gradient, never a blurred copy. The settle-in only grows TO the fitted size.
+ */
+const MediaFit: React.FC<{overlay: VisualOverlay}> = ({overlay}) => {
+  const frame = useCurrentFrame();
+  const {durationInFrames, width, height} = useVideoConfig();
+  if (!overlay.assetUrl) {
+    return <AbsoluteFill style={{backgroundColor: '#111'}} />;
+  }
+  const size = kineticFitSize(overlay.width, overlay.height, width, height);
+  const style: React.CSSProperties = {position: 'absolute', left: (width - size.w) / 2, top: (height - size.h) / 2, width: size.w, height: size.h, objectFit: 'contain', transform: `scale(${kineticFitScale(frame, durationInFrames)})`};
+  return (
+    <AbsoluteFill style={{background: 'linear-gradient(180deg, #1A1C22 0%, #0E0F12 100%)'}}>
+      {overlay.mediaKind === 'video' ? (
+        <OffthreadVideo src={resolveMediaSrc(overlay.assetUrl)} muted style={style} />
+      ) : (
+        <Img src={resolveMediaSrc(overlay.assetUrl)} style={style} />
+      )}
+    </AbsoluteFill>
+  );
+};
 
 const MediaFill: React.FC<{
   overlay: VisualOverlay;
